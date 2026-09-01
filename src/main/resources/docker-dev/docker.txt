@@ -1,0 +1,21 @@
+docker run -d \
+  --name roamly-sql-dev \
+  --restart unless-stopped \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=123456 \
+  -e MYSQL_DATABASE=roamly \
+  -e TZ=Asia/Shanghai \
+  -v roamly-sql-dev-data:/var/lib/mysql \
+  docker.xuanyuan.run/library/mysql:8.0.46-oraclelinux9 \
+  --character-set-server=utf8mb4 \
+  --collation-server=utf8mb4_unicode_ci
+
+docker run -d \
+  --name roamly-redis-dev \
+  --restart unless-stopped \
+  -p 6379:6379 \
+  -e TZ=Asia/Shanghai \
+  -v roamly-redis-dev-data:/data \
+  docker.xuanyuan.run/library/redis:7.4.10-bookworm \
+  redis-server \
+  --appendonly yes

@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  sql:
+    init:
+      mode: ${SPRING_SQL_INIT_MODE:always}
+      schema-locations: classpath:schema-init.sql
+      data-locations: classpath:seed-dev.sql
+logging:
+  level:
+    com.ray: DEBUG
