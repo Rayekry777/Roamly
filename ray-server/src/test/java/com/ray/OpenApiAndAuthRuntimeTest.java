@@ -92,12 +92,19 @@ class OpenApiAndAuthRuntimeTest {
                 document.at("/paths/~1v1~1media~1images~1{mediaId}/delete/responses/403").isObject());
         assertTrue(
                 document.at("/paths/~1v1~1media~1images~1{mediaId}/delete/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts/post/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts~1{postId}/put/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts~1{postId}/put/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts~1{postId}/delete/responses/409").isObject());
         java.util.List<String> schemaNames = new ArrayList<>();
         document.at("/components/schemas").properties().forEach(entry -> schemaNames.add(entry.getKey()));
         assertTrue(schemaNames.contains("Result"));
         assertTrue(schemaNames.contains("ErrorResult"));
         assertTrue(schemaNames.contains("PageResult"));
         assertTrue(schemaNames.contains("CursorPageResult"));
+        assertTrue(schemaNames.contains("PostCreateRequest"));
+        assertTrue(schemaNames.contains("PostDetailVO"));
         assertFalse(schemaNames.contains("ApiResponse"));
         assertFalse(schemaNames.contains("ApiErrorResponse"));
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));
@@ -122,6 +129,15 @@ class OpenApiAndAuthRuntimeTest {
                 "DELETE /v1/users/me/section-follows/{sectionId}",
                 "POST /v1/media/images",
                 "DELETE /v1/media/images/{mediaId}",
+                "POST /v1/posts",
+                "GET /v1/posts/{postId}",
+                "PUT /v1/posts/{postId}",
+                "DELETE /v1/posts/{postId}",
+                "GET /v1/users/me/posts",
+                "GET /v1/users/{userId}/posts",
+                "PUT /v1/posts/{postId}/like",
+                "DELETE /v1/posts/{postId}/like",
+                "GET /v1/posts/{postId}/likes",
                 "GET /v1/users/me",
                 "GET /v1/users/{userId}",
                 "GET /v1/users/{userId}/profile",
@@ -175,6 +191,9 @@ class OpenApiAndAuthRuntimeTest {
         assertEquals(
                 HttpStatus.UNAUTHORIZED,
                 exchange("/v1/sections", "Bearer invalid", HttpMethod.GET).getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/posts/1", "Bearer invalid", HttpMethod.GET).getStatusCode());
 
         String first = StpUtil.getStpLogic().createLoginSession(loginId);
         String second = StpUtil.getStpLogic().createLoginSession(loginId);

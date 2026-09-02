@@ -4,7 +4,7 @@
 stage: 3
 updatedAt: 2026-09-02
 status: 已实现
-implementationStatus: 未实现
+implementationStatus: 已实现
 schemaSnapshotStatus: 已实现
 runtimeDatabaseInitialized: 未实现
 ```
@@ -24,7 +24,7 @@ runtimeDatabaseInitialized: 未实现
 
 ## 2. API 冻结
 
-以下接口为阶段 4 的实现契约，当前状态均为“未实现”。
+以下接口是阶段 4 的实现契约。Controller、Service、持久化模型、权限、OpenAPI 和自动测试均已实现；由于运行数据库尚未按 17 表快照重建，阶段 4 整体仍为“开发中”。
 
 | 方法 | 路径 | 鉴权 | operationId | 请求/响应 | 成功状态 |
 |---|---|---|---|---|---:|
@@ -90,6 +90,7 @@ shopVisit=true
 | 404 | `MEDIA_NOT_FOUND` | 媒体不存在 |
 | 409 | `MEDIA_ALREADY_BOUND` | 媒体已被其他业务占用 |
 | 409 | `MEDIA_EXPIRED` | 临时媒体已经过期或删除 |
+| 409 | `POST_STATUS_CONFLICT` | 并发操作期间动态状态发生变化 |
 
 ## 3. 数据库冻结
 
@@ -218,8 +219,8 @@ shopVisit=true
 ### 5.2 明确延后项
 
 - 旧 `images` 只有逗号分隔路径，没有可靠 MIME、文件大小、宽高和所有者校验结果。本阶段不向 `tb_media_asset` 或 `tb_post_media` 写入伪造数据。
-- 阶段 4 实现受控的旧文件探测：成功读取并校验的图片才生成已绑定媒体；缺失或损坏文件进入核对清单，不阻断其他动态。
-- 旧点赞用户关系仅存在 Redis 时，本阶段不伪造 `tb_post_like`。阶段 4 在切换前读取旧集合，按保留的 Post ID 写入事实表并核对计数。
+- 后续在允许重建并具备旧文件目录的隔离环境执行受控旧文件探测：成功读取并校验的图片才生成已绑定媒体；缺失或损坏文件进入核对清单，不阻断其他动态。
+- 旧点赞用户关系仅存在 Redis 时，本阶段不伪造 `tb_post_like`。在旧 Blog 接口停写前读取旧集合，按保留的 Post ID 写入事实表并核对计数。
 - `tb_blog`、`tb_blog_comments` 继续保留，旧接口仍按当前状态运行；阶段 11 完成全栈切换与核对后再退役。
 
 ### 5.3 重建后核对规则

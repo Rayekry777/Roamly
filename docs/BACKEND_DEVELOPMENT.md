@@ -23,6 +23,7 @@ implementationStatus: 未实现
 
 - [阶段 1：城市、官方分区、分区关注与临时媒体契约](./stages/STAGE_01_CITY_SECTION_MEDIA.md)
 - [阶段 3：统一动态、动态媒体、动态点赞与 Blog 转换契约](./stages/STAGE_03_POST_SCHEMA.md)
+- [阶段 4：统一动态、媒体绑定与点赞实现记录](./stages/STAGE_04_POST_IMPLEMENTATION.md)
 
 ## 2. 当前系统基线
 
@@ -45,6 +46,7 @@ implementationStatus: 未实现
 | 用户关注与共同关注 | `/v1/users/**/following**` | 已实现 | 保留并补唯一约束 |
 | 商户与商户分类 | `/v1/shops/**`、`/v1/shop-types` | 已实现 | 保留并扩展聚合能力 |
 | Blog、点赞、关注流 | `/v1/blogs/**`、`/v1/feeds/following` | 已实现 | 迁移至 Post 后废弃 |
+| 统一动态、媒体绑定与点赞 | `/v1/posts/**`、`/v1/users/**/posts` | 已实现 | 小程序切换和运行数据库初始化待完成 |
 | 评论 | 无 HTTP 路由 | 未实现 | 由 PostComment 替代 |
 | 优惠券与秒杀订单 | `/v1/vouchers`、`/v1/seckill-vouchers/**` | 已实现 | 迁移至团购商品和订单 |
 | Blog 图片 | `/v1/blog-images`、`/blogs/**` | 已实现 | 迁移至通用媒体资产 |
@@ -215,15 +217,15 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| POST | `/v1/posts` | 登录 | `PostCreateRequest` | 201 `Result<IdVO>` | 未实现 |
-| GET | `/v1/posts/{postId}` | 可选 | 无 | `Result<PostDetailVO>` | 未实现 |
-| PUT | `/v1/posts/{postId}` | 作者 | `PostUpdateRequest` | `Result<PostDetailVO>` | 未实现 |
-| DELETE | `/v1/posts/{postId}` | 作者 | 无 | 204 | 未实现 |
-| GET | `/v1/users/me/posts` | 登录 | `page,size` | `Result<PageResult<PostCardVO>>` | 未实现 |
-| GET | `/v1/users/{userId}/posts` | 公开 | `page,size` | `Result<PageResult<PostCardVO>>` | 未实现 |
-| PUT | `/v1/posts/{postId}/like` | 登录 | 无 | 204 | 未实现 |
-| DELETE | `/v1/posts/{postId}/like` | 登录 | 无 | 204 | 未实现 |
-| GET | `/v1/posts/{postId}/likes` | 公开 | `page,size` | `Result<PageResult<UserVO>>` | 未实现 |
+| POST | `/v1/posts` | 登录 | `PostCreateRequest` | 201 `Result<IdVO>` | 已实现 |
+| GET | `/v1/posts/{postId}` | 可选 | 无 | `Result<PostDetailVO>` | 已实现 |
+| PUT | `/v1/posts/{postId}` | 作者 | `PostUpdateRequest` | `Result<PostDetailVO>` | 已实现 |
+| DELETE | `/v1/posts/{postId}` | 作者 | 无 | 204 | 已实现 |
+| GET | `/v1/users/me/posts` | 登录 | `page,size` | `Result<PageResult<PostCardVO>>` | 已实现 |
+| GET | `/v1/users/{userId}/posts` | 可选 | `page,size` | `Result<PageResult<PostCardVO>>` | 已实现 |
+| PUT | `/v1/posts/{postId}/like` | 登录 | 无 | 204 | 已实现 |
+| DELETE | `/v1/posts/{postId}/like` | 登录 | 无 | 204 | 已实现 |
+| GET | `/v1/posts/{postId}/likes` | 可选 | `page,size` | `Result<PageResult<UserVO>>` | 已实现 |
 
 `PostCreateRequest`：
 
@@ -337,6 +339,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | `SECTION_NOT_ALLOWED_FOR_SHOP_VISIT` | 400 | 探店选择了不允许探店的分区 |
 | `SHOP_NOT_FOUND` | 404 | 商户不存在或不可用 |
 | `POST_NOT_FOUND` | 404 | 动态不存在或不可见 |
+| `POST_STATUS_CONFLICT` | 409 | 并发操作期间动态状态发生变化 |
 | `COMMENT_NOT_FOUND` | 404 | 评论不存在或不可见 |
 | `REVIEW_ALREADY_EXISTS` | 409 | 用户已点评该商户 |
 | `MEDIA_NOT_FOUND` | 404 | 媒体不存在 |
@@ -588,7 +591,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 1 | 冻结城市、分区、媒体字段并更新 SQL 快照 | OpenAPI、DDL 与种子数据已写入结构/数据真源 | 已实现 |
 | 2 | 实现城市、分区、分区关注、临时媒体 | 后端测试、OpenAPI、文档通过 | 开发中 |
 | 3 | 冻结统一动态、点赞和 Blog 数据转换 | 字段、索引及快照种子映射定稿 | 已实现 |
-| 4 | 实现 Post、媒体绑定、点赞和数据转换 | 新接口可用，重建后的数据核对一致 | 未实现 |
+| 4 | 实现 Post、媒体绑定、点赞和数据转换 | 新接口可用，重建后的数据核对一致 | 开发中 |
 | 5 | 改造小程序导航、首页卡片和发布器 | 五入口、分区标签和统一发布验收 | 未实现 |
 | 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 未实现 |
 | 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 未实现 |
@@ -650,7 +653,8 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 本次新产品设计 | 完成全栈契约基线；各目标能力按阶段状态推进 |
 | 2026-09-02 | 阶段 1 城市、分区与媒体设计 | 字段级 API、4 张新表、2 张现有表调整和种子数据已写入 SQL 快照；未执行数据库初始化 |
 | 2026-09-02 | 阶段 2 后端实现 | 城市、分区、分区关注与临时媒体源码和 OpenAPI 已实现；34 项默认测试及 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库未按新快照重建，阶段保持开发中 |
-| 2026-09-02 | 阶段 3 动态数据契约 | 冻结统一动态、媒体关系、点赞事实和 Blog 转换规则；SQL 快照新增 3 张表并按分区编码转换 4 条开发 Blog；34 项默认测试及编译通过，未执行数据库初始化，Post HTTP 能力仍未实现 |
+| 2026-09-02 | 阶段 3 动态数据契约 | 冻结统一动态、媒体关系、点赞事实和 Blog 转换规则；SQL 快照新增 3 张表并按分区编码转换 4 条开发 Blog；34 项默认测试及编译通过，未执行数据库初始化；HTTP 能力随后由阶段 4 实现 |
+| 2026-09-02 | 阶段 4 Post 后端实现 | 9 个 Post 接口、媒体事务绑定、数据库点赞事实、可选鉴权和 OpenAPI 已实现；43 项默认测试及 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库、旧媒体和旧点赞转换尚未验收，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 

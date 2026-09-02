@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.entity.MediaAsset;
+import com.ray.enums.MediaAssetBoundType;
 import com.ray.enums.MediaAssetStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MediaAssetMapper;
@@ -14,7 +15,10 @@ import com.ray.service.MediaAssetService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.MediaAssetVO;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -120,6 +124,94 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         for (MediaAsset asset : pendingCleanup) {
             if (deletePhysicalQuietly(asset.getStoragePath())) markPhysicalFileDeleted(asset.getId());
         }
+    }
+
+    /** 加锁校验媒体存在性、所有权、临时状态和有效期。 */
+    @Override
+    public List<MediaAsset> lockTemporaryPostImages(Long ownerUserId, List<Long> mediaIds) {
+        if (mediaIds.isEmpty()) return List.of();
+        List<Long> lockOrder = mediaIds.stream().sorted().toList();
+        List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
+                .in("id", lockOrder)
+                .orderByAsc("id")
+                .last("FOR UPDATE"));
+        Map<Long, MediaAsset> byId = new HashMap<>();
+        assets.forEach(asset -> byId.put(asset.getId(), asset));
+        LocalDateTime now = LocalDateTime.now();
+        for (Long mediaId : lockOrder) {
+            MediaAsset asset = byId.get(mediaId);
+            if (asset == null) throw BusinessException.notFound("MEDIA_NOT_FOUND", "媒体资产不存在");
+            if (!ownerUserId.equals(asset.getOwnerUserId())) {
+                throw BusinessException.forbidden("MEDIA_NOT_OWNED", "无权使用该媒体资产");
+            }
+            if (Integer.valueOf(MediaAssetStatus.BOUND.code()).equals(asset.getStatus())) {
+                throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产已绑定其他业务");
+            }
+            if (!Integer.valueOf(MediaAssetStatus.TEMPORARY.code()).equals(asset.getStatus())
+                    || asset.getExpireTime() == null
+                    || !asset.getExpireTime().isAfter(now)) {
+                throw BusinessException.conflict("MEDIA_EXPIRED", "临时媒体已过期或删除");
+            }
+            if (asset.getBoundType() != null || asset.getBoundId() != null) {
+                throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产已绑定其他业务");
+            }
+        }
+        return assets.stream().sorted(Comparator.comparing(MediaAsset::getId)).toList();
+    }
+
+    /** 使用状态条件更新防止媒体在未锁定情况下被重复占用。 */
+    @Override
+    public void bindPostImages(Long ownerUserId, Long postId, List<Long> mediaIds) {
+        if (mediaIds.isEmpty()) return;
+        int affected = baseMapper.update(
+                null,
+                new UpdateWrapper<MediaAsset>()
+                        .in("id", mediaIds)
+                        .eq("owner_user_id", ownerUserId)
+                        .eq("status", MediaAssetStatus.TEMPORARY.code())
+                        .isNull("bound_type")
+                        .isNull("bound_id")
+                        .gt("expire_time", LocalDateTime.now())
+                        .set("status", MediaAssetStatus.BOUND.code())
+                        .set("bound_type", MediaAssetBoundType.POST.code())
+                        .set("bound_id", postId)
+                        .set("expire_time", null));
+        if (affected != mediaIds.size()) {
+            throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产状态已变化，请重新上传");
+        }
+    }
+
+    /** 保留原绑定审计信息，将物理删除放到数据库事务提交之后。 */
+    @Override
+    public void deletePostImages(Long postId, List<Long> mediaIds) {
+        if (mediaIds.isEmpty()) return;
+        List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
+                .in("id", mediaIds)
+                .orderByAsc("id")
+                .last("FOR UPDATE"));
+        if (assets.size() != mediaIds.size()) {
+            throw BusinessException.notFound("MEDIA_NOT_FOUND", "动态媒体资产不存在");
+        }
+        for (MediaAsset asset : assets) {
+            if (!Integer.valueOf(MediaAssetStatus.BOUND.code()).equals(asset.getStatus())
+                    || !Integer.valueOf(MediaAssetBoundType.POST.code()).equals(asset.getBoundType())
+                    || !postId.equals(asset.getBoundId())) {
+                throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产不属于当前动态");
+            }
+        }
+        int affected = baseMapper.update(
+                null,
+                new UpdateWrapper<MediaAsset>()
+                        .in("id", mediaIds)
+                        .eq("status", MediaAssetStatus.BOUND.code())
+                        .eq("bound_type", MediaAssetBoundType.POST.code())
+                        .eq("bound_id", postId)
+                        .set("status", MediaAssetStatus.DELETED.code())
+                        .set("expire_time", LocalDateTime.now()));
+        if (affected != mediaIds.size()) {
+            throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产状态已变化，请重试");
+        }
+        assets.forEach(asset -> deletePhysicalAfterCommit(asset.getStoragePath()));
     }
 
     private MediaAssetVO toView(MediaAsset asset) {

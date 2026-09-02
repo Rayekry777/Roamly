@@ -130,4 +130,30 @@ class MediaAssetServiceImplTest {
         verify(imageStorageService).delete("/blogs/1/2/photo.jpg");
         verify(mapper, times(2)).update(isNull(), any());
     }
+
+    @Test
+    void rejectsExpiredMediaDuringPostBinding() {
+        when(mapper.selectList(any())).thenReturn(List.of(new MediaAsset()
+                .setId(9L)
+                .setOwnerUserId(7L)
+                .setStatus(MediaAssetStatus.TEMPORARY.code())
+                .setExpireTime(LocalDateTime.now().minusSeconds(1))));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.lockTemporaryPostImages(7L, List.of(9L)));
+
+        assertEquals("MEDIA_EXPIRED", exception.code());
+    }
+
+    @Test
+    void requiresEveryMediaRowToChangeWhenBindingPost() {
+        when(mapper.update(isNull(), any())).thenReturn(1);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.bindPostImages(7L, 99L, List.of(8L, 9L)));
+
+        assertEquals("MEDIA_ALREADY_BOUND", exception.code());
+    }
 }

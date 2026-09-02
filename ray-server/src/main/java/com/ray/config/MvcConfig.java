@@ -65,6 +65,10 @@ public class MvcConfig implements WebMvcConfigurer {
 
     static boolean isOptionalAuthentication(String method, String path) {
         return "GET".equals(method)
-                && (path.equals("/v1/sections") || path.matches("/v1/sections/[^/]+"));
+                && (path.equals("/v1/sections")
+                        || path.matches("/v1/sections/[^/]+")
+                        || path.matches("/v1/posts/[^/]+")
+                        || path.matches("/v1/posts/[^/]+/likes")
+                        || path.matches("/v1/users/(?!me/)[^/]+/posts"));
     }
 }
