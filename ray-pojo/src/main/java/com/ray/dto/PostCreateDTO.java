@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /** 创建统一动态的请求。 */
-@Schema(name = "PostCreateRequest", description = "创建普通动态或探店动态")
+@Schema(name = "PostCreateDTO", description = "创建普通动态或探店动态")
 public record PostCreateDTO(
         @Size(max = 120)
                 @Schema(description = "可选标题，空白值按未填写处理", maxLength = 120, example = "周末探店")

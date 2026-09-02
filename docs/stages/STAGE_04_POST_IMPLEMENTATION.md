@@ -17,7 +17,7 @@ legacyLikeConversionStatus: 未实现
 已实现：
 
 - `ContentPost`、`PostMedia`、`PostLike` Entity 与对应 Mapper。
-- `PostCreateRequest`、`PostUpdateRequest` 和动态卡片、详情、媒体、商户摘要 VO。
+- `PostCreateDTO`、`PostUpdateDTO` 和动态卡片、详情、媒体、商户摘要 VO。
 - 普通动态自动绑定 `ROAM_DAILY`，探店动态校验分区和商户。
 - 创建、编辑、删除、用户动态列表、点赞、取消点赞和点赞用户列表。
 - 媒体所有权、状态、有效期、重复绑定和更新移除的事务处理。

@@ -61,6 +61,96 @@ INNER JOIN `tb_content_section` section_data
   END
 ORDER BY b.`id`;
 
+-- 将可解析的旧评论转换为 Threads 式评论关系，保留原评论 ID 和审计时间。
+-- 孤儿回复不会写入新表；真实数据转换前必须先单独导出核对清单。
+INSERT INTO `tb_post_comment`
+  (`id`, `post_id`, `user_id`, `root_id`, `parent_id`, `reply_to_user_id`, `content`,
+   `liked_count`, `reply_count`, `author_replied`, `status`, `create_time`, `update_time`)
+SELECT
+  legacy_comment.`id`,
+  legacy_comment.`blog_id`,
+  legacy_comment.`user_id`,
+  CASE WHEN legacy_comment.`parent_id` = 0 THEN NULL ELSE legacy_comment.`parent_id` END,
+  CASE
+    WHEN legacy_comment.`parent_id` = 0 THEN NULL
+    ELSE COALESCE(NULLIF(legacy_comment.`answer_id`, 0), legacy_comment.`parent_id`)
+  END,
+  CASE WHEN legacy_comment.`parent_id` = 0 THEN NULL ELSE reply_target.`user_id` END,
+  legacy_comment.`content`,
+  COALESCE(legacy_comment.`liked`, 0),
+  CASE
+    WHEN legacy_comment.`parent_id` = 0 THEN (
+      SELECT COUNT(*)
+      FROM `tb_blog_comments` child
+      WHERE child.`blog_id` = legacy_comment.`blog_id`
+        AND child.`parent_id` = legacy_comment.`id`
+        AND COALESCE(child.`status`, 0) = 0
+        AND EXISTS (
+          SELECT 1
+          FROM `tb_blog_comments` child_target
+          WHERE child_target.`blog_id` = child.`blog_id`
+            AND child_target.`id` = COALESCE(NULLIF(child.`answer_id`, 0), child.`parent_id`)
+        )
+    )
+    ELSE 0
+  END,
+  CASE
+    WHEN legacy_comment.`parent_id` = 0 AND EXISTS (
+      SELECT 1
+      FROM `tb_blog_comments` author_reply
+      WHERE author_reply.`blog_id` = legacy_comment.`blog_id`
+        AND author_reply.`parent_id` = legacy_comment.`id`
+        AND author_reply.`user_id` = post_data.`user_id`
+        AND COALESCE(author_reply.`status`, 0) = 0
+        AND EXISTS (
+          SELECT 1
+          FROM `tb_blog_comments` author_reply_target
+          WHERE author_reply_target.`blog_id` = author_reply.`blog_id`
+            AND author_reply_target.`id` = COALESCE(
+              NULLIF(author_reply.`answer_id`, 0),
+              author_reply.`parent_id`
+            )
+        )
+    ) THEN 1
+    ELSE 0
+  END,
+  CASE
+    WHEN COALESCE(legacy_comment.`status`, 0) <> 0
+      OR (legacy_comment.`parent_id` <> 0 AND COALESCE(legacy_root.`status`, 0) <> 0)
+    THEN 2
+    ELSE 0
+  END,
+  legacy_comment.`create_time`,
+  legacy_comment.`update_time`
+FROM `tb_blog_comments` legacy_comment
+INNER JOIN `tb_post` post_data ON post_data.`id` = legacy_comment.`blog_id`
+LEFT JOIN `tb_blog_comments` legacy_root
+  ON legacy_comment.`parent_id` <> 0
+  AND legacy_root.`blog_id` = legacy_comment.`blog_id`
+  AND legacy_root.`id` = legacy_comment.`parent_id`
+  AND legacy_root.`parent_id` = 0
+LEFT JOIN `tb_blog_comments` reply_target
+  ON legacy_comment.`parent_id` <> 0
+  AND reply_target.`blog_id` = legacy_comment.`blog_id`
+  AND reply_target.`id` = COALESCE(NULLIF(legacy_comment.`answer_id`, 0), legacy_comment.`parent_id`)
+WHERE legacy_comment.`parent_id` = 0
+   OR (legacy_root.`id` IS NOT NULL AND reply_target.`id` IS NOT NULL)
+ORDER BY legacy_comment.`id`;
+
+-- 只有存在旧评论事实的动态才按转换结果校正计数，避免用空开发样例覆盖历史聚合值。
+UPDATE `tb_post` AS post_data
+SET `comment_count` = (
+  SELECT COUNT(*)
+  FROM `tb_post_comment` post_comment
+  WHERE post_comment.`post_id` = post_data.`id`
+    AND post_comment.`status` = 0
+)
+WHERE EXISTS (
+  SELECT 1
+  FROM `tb_blog_comments` legacy_comment
+  WHERE legacy_comment.`blog_id` = post_data.`id`
+);
+
 INSERT INTO `tb_shop_type` VALUES (1, '美食', '/types/ms.png', 1, '2021-12-22 20:17:47', '2021-12-23 11:24:31');
 INSERT INTO `tb_shop_type` VALUES (2, 'KTV', '/types/KTV.png', 2, '2021-12-22 20:18:27', '2021-12-23 11:24:31');
 INSERT INTO `tb_shop_type` VALUES (3, '丽人·美发', '/types/lrmf.png', 3, '2021-12-22 20:18:48', '2021-12-23 11:24:31');

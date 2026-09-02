@@ -118,6 +118,40 @@ CREATE TABLE `tb_post_like` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态点赞事实' ROW_FORMAT = Dynamic;
 
 
+DROP TABLE IF EXISTS `tb_post_comment`;
+CREATE TABLE `tb_post_comment` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '评论用户ID，逻辑关联tb_user.id',
+  `root_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '所属根评论ID；根评论为空',
+  `parent_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '直接回复目标评论ID；根评论为空',
+  `reply_to_user_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '被回复用户ID；根评论为空',
+  `content` varchar(1000) NULL DEFAULT NULL COMMENT '评论正文；删除后清空',
+  `liked_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '点赞数量冗余值',
+  `reply_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '有效回复数量；仅根评论使用',
+  `author_replied` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '动态作者是否存在有效回复；仅根评论使用',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态：0正常，1已删除，2审核隐藏',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_comment_post_root_time` (`post_id`, `root_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_comment_root_status_time` (`root_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_comment_parent_status` (`parent_id`, `status`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论与追加回复' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_post_comment_like`;
+CREATE TABLE `tb_post_comment_like` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `comment_id` bigint UNSIGNED NOT NULL COMMENT '评论ID，逻辑关联tb_post_comment.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联tb_user.id',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_comment_like_comment_user` (`comment_id`, `user_id`) USING BTREE,
+  INDEX `idx_comment_like_user_time` (`user_id`, `create_time`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论点赞事实' ROW_FORMAT = Dynamic;
+
+
 DROP TABLE IF EXISTS `tb_blog`;
 CREATE TABLE `tb_blog`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',

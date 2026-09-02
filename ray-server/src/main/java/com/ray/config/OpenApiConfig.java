@@ -110,8 +110,8 @@ public class OpenApiConfig {
     }
 
     private void registerPostSchemas(Components components) {
-        registerSchema(components, "PostCreateRequest", PostCreateDTO.class);
-        registerSchema(components, "PostUpdateRequest", PostUpdateDTO.class);
+        registerSchema(components, "PostCreateDTO", PostCreateDTO.class);
+        registerSchema(components, "PostUpdateDTO", PostUpdateDTO.class);
         registerSchema(components, "PostMediaVO", PostMediaVO.class);
         registerSchema(components, "HighlightCommentVO", HighlightCommentVO.class);
         registerSchema(components, "ShopSummaryVO", ShopSummaryVO.class);

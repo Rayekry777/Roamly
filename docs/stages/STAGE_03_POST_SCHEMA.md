@@ -28,9 +28,9 @@ runtimeDatabaseInitialized: 未实现
 
 | 方法 | 路径 | 鉴权 | operationId | 请求/响应 | 成功状态 |
 |---|---|---|---|---|---:|
-| POST | `/v1/posts` | 登录 | `createPost` | `PostCreateRequest -> Result<IdVO>` | 201 |
+| POST | `/v1/posts` | 登录 | `createPost` | `PostCreateDTO -> Result<IdVO>` | 201 |
 | GET | `/v1/posts/{postId}` | 可选 | `getPost` | `Result<PostDetailVO>` | 200 |
-| PUT | `/v1/posts/{postId}` | 作者 | `updatePost` | `PostUpdateRequest -> Result<PostDetailVO>` | 200 |
+| PUT | `/v1/posts/{postId}` | 作者 | `updatePost` | `PostUpdateDTO -> Result<PostDetailVO>` | 200 |
 | DELETE | `/v1/posts/{postId}` | 作者 | `deletePost` | 无 | 204 |
 | GET | `/v1/users/me/posts` | 登录 | `listMyPosts` | `page,size -> Result<PageResult<PostCardVO>>` | 200 |
 | GET | `/v1/users/{userId}/posts` | 公开 | `listUserPosts` | `page,size -> Result<PageResult<PostCardVO>>` | 200 |
@@ -38,7 +38,7 @@ runtimeDatabaseInitialized: 未实现
 | DELETE | `/v1/posts/{postId}/like` | 登录 | `unlikePost` | 无 | 204 |
 | GET | `/v1/posts/{postId}/likes` | 公开 | `listPostLikes` | `page,size -> Result<PageResult<UserVO>>` | 200 |
 
-### 2.1 `PostCreateRequest`
+### 2.1 `PostCreateDTO`
 
 | 字段 | JSON 类型 | 必填 | 约束 |
 |---|---|---|---|
@@ -64,7 +64,7 @@ shopVisit=true
 → cityCode 始终取商户 cityCode，不接受客户端提交
 ```
 
-`PostUpdateRequest` 与创建字段一致，采用完整替换语义；更新后仍必须满足相同跨字段约束。客户端不能提交作者、城市、计数、状态和审计时间。
+`PostUpdateDTO` 与创建字段一致，采用完整替换语义；更新后仍必须满足相同跨字段约束。客户端不能提交作者、城市、计数、状态和审计时间。
 
 ### 2.2 响应模型边界
 

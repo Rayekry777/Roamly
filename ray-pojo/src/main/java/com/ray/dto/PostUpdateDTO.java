@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /** 完整替换动态可编辑内容的请求。 */
-@Schema(name = "PostUpdateRequest", description = "完整替换动态的可编辑内容")
+@Schema(name = "PostUpdateDTO", description = "完整替换动态的可编辑内容")
 public record PostUpdateDTO(
         @Size(max = 120)
                 @Schema(description = "可选标题，空白值按未填写处理", maxLength = 120, example = "周末探店")

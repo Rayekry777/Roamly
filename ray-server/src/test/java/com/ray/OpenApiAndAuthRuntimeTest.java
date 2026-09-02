@@ -103,8 +103,10 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("ErrorResult"));
         assertTrue(schemaNames.contains("PageResult"));
         assertTrue(schemaNames.contains("CursorPageResult"));
-        assertTrue(schemaNames.contains("PostCreateRequest"));
+        assertTrue(schemaNames.contains("PostCreateDTO"));
         assertTrue(schemaNames.contains("PostDetailVO"));
+        assertFalse(schemaNames.contains("PostCreateRequest"));
+        assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
         assertFalse(schemaNames.contains("ApiErrorResponse"));
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));

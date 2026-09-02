@@ -26,6 +26,7 @@ implementationStatus: 未实现
 - [阶段 4：统一动态、媒体绑定与点赞实现记录](./stages/STAGE_04_POST_IMPLEMENTATION.md)
 - [阶段 5：小程序导航、首页卡片与统一发布实现记录](./stages/STAGE_05_MINIAPP_NAV_HOME_PUBLISH.md)
 - [阶段 6：推荐、关注与分区信息流实现记录](./stages/STAGE_06_POST_FEEDS.md)
+- [阶段 7：Threads 式评论、删除语义与排序契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)
 
 ## 2. 当前系统基线
 
@@ -56,7 +57,7 @@ implementationStatus: 未实现
 
 ### 2.3 当前数据库与迁移风险
 
-- 当前数据库快照有 17 张业务表，结构来源为 `ray-server/src/main/resources/schema-init.sql`。
+- 当前数据库快照有 19 张业务表，结构来源为 `ray-server/src/main/resources/schema-init.sql`。
 - 数据库不使用 Flyway、Liquibase、编号迁移或迁移历史，结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。
 - `schema-init.sql` 含 `DROP TABLE`，只允许用于全新开发数据库，禁止在现有数据库或生产数据库执行。
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) 记录当前 SQL 快照事实；运行中的数据库是否已按快照重建需要单独确认。
@@ -134,7 +135,7 @@ shopVisit = true
 命名约定：
 
 - Entity 使用单数业务名：`ContentSection`、`ContentPost`、`PostComment`。
-- 请求使用“业务动作 + Request”，例如 `PostCreateRequest`。
+- 数据传输对象使用“业务动作 + DTO”，例如 `PostCreateDTO`。
 - 展示模型统一使用 `VO`。
 - 项目响应模型继续使用 `Result` 后缀，避免与依赖的 `ApiResponse` 重名。
 - Controller 使用正常 import 的 Swagger `ApiResponse`、`ApiResponses`，不得写完整限定注解名。
@@ -183,8 +184,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| POST | `/v1/auth/sms-codes` | 公开 | `SmsCodeRequest` | 204 | 已实现 |
-| POST | `/v1/auth/sessions` | 公开 | `LoginRequest` | `Result<AuthTokenVO>` | 已实现 |
+| POST | `/v1/auth/sms-codes` | 公开 | `SmsCodeDTO` | 204 | 已实现 |
+| POST | `/v1/auth/sessions` | 公开 | `LoginDTO` | `Result<AuthTokenVO>` | 已实现 |
 | DELETE | `/v1/auth/session` | 登录 | 无 | 204 | 已实现 |
 | GET | `/v1/users/me` | 登录 | 无 | `Result<UserVO>` | 已实现 |
 | GET | `/v1/users/{userId}` | 公开 | 无 | `Result<UserVO>` | 已实现 |
@@ -224,9 +225,9 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| POST | `/v1/posts` | 登录 | `PostCreateRequest` | 201 `Result<IdVO>` | 已实现 |
+| POST | `/v1/posts` | 登录 | `PostCreateDTO` | 201 `Result<IdVO>` | 已实现 |
 | GET | `/v1/posts/{postId}` | 可选 | 无 | `Result<PostDetailVO>` | 已实现 |
-| PUT | `/v1/posts/{postId}` | 作者 | `PostUpdateRequest` | `Result<PostDetailVO>` | 已实现 |
+| PUT | `/v1/posts/{postId}` | 作者 | `PostUpdateDTO` | `Result<PostDetailVO>` | 已实现 |
 | DELETE | `/v1/posts/{postId}` | 作者 | 无 | 204 | 已实现 |
 | GET | `/v1/users/me/posts` | 登录 | `page,size` | `Result<PageResult<PostCardVO>>` | 已实现 |
 | GET | `/v1/users/{userId}/posts` | 可选 | `page,size` | `Result<PageResult<PostCardVO>>` | 已实现 |
@@ -234,7 +235,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | DELETE | `/v1/posts/{postId}/like` | 登录 | 无 | 204 | 已实现 |
 | GET | `/v1/posts/{postId}/likes` | 可选 | `page,size` | `Result<PageResult<UserVO>>` | 已实现 |
 
-`PostCreateRequest`：
+`PostCreateDTO`：
 
 | 字段 | 类型 | 必填 | 约束 |
 |---|---|---|---|
@@ -245,7 +246,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | `sectionId` | string | 条件必填 | 仅 `shopVisit=true` 时允许且必填 |
 | `shopId` | string | 条件必填 | 仅 `shopVisit=true` 时允许且必填 |
 
-`PostUpdateRequest` 与创建请求字段一致，完整替换可编辑内容；修改时仍重新执行探店、分区、商户和媒体所有权校验。
+`PostUpdateDTO` 与创建 DTO 字段一致，完整替换可编辑内容；修改时仍重新执行探店、分区、商户和媒体所有权校验。
 
 `PostCardVO` 至少包含：
 
@@ -260,18 +261,20 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
 | GET | `/v1/posts/{postId}/comments` | 可选 | `sort,cursor,offset,size` | `Result<CursorPageResult<CommentThreadVO>>` | 未实现 |
-| POST | `/v1/posts/{postId}/comments` | 登录 | `CommentCreateRequest` | 201 `Result<CommentVO>` | 未实现 |
+| POST | `/v1/posts/{postId}/comments` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 未实现 |
 | GET | `/v1/comments/{commentId}/replies` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<CommentVO>>` | 未实现 |
-| POST | `/v1/comments/{commentId}/replies` | 登录 | `CommentCreateRequest` | 201 `Result<CommentVO>` | 未实现 |
+| POST | `/v1/comments/{commentId}/replies` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 未实现 |
 | DELETE | `/v1/comments/{commentId}` | 作者 | 无 | 204 | 未实现 |
 | PUT | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 未实现 |
 | DELETE | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 未实现 |
 
-- `CommentCreateRequest.content` 去除首尾空白后 1～1000 字。
-- 根评论列表支持 `HOT`、`LATEST`；回复固定按创建时间升序追加。
+- `CommentCreateDTO.content` 去除首尾空白后 1～1000 字。
+- 根评论列表默认 `size=10`、最大 20，支持 `HOT`、`LATEST`；回复默认 20、最大 50，并固定按创建时间升序追加。
 - `CommentThreadVO` 包含根评论、最多两条预览回复、总回复数、是否还有回复和下一页游标。
 - 回复接口的 `{commentId}` 是直接回复目标；服务端据此派生 `rootId`、`parentId` 和 `replyToUserId`。
-- 首页热门评论只从正常可见的根评论中选择。
+- 首页热门评论只从正常可见的根评论中选择；固定分值为 `createdHour + likedCount * 1000 + replyCount * 2000 + authorReplied * 3000`。
+- 热门摘要候选至少满足点赞数 3、回复数 2 或动态作者已回复中的一项；无合格候选时返回 `null`。
+- 删除根评论后正文清空；仍有有效回复时返回占位，没有有效回复时隐藏整个讨论。完整字段和事务规则见阶段 7 契约。
 
 ### 6.5 媒体
 
@@ -294,8 +297,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | GET | `/v1/shops/{shopId}` | 可选 | 经纬度可选 | `Result<ShopDetailVO>` | 目标扩展 |
 | GET | `/v1/shops/{shopId}/posts` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
 | GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 未实现 |
-| POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateRequest` | 201 `Result<ShopReviewVO>` | 未实现 |
-| PUT | `/v1/shops/{shopId}/reviews/me` | 登录 | `ShopReviewUpdateRequest` | `Result<ShopReviewVO>` | 未实现 |
+| POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateDTO` | 201 `Result<ShopReviewVO>` | 未实现 |
+| PUT | `/v1/shops/{shopId}/reviews/me` | 登录 | `ShopReviewUpdateDTO` | `Result<ShopReviewVO>` | 未实现 |
 | DELETE | `/v1/shops/{shopId}/reviews/me` | 登录 | 无 | 204 | 未实现 |
 
 商户列表参数：
@@ -322,14 +325,14 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 |---|---|---|---|---|---|
 | GET | `/v1/shops/{shopId}/voucher-products` | 公开 | `status` | `Result<List<VoucherProductVO>>` | 未实现 |
 | GET | `/v1/voucher-products/{productId}` | 公开 | 无 | `Result<VoucherProductDetailVO>` | 未实现 |
-| POST | `/v1/voucher-products/{productId}/orders` | 登录 | `VoucherOrderCreateRequest` | 201 `Result<VoucherOrderVO>` | 未实现 |
+| POST | `/v1/voucher-products/{productId}/orders` | 登录 | `VoucherOrderCreateDTO` | 201 `Result<VoucherOrderVO>` | 未实现 |
 | GET | `/v1/users/me/orders` | 登录 | `status,page,size` | `Result<PageResult<VoucherOrderVO>>` | 未实现 |
 | GET | `/v1/users/me/orders/{orderId}` | 登录 | 无 | `Result<VoucherOrderDetailVO>` | 未实现 |
 | DELETE | `/v1/users/me/orders/{orderId}` | 登录 | 无 | 204 | 未实现 |
 | GET | `/v1/users/me/vouchers` | 登录 | `status,page,size` | `Result<PageResult<UserVoucherVO>>` | 未实现 |
 | GET | `/v1/users/me/vouchers/{userVoucherId}` | 登录 | 无 | `Result<UserVoucherDetailVO>` | 未实现 |
 
-- `VoucherOrderCreateRequest.quantity` 第一阶段固定为 1，字段保留并校验为 1。
+- `VoucherOrderCreateDTO.quantity` 第一阶段固定为 1，字段保留并校验为 1。
 - 创建订单时服务端重新读取价格、销售期、库存、限购和商户状态，不信任客户端金额。
 - 删除订单接口语义为取消当前用户的未支付订单；其他状态返回 409。
 - 支付成功内部事件按订单 ID 幂等发券，不在第一阶段暴露模拟支付 HTTP 接口。
@@ -382,8 +385,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | `tb_post` | 统一社区动态 | 城市/用户级 | 已实现 |
 | `tb_post_media` | 动态媒体及顺序 | 动态级 | 已实现 |
 | `tb_post_like` | 动态点赞事实 | 用户/动态级 | 已实现 |
-| `tb_post_comment` | 根评论和追加回复 | 动态级 | 未实现 |
-| `tb_post_comment_like` | 评论点赞事实 | 用户/评论级 | 未实现 |
+| `tb_post_comment` | 根评论和追加回复 | 动态级 | 已实现 |
+| `tb_post_comment_like` | 评论点赞事实 | 用户/评论级 | 已实现 |
 | `tb_shop_review` | 商户点评 | 商户/用户级 | 未实现 |
 | `tb_shop_review_media` | 点评媒体及顺序 | 点评级 | 未实现 |
 | `tb_voucher_product` | 团购商品 | 商户级 | 未实现 |
@@ -462,15 +465,15 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 #### `tb_post_comment`
 
-字段：`id`、`post_id`、`user_id`、可空 `root_id`、可空 `parent_id`、可空 `reply_to_user_id`、`content`、`liked_count`、`reply_count`、`status`、`create_time`、`update_time`。
+字段：`id`、`post_id`、`user_id`、可空 `root_id`、可空 `parent_id`、可空 `reply_to_user_id`、可空 `content`、`liked_count`、`reply_count`、`author_replied`、`status`、`create_time`、`update_time`。
 
 - 根评论：`root_id`、`parent_id`、`reply_to_user_id` 均为空。
 - 回复：`root_id` 指向根评论，`parent_id` 指向直接回复目标，`reply_to_user_id` 保存目标作者。
-- 状态：`NORMAL / DELETED / HIDDEN`；`DELETED` 可展示占位，`HIDDEN` 不对普通用户展示。
+- 状态：`NORMAL / DELETED / HIDDEN`；删除时清空正文，只有仍有有效回复的删除根评论展示占位，`HIDDEN` 不对普通用户展示。
 - 索引：
-  - `idx_comment_post_status_time(post_id,status,create_time,id)`
-  - `idx_comment_post_hot(post_id,status,liked_count,create_time,id)`
+  - `idx_comment_post_root_time(post_id,root_id,status,create_time,id)`
   - `idx_comment_root_status_time(root_id,status,create_time,id)`
+  - `idx_comment_parent_status(parent_id,status,id)`
 
 #### `tb_post_comment_like`
 
@@ -562,7 +565,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 点赞权重 + 回复权重 + 动态作者参与加权 - 发布时间衰减
 ```
 
-具体权重在评论阶段开工前基于测试数据冻结。点赞、回复、删除、隐藏和作者回复均使缓存失效；缓存未命中时回源计算并设置短 TTL。
+阶段 7 冻结分值为 `createdHour + likedCount * 1000 + replyCount * 2000 + authorReplied * 3000`。点赞数至少 3、回复数至少 2 或动态作者已回复时才有资格进入首页摘要。点赞、回复、删除、隐藏和作者回复均使缓存失效；缓存正常 TTL 为 10 分钟，空值 TTL 为 1 分钟并加入随机抖动。
 
 ## 9. 数据库快照与数据转换
 
@@ -603,7 +606,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 4 | 实现 Post、媒体绑定、点赞和数据转换 | 新接口可用，重建后的数据核对一致 | 开发中 |
 | 5 | 改造小程序导航、首页卡片和发布器 | 五入口、分区标签和统一发布验收 | 已实现 |
 | 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 开发中 |
-| 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 未实现 |
+| 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 已实现 |
 | 8 | 实现评论后端与 Threads 式界面 | 评论、回复、定位、缓存和计数通过 | 未实现 |
 | 9 | 冻结并实现商户点评 | 评分、媒体、唯一点评和消费标识通过 | 未实现 |
 | 10 | 冻结并实现团购商品、订单和券包 | 库存、限购、订单、发券幂等通过 | 未实现 |
@@ -666,6 +669,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 阶段 4 Post 后端实现 | 9 个 Post 接口、媒体事务绑定、数据库点赞事实、可选鉴权和 OpenAPI 已实现；43 项默认测试及 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库、旧媒体和旧点赞转换尚未验收，阶段保持开发中 |
 | 2026-09-02 | 阶段 5 小程序社区入口改造 | 五入口导航、推荐/关注首页、Post 卡片和统一发布器已实现；小程序 `npm run verify` 通过 20 个测试文件、66 项测试，依赖构建成功。后端信息流、运行数据库联调和真机验收顺延至对应阶段 |
 | 2026-09-02 | 阶段 6 Post 信息流实现 | 推荐、关注和分区最新/热门接口、同值偏移游标、城市隔离、数据库关注事实查询及 OpenAPI 已实现；51 项默认测试和 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库尚未按快照重建，热门评论尚未实现，阶段保持开发中 |
+| 2026-09-02 | 阶段 7 评论数据契约 | 冻结 7 个评论接口、DTO/VO、两张评论表、根/回复关系、删除占位、计数、热门公式、缓存和旧评论转换；SQL 快照增至 19 张表。51 项默认测试、5 项真实 OpenAPI/Sa-Token 测试、三模块编译、Markdown 链接和差异格式检查通过；HTTP 与小程序实现进入阶段 8，未执行数据库初始化 |
 
 ## 13. 当前风险与明确非目标
 

@@ -2,11 +2,11 @@
 
 当前结构来源：`ray-server/src/main/resources/schema-init.sql`；开发数据来源：`ray-server/src/main/resources/seed-dev.sql`。两者由 `ray-server/src/main/resources/application-dev.yml` 按“先结构、后数据”的顺序初始化。
 
-结构版本：开发初始化快照（截至 2026-09-02，阶段 6）
-业务表数量：17 张
+结构版本：开发初始化快照（截至 2026-09-02，阶段 7）
+业务表数量：19 张
 数据库：MySQL / InnoDB / utf8mb4
 
-数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞快照，阶段 6 为用户关注关系补充唯一和反向查询索引；当前测试数据库尚未按该快照重建。
+数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照；当前测试数据库尚未按该快照重建。
 
 ## 表目录索引
 
@@ -29,6 +29,8 @@
 | 15 | `tb_post` | 统一社区动态 | [查看字段](#tb_post-统一社区动态) |
 | 16 | `tb_post_media` | 动态媒体关系与顺序 | [查看字段](#tb_post_media-动态媒体关系) |
 | 17 | `tb_post_like` | 动态点赞事实 | [查看字段](#tb_post_like-动态点赞事实) |
+| 18 | `tb_post_comment` | 动态根评论与追加回复 | [查看字段](#tb_post_comment-动态评论与追加回复) |
+| 19 | `tb_post_comment_like` | 动态评论点赞事实 | [查看字段](#tb_post_comment_like-动态评论点赞事实) |
 
 ## 表索引总览
 
@@ -63,6 +65,13 @@
 | `tb_post_like` | `PRIMARY` | 主键（BTREE） | `id` | 点赞关系唯一标识 |
 | `tb_post_like` | `uk_post_like_post_user` | 唯一索引（BTREE） | `post_id, user_id` | 保证点赞幂等 |
 | `tb_post_like` | `idx_post_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户点赞时间序查询 |
+| `tb_post_comment` | `PRIMARY` | 主键（BTREE） | `id` | 评论唯一标识 |
+| `tb_post_comment` | `idx_comment_post_root_time` | 普通索引（BTREE） | `post_id, root_id, status, create_time, id` | 根评论候选与稳定时间排序 |
+| `tb_post_comment` | `idx_comment_root_status_time` | 普通索引（BTREE） | `root_id, status, create_time, id` | 按根讨论正序追加回复 |
+| `tb_post_comment` | `idx_comment_parent_status` | 普通索引（BTREE） | `parent_id, status, id` | 查询直接子回复和删除关系 |
+| `tb_post_comment_like` | `PRIMARY` | 主键（BTREE） | `id` | 评论点赞记录唯一标识 |
+| `tb_post_comment_like` | `uk_comment_like_comment_user` | 唯一索引（BTREE） | `comment_id, user_id` | 保证评论点赞幂等 |
+| `tb_post_comment_like` | `idx_comment_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户评论点赞时间序查询 |
 | `tb_section_follow` | `PRIMARY` | 主键（BTREE） | `id` | 分区关注记录唯一标识 |
 | `tb_section_follow` | `uk_section_follow_user_section` | 唯一索引（BTREE） | `user_id, section_id` | 防止重复关注分区 |
 | `tb_section_follow` | `idx_section_follow_section_time` | 普通索引（BTREE） | `section_id, create_time, id` | 分区关注者时间序查询 |
@@ -90,6 +99,8 @@
 | `tb_post` | 统一社区动态 | 城市/用户级 | `id` | 用户、分区、商户和城市均为逻辑关联；保留旧 Blog ID |
 | `tb_post_media` | 动态媒体关系与顺序 | 动态级 | `id` | 动态内顺序唯一；一个媒体资产只能出现一次 |
 | `tb_post_like` | 动态点赞事实 | 用户/动态级 | `id` | 用户与动态组合唯一；计数以事实关系为依据校正 |
+| `tb_post_comment` | 动态评论与追加回复 | 动态级 | `id` | 根评论、直接目标和被回复用户均为逻辑关联；删除根评论可保留占位 |
+| `tb_post_comment_like` | 动态评论点赞事实 | 用户/评论级 | `id` | 用户与评论组合唯一；点赞计数以事实关系校正 |
 | `tb_shop_type` | 商户分类 | 平台级 | `id` | 无实际外键 |
 | `tb_shop` | 商户信息与地理坐标 | 平台级 | `id` | `type_id` 逻辑关联 `tb_shop_type.id`；有普通索引 |
 | `tb_blog` | 探店笔记 | 平台级（按用户） | `id` | `shop_id`、`user_id` 分别逻辑关联商户和用户 |
@@ -320,7 +331,7 @@
 | `title` | `varchar(120)` | 是 | `NULL` | 可选标题 |
 | `content` | `varchar(5000)` | 否 | 无 | 动态正文 |
 | `liked_count` | `int UNSIGNED` | 否 | `0` | 点赞冗余计数，以 `tb_post_like` 校正 |
-| `comment_count` | `int UNSIGNED` | 否 | `0` | 评论冗余计数，评论表实现后校正 |
+| `comment_count` | `int UNSIGNED` | 否 | `0` | 正常评论冗余计数，以 `tb_post_comment` 校正 |
 | `status` | `tinyint UNSIGNED` | 否 | `0` | 0 正常，1 隐藏，2 已删除 |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
@@ -350,12 +361,44 @@
 
 `post_id + user_id` 使用唯一索引保证点赞幂等；`tb_post_like` 是事实真源，Redis 与 `tb_post.liked_count` 均可由其重建或校正。
 
+### `tb_post_comment` 动态评论与追加回复
+
+| 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
+|---|---|---|---|---|
+| `id` | `bigint UNSIGNED` | 否 | 自增 | 主键；评论 ID |
+| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `tb_post.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 评论用户；逻辑关联 `tb_user.id` |
+| `root_id` | `bigint UNSIGNED` | 是 | `NULL` | 所属根评论；根评论为空，回复逻辑关联同表根记录 |
+| `parent_id` | `bigint UNSIGNED` | 是 | `NULL` | 直接回复目标；根评论为空，回复逻辑关联同表任意正常记录 |
+| `reply_to_user_id` | `bigint UNSIGNED` | 是 | `NULL` | 被回复用户；根评论为空，逻辑关联 `tb_user.id` |
+| `content` | `varchar(1000)` | 是 | `NULL` | 正常评论必须有正文；作者删除后清空 |
+| `liked_count` | `int UNSIGNED` | 否 | `0` | 点赞冗余计数，以评论点赞事实校正 |
+| `reply_count` | `int UNSIGNED` | 否 | `0` | 有效回复冗余计数；仅根评论使用 |
+| `author_replied` | `tinyint UNSIGNED` | 否 | `0` | 动态作者是否存在有效回复；仅根评论使用 |
+| `status` | `tinyint UNSIGNED` | 否 | `0` | 0 正常，1 作者删除，2 审核隐藏 |
+| `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
+| `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
+
+根评论的 `root_id`、`parent_id`、`reply_to_user_id` 均为空；回复的三个关系字段均非空且必须属于同一动态讨论。删除根评论仍有有效回复时保留占位，没有回复时不再返回；审核隐藏根评论时整个讨论对普通用户不可见。完整计数、排序和事务规则见 [阶段 7 评论契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)。
+
+### `tb_post_comment_like` 动态评论点赞事实
+
+| 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
+|---|---|---|---|---|
+| `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
+| `comment_id` | `bigint UNSIGNED` | 否 | 无 | 评论 ID；逻辑关联 `tb_post_comment.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点赞用户；逻辑关联 `tb_user.id` |
+| `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 点赞时间 |
+
+`comment_id + user_id` 使用唯一索引保证点赞幂等；该表是评论点赞事实真源，`tb_post_comment.liked_count` 可由其重建或校正。
+
 ## 关系、初始化与演进说明
 
-- 当前没有声明数据库级外键。`user_id`、`shop_id`、`section_id`、`post_id`、`media_asset_id`、`type_id`、`blog_id`、`voucher_id` 等关联由应用层校验和维护，不能将字段命名或 Entity 注解视为数据库约束。
+- 当前没有声明数据库级外键。`user_id`、`shop_id`、`section_id`、`post_id`、`comment_id`、`root_id`、`parent_id`、`reply_to_user_id`、`media_asset_id`、`type_id`、`blog_id`、`voucher_id` 等关联由应用层校验和维护，不能将字段命名或 Entity 注解视为数据库约束。
 - `tb_user_info.user_id`、`tb_seckill_voucher.voucher_id` 使用主键承载逻辑一对一关系；`tb_follow` 由数据库组合唯一索引和应用幂等逻辑共同防止重复关注。
-- `seed-dev.sql` 仅供开发环境初始化，现包含杭州、5 个官方分区、用户、商户、分类、笔记和优惠券等示例数据，并按分区编码将 4 条 Blog 转换为 Post。
+- `seed-dev.sql` 仅供开发环境初始化，现包含杭州、5 个官方分区、用户、商户、分类、笔记和优惠券等示例数据，按分区编码将 4 条 Blog 转换为 Post，并将可解析的旧评论关系转换为新评论；当前开发样例没有旧评论行，因此不会生成虚构评论。
 - 旧 Blog 图片缺少可靠媒体元数据，当前不生成 `tb_media_asset` 和 `tb_post_media`；旧点赞用户集合仅存在 Redis 时也不伪造 `tb_post_like`。两项在 Post 业务实现阶段完成真实探测与核对。
+- 旧评论只保留已有点赞聚合数，不伪造 `tb_post_comment_like` 用户事实；孤儿回复在真实重建前必须导出核对。
 - 固定系统分区为 `ROAM_DAILY`“漫游日常”；业务必须按编码查询，不能依赖初始化生成的数据库 ID。
 - 数据库不做版本管理，后续结构继续直接维护 `schema-init.sql` 和 `seed-dev.sql`，并同步更新本文件。
 - `schema-init.sql` 包含 `DROP TABLE`，只能用于明确允许重建的开发数据库；生产环境和需保留数据的数据库不得直接执行。
