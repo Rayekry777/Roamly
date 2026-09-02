@@ -31,6 +31,36 @@ INSERT INTO `tb_shop` (`id`, `name`, `type_id`, `images`, `area`, `address`, `x`
 INSERT INTO `tb_shop` (`id`, `name`, `type_id`, `images`, `area`, `address`, `x`, `y`, `avg_price`, `sold`, `comments`, `score`, `open_hours`, `create_time`, `update_time`) VALUES (12, '魅(杭州远洋乐堤港店)', 2, 'https://p0.meituan.net/dpmerchantpic/63833f6ba0393e2e8722420ef33f3d40466664.jpg,https://p0.meituan.net/dpmerchantpic/ae3c94cc92c529c4b1d7f68cebed33fa105810.png,', '远洋乐堤港', '丽水路58号远洋乐堤港F4', 120.14983, 30.31211, 88, 0000006444, 0000000235, 46, '10:00-02:00', '2021-12-22 20:34:34', '2021-12-22 20:34:34');
 INSERT INTO `tb_shop` (`id`, `name`, `type_id`, `images`, `area`, `address`, `x`, `y`, `avg_price`, `sold`, `comments`, `score`, `open_hours`, `create_time`, `update_time`) VALUES (13, '讴K拉量贩KTV(北城天地店)', 2, 'https://p1.meituan.net/merchantpic/598c83a8c0d06fe79ca01056e214d345875600.jpg,https://qcloud.dpfile.com/pc/HhvI0YyocYHRfGwJWqPQr34hRGRl4cWdvlNwn3dqghvi4WXlM2FY1te0-7pE3Wb9_Gd2X_f-v9T8Yj4uLt25Gg.jpg,https://qcloud.dpfile.com/pc/F5ZVzZaXFE27kvQzPnaL4V8O9QCpVw2nkzGrxZE8BqXgkfyTpNExfNG5CEPQX4pjGybIjx5eX6WNgCPvcASYAw.jpg', 'D32天阳购物中心', '湖州街567号北城天地5层', 120.130453, 30.327655, 58, 0000018997, 0000001857, 41, '12:00-02:00', '2021-12-22 20:38:54', '2021-12-22 20:40:04');
 INSERT INTO `tb_shop` (`id`, `name`, `type_id`, `images`, `area`, `address`, `x`, `y`, `avg_price`, `sold`, `comments`, `score`, `open_hours`, `create_time`, `update_time`) VALUES (14, '星聚会KTV(拱墅区万达店)', 2, 'https://p0.meituan.net/dpmerchantpic/f4cd6d8d4eb1959c3ea826aa05a552c01840451.jpg,https://p0.meituan.net/dpmerchantpic/2efc07aed856a8ab0fc75c86f4b9b0061655777.jpg,https://qcloud.dpfile.com/pc/zWfzzIorCohKT0bFwsfAlHuayWjI6DBEMPHHncmz36EEMU9f48PuD9VxLLDAjdoU_Gd2X_f-v9T8Yj4uLt25Gg.jpg', '北部新城', '杭行路666号万达广场C座1-2F', 120.128958, 30.337252, 60, 0000017771, 0000000685, 47, '10:00-22:00', '2021-12-22 20:48:54', '2021-12-22 20:48:54');
+-- 将当前开发 Blog 样例转换为统一动态。分区只按稳定编码解析，不依赖分区自增 ID。
+-- 旧图片缺少可靠的宽高和文件大小，本阶段不伪造 tb_media_asset/tb_post_media 数据。
+INSERT INTO `tb_post`
+  (`id`, `user_id`, `section_id`, `shop_visit`, `shop_id`, `city_code`, `title`, `content`,
+   `liked_count`, `comment_count`, `status`, `create_time`, `update_time`)
+SELECT
+  b.`id`,
+  b.`user_id`,
+  section_data.`id`,
+  CASE WHEN b.`shop_id` > 0 THEN 1 ELSE 0 END,
+  NULLIF(b.`shop_id`, 0),
+  COALESCE(shop_data.`city_code`, user_info.`city_code`, '330100'),
+  NULLIF(TRIM(b.`title`), ''),
+  b.`content`,
+  COALESCE(b.`liked`, 0),
+  COALESCE(b.`comments`, 0),
+  0,
+  b.`create_time`,
+  b.`update_time`
+FROM `tb_blog` b
+LEFT JOIN `tb_shop` shop_data ON shop_data.`id` = NULLIF(b.`shop_id`, 0)
+LEFT JOIN `tb_user_info` user_info ON user_info.`user_id` = b.`user_id`
+INNER JOIN `tb_content_section` section_data
+  ON section_data.`code` = CASE
+    WHEN b.`shop_id` = 0 THEN 'ROAM_DAILY'
+    WHEN b.`id` IN (6, 7) THEN 'WEEKEND_ESCAPE'
+    ELSE 'FOOD_DISCOVERY'
+  END
+ORDER BY b.`id`;
+
 INSERT INTO `tb_shop_type` VALUES (1, '美食', '/types/ms.png', 1, '2021-12-22 20:17:47', '2021-12-23 11:24:31');
 INSERT INTO `tb_shop_type` VALUES (2, 'KTV', '/types/KTV.png', 2, '2021-12-22 20:18:27', '2021-12-23 11:24:31');
 INSERT INTO `tb_shop_type` VALUES (3, '丽人·美发', '/types/lrmf.png', 3, '2021-12-22 20:18:48', '2021-12-23 11:24:31');

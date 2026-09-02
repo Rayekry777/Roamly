@@ -70,6 +70,54 @@ CREATE TABLE `tb_media_asset` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '媒体资产' ROW_FORMAT = Dynamic;
 
 
+DROP TABLE IF EXISTS `tb_post`;
+CREATE TABLE `tb_post` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '发布用户ID，逻辑关联tb_user.id',
+  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联tb_content_section.id',
+  `shop_visit` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否探店：0否，1是',
+  `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '商户ID，逻辑关联tb_shop.id；普通动态为空',
+  `city_code` varchar(16) NOT NULL COMMENT '城市编码，逻辑关联tb_city.code',
+  `title` varchar(120) NULL DEFAULT NULL COMMENT '可选标题',
+  `content` varchar(5000) NOT NULL COMMENT '动态正文',
+  `liked_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '点赞数量冗余值',
+  `comment_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '评论数量冗余值',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态：0正常，1隐藏，2已删除',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_post_section_status_time` (`section_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_post_user_status_time` (`user_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_post_shop_status_time` (`shop_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_post_city_status_time` (`city_code`, `status`, `create_time`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '统一社区动态' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_post_media`;
+CREATE TABLE `tb_post_media` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
+  `media_asset_id` bigint UNSIGNED NOT NULL COMMENT '媒体资产ID，逻辑关联tb_media_asset.id',
+  `sort` tinyint UNSIGNED NOT NULL COMMENT '动态内展示顺序，从0开始',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_post_media_sort` (`post_id`, `sort`) USING BTREE,
+  UNIQUE INDEX `uk_post_media_asset` (`media_asset_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态媒体关系' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_post_like`;
+CREATE TABLE `tb_post_like` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联tb_user.id',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_post_like_post_user` (`post_id`, `user_id`) USING BTREE,
+  INDEX `idx_post_like_user_time` (`user_id`, `create_time`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态点赞事实' ROW_FORMAT = Dynamic;
+
+
 DROP TABLE IF EXISTS `tb_blog`;
 CREATE TABLE `tb_blog`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
