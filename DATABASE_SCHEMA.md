@@ -1,10 +1,12 @@
 # 数据库结构文档
 
-当前结构来源：`src/main/resources/schema-init.sql`；开发数据来源：`src/main/resources/seed-dev.sql`。两者由 `application-dev.yml` 按“先结构、后数据”的顺序初始化。原始合并脚本 `src/main/resources/db/dp.sql` 仅作为历史备份保留。
+当前结构来源：`ray-server/src/main/resources/schema-init.sql`；开发数据来源：`ray-server/src/main/resources/seed-dev.sql`。两者由 `ray-server/src/main/resources/application-dev.yml` 按“先结构、后数据”的顺序初始化。
 
 结构版本：开发初始化脚本（截至 2026-09-02）
 业务表数量：10 张
 数据库：MySQL / InnoDB / utf8mb4
+
+2026-09-02 三模块迁移记录：仅移动 SQL 资源路径，本轮没有修改表、字段、索引、约束、初始化数据或执行方式，也没有引入 Flyway/Liquibase。
 
 ## 表目录索引
 

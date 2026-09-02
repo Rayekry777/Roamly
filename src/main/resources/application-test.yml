@@ -1,8 +1,0 @@
-spring:
-  config:
-    activate:
-      on-profile: test
-
-logging:
-  level:
-    com.ray: INFO
