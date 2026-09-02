@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.ray.dto.PostCreateRequest;
+import com.ray.dto.PostCreateDTO;
 import com.ray.entity.ContentPost;
 import com.ray.entity.ContentSection;
 import com.ray.entity.Follow;
@@ -82,7 +82,7 @@ class PostServiceImplTest {
     @Test
     void createsDailyPostInDefaultSectionAndUserCity() {
         Long postId = service.createPost(
-                new PostCreateRequest(" 标题 ", " 正文 ", List.of(), false, null, null));
+                new PostCreateDTO(" 标题 ", " 正文 ", List.of(), false, null, null));
 
         assertEquals(99L, postId);
         verify(mediaAssetService).lockTemporaryPostImages(7L, List.of());
@@ -94,7 +94,7 @@ class PostServiceImplTest {
         BusinessException exception = assertThrows(
                 BusinessException.class,
                 () -> service.createPost(
-                        new PostCreateRequest(null, "正文", List.of(), false, "2", "4")));
+                        new PostCreateDTO(null, "正文", List.of(), false, "2", "4")));
 
         assertEquals("INVALID_ARGUMENT", exception.code());
         verify(postMapper, never()).insert(any(ContentPost.class));

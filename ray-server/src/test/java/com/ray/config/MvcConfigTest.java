@@ -25,6 +25,9 @@ class MvcConfigTest {
         assertFalse(MvcConfig.isPublic("GET", "/v1/users/1/posts"));
         assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/sections"));
         assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/sections/1"));
+        assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/sections/1/posts"));
+        assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/feeds/recommended"));
+        assertFalse(MvcConfig.isOptionalAuthentication("GET", "/v1/feeds/following"));
         assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/posts/1"));
         assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/posts/1/likes"));
         assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/users/1/posts"));

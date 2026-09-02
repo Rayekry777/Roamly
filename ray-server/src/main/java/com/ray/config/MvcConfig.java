@@ -67,6 +67,8 @@ public class MvcConfig implements WebMvcConfigurer {
         return "GET".equals(method)
                 && (path.equals("/v1/sections")
                         || path.matches("/v1/sections/[^/]+")
+                        || path.matches("/v1/sections/[^/]+/posts")
+                        || path.equals("/v1/feeds/recommended")
                         || path.matches("/v1/posts/[^/]+")
                         || path.matches("/v1/posts/[^/]+/likes")
                         || path.matches("/v1/users/(?!me/)[^/]+/posts"));

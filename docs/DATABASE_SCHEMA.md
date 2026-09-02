@@ -2,11 +2,11 @@
 
 当前结构来源：`ray-server/src/main/resources/schema-init.sql`；开发数据来源：`ray-server/src/main/resources/seed-dev.sql`。两者由 `ray-server/src/main/resources/application-dev.yml` 按“先结构、后数据”的顺序初始化。
 
-结构版本：开发初始化快照（截至 2026-09-02，阶段 3）
+结构版本：开发初始化快照（截至 2026-09-02，阶段 6）
 业务表数量：17 张
 数据库：MySQL / InnoDB / utf8mb4
 
-数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞快照；当前测试数据库尚未按该快照重建。
+数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞快照，阶段 6 为用户关注关系补充唯一和反向查询索引；当前测试数据库尚未按该快照重建。
 
 ## 表目录索引
 
@@ -45,6 +45,8 @@
 | `tb_content_section` | `uk_section_code` | 唯一索引（BTREE） | `code` | 保证稳定分区编码唯一 |
 | `tb_content_section` | `idx_section_status_sort` | 普通索引（BTREE） | `status, sort, id` | 启用分区稳定排序 |
 | `tb_follow` | `PRIMARY` | 主键（BTREE） | `id` | 关注记录唯一标识 |
+| `tb_follow` | `uk_follow_user_target` | 唯一索引（BTREE） | `user_id, follow_user_id` | 保证用户关注关系唯一 |
+| `tb_follow` | `idx_follow_target_user` | 普通索引（BTREE） | `follow_user_id, user_id` | 按作者查询粉丝并投递关注时间线 |
 | `tb_media_asset` | `PRIMARY` | 主键（BTREE） | `id` | 媒体资产唯一标识 |
 | `tb_media_asset` | `uk_media_storage_path` | 唯一索引（BTREE） | `storage_path` | 保证存储路径唯一 |
 | `tb_media_asset` | `idx_media_status_expire` | 普通索引（BTREE） | `status, expire_time, id` | 扫描过期临时媒体 |
@@ -92,7 +94,7 @@
 | `tb_shop` | 商户信息与地理坐标 | 平台级 | `id` | `type_id` 逻辑关联 `tb_shop_type.id`；有普通索引 |
 | `tb_blog` | 探店笔记 | 平台级（按用户） | `id` | `shop_id`、`user_id` 分别逻辑关联商户和用户 |
 | `tb_blog_comments` | 笔记评论/回复 | 平台级（按用户） | `id` | `blog_id`、`user_id`、`parent_id`、`answer_id` 均为逻辑关联 |
-| `tb_follow` | 用户关注关系 | 平台级（按用户） | `id` | `user_id`、`follow_user_id` 为逻辑关联 |
+| `tb_follow` | 用户关注关系 | 平台级（按用户） | `id` | `user_id`、`follow_user_id` 为逻辑关联；组合唯一并支持按作者反查粉丝 |
 | `tb_voucher` | 商户优惠券 | 平台级 | `id` | `shop_id` 逻辑关联 `tb_shop.id` |
 | `tb_seckill_voucher` | 秒杀券库存与时间 | 平台级 | `voucher_id` | `voucher_id` 逻辑关联 `tb_voucher.id`，业务上一对一 |
 | `tb_voucher_order` | 优惠券订单 | 平台级（按用户） | `id` | `user_id`、`voucher_id` 为逻辑关联 |
@@ -199,6 +201,8 @@
 | `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 发起关注的用户 ID；逻辑关联 `tb_user.id` |
 | `follow_user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 被关注的用户 ID；逻辑关联 `tb_user.id` |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 关注创建时间 |
+
+`user_id + follow_user_id` 使用唯一索引 `uk_follow_user_target` 保证关注关系幂等；`follow_user_id + user_id` 使用普通索引 `idx_follow_target_user` 支持按动态作者查询粉丝。阶段 6 的关注流读取仍以该表和 `tb_post` 为事实来源，不依赖 Redis 时间线完整性。
 
 ### `tb_voucher` 商户优惠券
 
@@ -349,7 +353,7 @@
 ## 关系、初始化与演进说明
 
 - 当前没有声明数据库级外键。`user_id`、`shop_id`、`section_id`、`post_id`、`media_asset_id`、`type_id`、`blog_id`、`voucher_id` 等关联由应用层校验和维护，不能将字段命名或 Entity 注解视为数据库约束。
-- `tb_user_info.user_id`、`tb_seckill_voucher.voucher_id` 使用主键承载逻辑一对一关系；`tb_follow` 暂无数据库唯一约束，关注关系去重由应用负责。
+- `tb_user_info.user_id`、`tb_seckill_voucher.voucher_id` 使用主键承载逻辑一对一关系；`tb_follow` 由数据库组合唯一索引和应用幂等逻辑共同防止重复关注。
 - `seed-dev.sql` 仅供开发环境初始化，现包含杭州、5 个官方分区、用户、商户、分类、笔记和优惠券等示例数据，并按分区编码将 4 条 Blog 转换为 Post。
 - 旧 Blog 图片缺少可靠媒体元数据，当前不生成 `tb_media_asset` 和 `tb_post_media`；旧点赞用户集合仅存在 Redis 时也不伪造 `tb_post_like`。两项在 Post 业务实现阶段完成真实探测与核对。
 - 固定系统分区为 `ROAM_DAILY`“漫游日常”；业务必须按编码查询，不能依赖初始化生成的数据库 ID。

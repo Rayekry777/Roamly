@@ -7,8 +7,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.ray.dto.PostCreateRequest;
-import com.ray.dto.PostUpdateRequest;
+import com.ray.dto.PostCreateDTO;
+import com.ray.dto.PostUpdateDTO;
 import com.ray.entity.City;
 import com.ray.entity.ContentPost;
 import com.ray.entity.ContentSection;
@@ -20,11 +20,13 @@ import com.ray.entity.Shop;
 import com.ray.entity.User;
 import com.ray.entity.UserInfo;
 import com.ray.enums.EnableStatus;
+import com.ray.enums.PostFeedSort;
 import com.ray.enums.PostStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ContentPostMapper;
 import com.ray.mapper.PostLikeMapper;
 import com.ray.mapper.PostMediaMapper;
+import com.ray.result.CursorPageResult;
 import com.ray.result.PageResult;
 import com.ray.service.CityService;
 import com.ray.service.ContentSectionService;
@@ -43,7 +45,9 @@ import com.ray.vo.PostMediaVO;
 import com.ray.vo.SectionVO;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.UserVO;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -70,6 +75,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     private static final String DEFAULT_SECTION_CODE = "ROAM_DAILY";
     private static final String DEFAULT_CITY_CODE = "330100";
     private static final int CONTENT_PREVIEW_CODE_POINTS = 240;
+    private static final ZoneId FEED_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final PostMediaMapper postMediaMapper;
     private final PostLikeMapper postLikeMapper;
@@ -111,7 +117,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     /** 校验发布位置和媒体后创建动态，并在提交后投递关注流。 */
     @Override
     @Transactional
-    public Long createPost(PostCreateRequest request) {
+    public Long createPost(PostCreateDTO request) {
         Long userId = currentUserProvider.requireUserId();
         Placement placement = resolvePlacement(request.shopVisit(), request.sectionId(), request.shopId(), userId);
         List<Long> mediaIds = parseMediaIds(request.mediaIds());
@@ -146,7 +152,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     /** 锁定动态后更新发布位置和媒体关系，避免并发编辑产生重复绑定。 */
     @Override
     @Transactional
-    public PostDetailVO updatePost(Long postId, PostUpdateRequest request) {
+    public PostDetailVO updatePost(Long postId, PostUpdateDTO request) {
         Long userId = currentUserProvider.requireUserId();
         ContentPost post = requireVisiblePost(postId, true);
         requireAuthor(post, userId);
@@ -279,6 +285,66 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return new PageResult<>(items, page, size, result.getTotal());
     }
 
+    /** 使用固定热度分值查询城市推荐流，确保游标可由数据库字段复算。 */
+    @Override
+    public CursorPageResult<PostCardVO> listRecommendedFeed(
+            String cityCode, Long cursor, int offset, int size) {
+        requireCursorOffset(cursor, offset);
+        String normalizedCityCode = requireEnabledCity(cityCode);
+        List<ContentPost> posts = baseMapper.selectRecommended(
+                normalizedCityCode, cursor, offset, size + 1);
+        return toCursorPage(posts, cursor, offset, size, this::hotScore);
+    }
+
+    /** 以数据库关注关系为事实来源查询时间线，避免 Redis 缺失导致漏动态。 */
+    @Override
+    public CursorPageResult<PostCardVO> listFollowingFeed(
+            Long cursor, int offset, int size) {
+        requireCursorOffset(cursor, offset);
+        Long userId = currentUserProvider.requireUserId();
+        List<ContentPost> posts = baseMapper.selectFollowing(
+                userId, toCursorTime(cursor), offset, size + 1);
+        return toCursorPage(posts, cursor, offset, size, this::createdTimeScore);
+    }
+
+    /** 校验分区和城市后按最新或热门查询分区动态。 */
+    @Override
+    public CursorPageResult<PostCardVO> listSectionPosts(
+            Long sectionId,
+            String cityCode,
+            PostFeedSort sort,
+            Long cursor,
+            int offset,
+            int size) {
+        requireCursorOffset(cursor, offset);
+        ContentSection section = contentSectionService.getById(sectionId);
+        if (section == null
+                || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(section.getStatus())) {
+            throw BusinessException.notFound("SECTION_NOT_FOUND", "分区不存在或已停用");
+        }
+        String normalizedCityCode = normalizeOptionalCity(cityCode);
+        if (DEFAULT_SECTION_CODE.equals(section.getCode()) && normalizedCityCode == null) {
+            throw BusinessException.badRequest("INVALID_ARGUMENT", "漫游日常分区必须选择城市");
+        }
+        if (normalizedCityCode != null) requireEnabledCity(normalizedCityCode);
+        if (sort == null) {
+            throw BusinessException.badRequest("INVALID_ARGUMENT", "分区排序方式不能为空");
+        }
+
+        List<ContentPost> posts;
+        ToLongFunction<ContentPost> scoreExtractor;
+        if (sort == PostFeedSort.HOT) {
+            posts = baseMapper.selectSectionHot(
+                    sectionId, normalizedCityCode, cursor, offset, size + 1);
+            scoreExtractor = this::hotScore;
+        } else {
+            posts = baseMapper.selectSectionLatest(
+                    sectionId, normalizedCityCode, toCursorTime(cursor), offset, size + 1);
+            scoreExtractor = this::createdTimeScore;
+        }
+        return toCursorPage(posts, cursor, offset, size, scoreExtractor);
+    }
+
     private Placement resolvePlacement(Boolean shopVisit, String sectionId, String shopId, Long userId) {
         if (!Boolean.TRUE.equals(shopVisit)) {
             if (StringUtils.hasText(sectionId) || StringUtils.hasText(shopId)) {
@@ -334,6 +400,67 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
                         .eq("code", cityCode)
                         .eq("status", EnableStatus.ENABLED.code()))
                 > 0;
+    }
+
+    private String requireEnabledCity(String cityCode) {
+        String normalized = normalizeOptionalCity(cityCode);
+        if (normalized == null) {
+            throw BusinessException.badRequest("INVALID_ARGUMENT", "城市编码不能为空");
+        }
+        if (!isEnabledCity(normalized)) {
+            throw BusinessException.notFound("CITY_NOT_FOUND", "城市不存在或已停用");
+        }
+        return normalized;
+    }
+
+    private String normalizeOptionalCity(String cityCode) {
+        return StringUtils.hasText(cityCode) ? cityCode.trim() : null;
+    }
+
+    private void requireCursorOffset(Long cursor, int offset) {
+        if (cursor == null && offset != 0) {
+            throw BusinessException.badRequest("INVALID_ARGUMENT", "首次请求不能提交 offset");
+        }
+    }
+
+    private LocalDateTime toCursorTime(Long cursor) {
+        if (cursor == null) return null;
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(cursor), FEED_ZONE);
+    }
+
+    private CursorPageResult<PostCardVO> toCursorPage(
+            List<ContentPost> fetched,
+            Long requestCursor,
+            int requestOffset,
+            int size,
+            ToLongFunction<ContentPost> scoreExtractor) {
+        if (fetched.isEmpty()) return new CursorPageResult<>(List.of(), 0, 0, false);
+        boolean hasMore = fetched.size() > size;
+        List<ContentPost> pagePosts = List.copyOf(fetched.subList(0, Math.min(size, fetched.size())));
+        ViewContext context = buildViewContext(pagePosts);
+        List<PostCardVO> items = pagePosts.stream()
+                .map(post -> toCard(post, context))
+                .toList();
+
+        long nextCursor = scoreExtractor.applyAsLong(pagePosts.getLast());
+        int sameScoreCount = (int) pagePosts.stream()
+                .filter(post -> scoreExtractor.applyAsLong(post) == nextCursor)
+                .count();
+        int nextOffset = requestCursor != null && requestCursor == nextCursor
+                ? requestOffset + sameScoreCount
+                : sameScoreCount;
+        return new CursorPageResult<>(items, nextCursor, nextOffset, hasMore);
+    }
+
+    private long createdTimeScore(ContentPost post) {
+        return post.getCreateTime().atZone(FEED_ZONE).toInstant().toEpochMilli();
+    }
+
+    private long hotScore(ContentPost post) {
+        long createdHour = post.getCreateTime().atZone(FEED_ZONE).toEpochSecond() / 3600;
+        return createdHour
+                + (long) valueOrZero(post.getLikedCount()) * 1000
+                + (long) valueOrZero(post.getCommentCount()) * 2000;
     }
 
     private ContentPost requireVisiblePost(Long postId, boolean lock) {

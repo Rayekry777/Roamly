@@ -25,6 +25,7 @@ implementationStatus: 未实现
 - [阶段 3：统一动态、动态媒体、动态点赞与 Blog 转换契约](./stages/STAGE_03_POST_SCHEMA.md)
 - [阶段 4：统一动态、媒体绑定与点赞实现记录](./stages/STAGE_04_POST_IMPLEMENTATION.md)
 - [阶段 5：小程序导航、首页卡片与统一发布实现记录](./stages/STAGE_05_MINIAPP_NAV_HOME_PUBLISH.md)
+- [阶段 6：推荐、关注与分区信息流实现记录](./stages/STAGE_06_POST_FEEDS.md)
 
 ## 2. 当前系统基线
 
@@ -46,8 +47,9 @@ implementationStatus: 未实现
 | 用户、资料、签到 | `/v1/users/**` | 已实现 | 保留并扩展城市 |
 | 用户关注与共同关注 | `/v1/users/**/following**` | 已实现 | 保留并补唯一约束 |
 | 商户与商户分类 | `/v1/shops/**`、`/v1/shop-types` | 已实现 | 保留并扩展聚合能力 |
-| Blog、点赞、关注流 | `/v1/blogs/**`、`/v1/feeds/following` | 已实现 | 迁移至 Post 后废弃 |
+| Blog 与 Blog 点赞 | `/v1/blogs/**` | 已实现 | 迁移至 Post 后废弃 |
 | 统一动态、媒体绑定与点赞 | `/v1/posts/**`、`/v1/users/**/posts` | 已实现 | 小程序首页与发布器已切换；运行数据库初始化和旧能力退役待完成 |
+| Post 推荐、关注与分区信息流 | `/v1/feeds/**`、`/v1/sections/{sectionId}/posts` | 已实现 | 数据库快照和真实数据联调待验收 |
 | 评论 | 无 HTTP 路由 | 未实现 | 由 PostComment 替代 |
 | 优惠券与秒杀订单 | `/v1/vouchers`、`/v1/seckill-vouchers/**` | 已实现 | 迁移至团购商品和订单 |
 | Blog 图片 | `/v1/blog-images`、`/blogs/**` | 已实现 | 迁移至通用媒体资产 |
@@ -201,11 +203,11 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | GET | `/v1/cities` | 公开 | 无 | `Result<List<CityVO>>` | 已实现 |
 | GET | `/v1/sections` | 可选 | `followedOnly` | `Result<List<SectionVO>>` | 已实现 |
 | GET | `/v1/sections/{sectionId}` | 可选 | 无 | `Result<SectionDetailVO>` | 已实现 |
-| GET | `/v1/sections/{sectionId}/posts` | 可选 | `cityCode,sort,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
+| GET | `/v1/sections/{sectionId}/posts` | 可选 | `cityCode,sort,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 已实现 |
 | PUT | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 已实现 |
 | DELETE | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 已实现 |
-| GET | `/v1/feeds/recommended` | 可选 | `cityCode,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
-| GET | `/v1/feeds/following` | 登录 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
+| GET | `/v1/feeds/recommended` | 可选 | `cityCode,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 已实现 |
+| GET | `/v1/feeds/following` | 登录 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 已实现 |
 
 规则：
 
@@ -213,6 +215,10 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 分区 `sort` 仅允许 `LATEST`、`HOT`。
 - `followedOnly=true` 时必须登录；匿名请求只能获取全部启用分区。
 - 推荐与热门排序游标由服务端生成，客户端不得解析游标业务含义。
+- 游标分页默认 `size=10`、最大 20；同排序值使用 `nextOffset` 续页，首次请求不得只传 `offset`。
+- 推荐和分区热门固定按 `createdHour + likedCount * 1000 + commentCount * 2000` 排序；分区最新和关注流按发布时间排序。
+- 关注流以 `tb_follow` 与 `tb_post` 的数据库事实查询为准，Redis ZSET 只保留为后续加速数据。
+- 评论能力尚未实现，三个信息流返回的 `highlightComment` 当前为空。
 
 ### 6.3 动态
 
@@ -518,7 +524,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 - `tb_shop` 增加 `city_code`、经营状态和 `idx_shop_city_type_status(city_code,type_id,status,id)`。
 - `tb_user_info` 增加 `city_code`，原 `city` 在迁移期保留用于显示兼容。
-- `tb_follow` 增加唯一索引 `uk_follow_user_target(user_id,follow_user_id)`。
+- `tb_follow` 增加唯一索引 `uk_follow_user_target(user_id,follow_user_id)` 和反向查询索引 `idx_follow_target_user(follow_user_id,user_id)`。
 - 旧 `tb_blog`、`tb_blog_comments`、`tb_voucher`、`tb_seckill_voucher` 在迁移完成并校验前保留只读，最后阶段再退役。
 
 ## 8. Redis、事务与一致性
@@ -536,6 +542,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | `voucher:ordered:{productId}` | SET | 秒杀重复下单判断 | `tb_voucher_order` |
 
 Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
+
+阶段 6 的关注流读取直接查询 `tb_post + tb_follow`，保证 Redis 未回填或投递失败时不漏动态；`feed:following:*` 当前仅保留发布后投递，待补齐回填、补偿与数据库降级策略后再作为读取加速层。
 
 ### 8.2 事务边界
 
@@ -594,7 +602,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 3 | 冻结统一动态、点赞和 Blog 数据转换 | 字段、索引及快照种子映射定稿 | 已实现 |
 | 4 | 实现 Post、媒体绑定、点赞和数据转换 | 新接口可用，重建后的数据核对一致 | 开发中 |
 | 5 | 改造小程序导航、首页卡片和发布器 | 五入口、分区标签和统一发布验收 | 已实现 |
-| 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 未实现 |
+| 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 开发中 |
 | 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 未实现 |
 | 8 | 实现评论后端与 Threads 式界面 | 评论、回复、定位、缓存和计数通过 | 未实现 |
 | 9 | 冻结并实现商户点评 | 评分、媒体、唯一点评和消费标识通过 | 未实现 |
@@ -604,7 +612,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 
 每个阶段开工前必须补全：
 
-- 最终 Request、VO、OpenAPI Schema、operationId 和错误码。
+- 最终 DTO、VO、OpenAPI Schema、operationId 和错误码。
 - 最终字段类型、长度、默认值、索引名、`schema-init.sql` 和 `seed-dev.sql`。
 - 权限、事务、幂等、缓存失效和异步失败处理。
 - 小程序页面状态机、加载恢复和交互验收。
@@ -657,6 +665,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 阶段 3 动态数据契约 | 冻结统一动态、媒体关系、点赞事实和 Blog 转换规则；SQL 快照新增 3 张表并按分区编码转换 4 条开发 Blog；34 项默认测试及编译通过，未执行数据库初始化；HTTP 能力随后由阶段 4 实现 |
 | 2026-09-02 | 阶段 4 Post 后端实现 | 9 个 Post 接口、媒体事务绑定、数据库点赞事实、可选鉴权和 OpenAPI 已实现；43 项默认测试及 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库、旧媒体和旧点赞转换尚未验收，阶段保持开发中 |
 | 2026-09-02 | 阶段 5 小程序社区入口改造 | 五入口导航、推荐/关注首页、Post 卡片和统一发布器已实现；小程序 `npm run verify` 通过 20 个测试文件、66 项测试，依赖构建成功。后端信息流、运行数据库联调和真机验收顺延至对应阶段 |
+| 2026-09-02 | 阶段 6 Post 信息流实现 | 推荐、关注和分区最新/热门接口、同值偏移游标、城市隔离、数据库关注事实查询及 OpenAPI 已实现；51 项默认测试和 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库尚未按快照重建，热门评论尚未实现，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 

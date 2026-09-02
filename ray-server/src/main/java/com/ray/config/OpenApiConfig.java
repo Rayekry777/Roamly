@@ -2,8 +2,8 @@ package com.ray.config;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
-import com.ray.dto.PostCreateRequest;
-import com.ray.dto.PostUpdateRequest;
+import com.ray.dto.PostCreateDTO;
+import com.ray.dto.PostUpdateDTO;
 import com.ray.result.CursorPageResult;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
@@ -110,8 +110,8 @@ public class OpenApiConfig {
     }
 
     private void registerPostSchemas(Components components) {
-        registerSchema(components, "PostCreateRequest", PostCreateRequest.class);
-        registerSchema(components, "PostUpdateRequest", PostUpdateRequest.class);
+        registerSchema(components, "PostCreateRequest", PostCreateDTO.class);
+        registerSchema(components, "PostUpdateRequest", PostUpdateDTO.class);
         registerSchema(components, "PostMediaVO", PostMediaVO.class);
         registerSchema(components, "HighlightCommentVO", HighlightCommentVO.class);
         registerSchema(components, "ShopSummaryVO", ShopSummaryVO.class);
@@ -137,7 +137,11 @@ public class OpenApiConfig {
         if (path.matches("/v1/users/\\{userId}") && method == HttpMethod.GET) return true;
         if (path.matches("/v1/shops/\\{shopId}") && (method == HttpMethod.GET || method == HttpMethod.PUT))
             return true;
-        if (path.equals("/v1/sections/{sectionId}")) return method == HttpMethod.GET;
+        if (path.equals("/v1/sections/{sectionId}")
+                || path.equals("/v1/sections/{sectionId}/posts")) {
+            return method == HttpMethod.GET;
+        }
+        if (path.equals("/v1/feeds/recommended")) return method == HttpMethod.GET;
         if (path.equals("/v1/users/me/section-follows/{sectionId}"))
             return method == HttpMethod.PUT || method == HttpMethod.DELETE;
         if (path.equals("/v1/media/images/{mediaId}")) return method == HttpMethod.DELETE;
@@ -162,6 +166,8 @@ public class OpenApiConfig {
     private boolean isOptionalAuthentication(String path) {
         return path.equals("/v1/sections")
                 || path.equals("/v1/sections/{sectionId}")
+                || path.equals("/v1/sections/{sectionId}/posts")
+                || path.equals("/v1/feeds/recommended")
                 || path.equals("/v1/posts/{postId}")
                 || path.equals("/v1/posts/{postId}/likes")
                 || path.equals("/v1/users/{userId}/posts");

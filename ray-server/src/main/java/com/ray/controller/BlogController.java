@@ -1,7 +1,6 @@
 package com.ray.controller;
 
 import com.ray.dto.CreateBlogDTO;
-import com.ray.result.CursorPageResult;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.BlogService;
@@ -119,13 +118,4 @@ public class BlogController {
         return Result.ok(service.listUserBlogs(IdUtils.parse(userId, "userId"), page, size));
     }
 
-    @GetMapping("/v1/feeds/following")
-    @SecurityRequirement(name = "BearerAuth")
-    @Operation(summary = "查询关注流", operationId = "listFollowingFeed")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功", useReturnTypeSchema = true))
-    public Result<CursorPageResult<BlogVO>> feed(
-            @Parameter(description = "上一页返回的时间游标") @RequestParam(defaultValue = "9223372036854775807") long cursor,
-            @Parameter(description = "同时间戳偏移量") @RequestParam(defaultValue = "0") @Min(0) int offset) {
-        return Result.ok(service.listFollowingFeed(cursor, offset));
-    }
 }

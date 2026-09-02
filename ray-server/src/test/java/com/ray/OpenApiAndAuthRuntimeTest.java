@@ -125,6 +125,7 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/cities",
                 "GET /v1/sections",
                 "GET /v1/sections/{sectionId}",
+                "GET /v1/sections/{sectionId}/posts",
                 "PUT /v1/users/me/section-follows/{sectionId}",
                 "DELETE /v1/users/me/section-follows/{sectionId}",
                 "POST /v1/media/images",
@@ -138,6 +139,7 @@ class OpenApiAndAuthRuntimeTest {
                 "PUT /v1/posts/{postId}/like",
                 "DELETE /v1/posts/{postId}/like",
                 "GET /v1/posts/{postId}/likes",
+                "GET /v1/feeds/recommended",
                 "GET /v1/users/me",
                 "GET /v1/users/{userId}",
                 "GET /v1/users/{userId}/profile",
@@ -193,6 +195,17 @@ class OpenApiAndAuthRuntimeTest {
                 exchange("/v1/sections", "Bearer invalid", HttpMethod.GET).getStatusCode());
         assertEquals(
                 HttpStatus.UNAUTHORIZED,
+                exchange(
+                                "/v1/feeds/recommended?cityCode=330100",
+                                "Bearer invalid",
+                                HttpMethod.GET)
+                        .getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/sections/1/posts", "Bearer invalid", HttpMethod.GET)
+                        .getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
                 exchange("/v1/posts/1", "Bearer invalid", HttpMethod.GET).getStatusCode());
 
         String first = StpUtil.getStpLogic().createLoginSession(loginId);
@@ -230,6 +243,20 @@ class OpenApiAndAuthRuntimeTest {
 
     @Test
     void publicValidationUsesUnifiedErrorResult() throws Exception {
+        ResponseEntity<String> feed =
+                http.getForEntity("/v1/feeds/recommended?cityCode=330100&size=21", String.class);
+        assertEquals(HttpStatus.BAD_REQUEST, feed.getStatusCode());
+        assertEquals(
+                "VALIDATION_FAILED",
+                objectMapper.readTree(feed.getBody()).path("code").asText());
+
+        ResponseEntity<String> sectionFeed =
+                http.getForEntity("/v1/sections/1/posts?size=21", String.class);
+        assertEquals(HttpStatus.BAD_REQUEST, sectionFeed.getStatusCode());
+        assertEquals(
+                "VALIDATION_FAILED",
+                objectMapper.readTree(sectionFeed.getBody()).path("code").asText());
+
         ResponseEntity<String> page = http.getForEntity("/v1/blogs?page=0&size=101", String.class);
         assertEquals(HttpStatus.BAD_REQUEST, page.getStatusCode());
         assertEquals(

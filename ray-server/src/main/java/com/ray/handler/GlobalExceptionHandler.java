@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -48,6 +49,21 @@ public class GlobalExceptionHandler {
                 .map(error -> new FieldErrorDetail(error.getPropertyPath().toString(), error.getMessage()))
                 .toList();
         return ResponseEntity.badRequest().body(new ErrorResult("VALIDATION_FAILED", "请求参数校验失败", errors));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResult> invalidMethodParameter(
+            HandlerMethodValidationException exception) {
+        List<FieldErrorDetail> errors = exception.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream().map(error -> {
+                    String parameterName = result.getMethodParameter().getParameterName();
+                    return new FieldErrorDetail(
+                            Objects.requireNonNullElse(parameterName, "parameter"),
+                            Objects.requireNonNullElse(error.getDefaultMessage(), "参数格式错误"));
+                }))
+                .toList();
+        return ResponseEntity.badRequest()
+                .body(new ErrorResult("VALIDATION_FAILED", "请求参数校验失败", errors));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

@@ -1,7 +1,7 @@
 package com.ray.controller;
 
-import com.ray.dto.PostCreateRequest;
-import com.ray.dto.PostUpdateRequest;
+import com.ray.dto.PostCreateDTO;
+import com.ray.dto.PostUpdateDTO;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.PostService;
@@ -51,7 +51,7 @@ public class PostController {
                     responseCode = "201",
                     description = "创建成功",
                     useReturnTypeSchema = true))
-    public ResponseEntity<Result<IdVO>> createPost(@Valid @RequestBody PostCreateRequest request) {
+    public ResponseEntity<Result<IdVO>> createPost(@Valid @RequestBody PostCreateDTO request) {
         Long postId = postService.createPost(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Result.ok(new IdVO(IdUtils.format(postId))));
@@ -80,7 +80,7 @@ public class PostController {
                     useReturnTypeSchema = true))
     public Result<PostDetailVO> updatePost(
             @Parameter(description = "动态 ID", required = true) @PathVariable String postId,
-            @Valid @RequestBody PostUpdateRequest request) {
+            @Valid @RequestBody PostUpdateDTO request) {
         return Result.ok(postService.updatePost(IdUtils.parse(postId, "postId"), request));
     }
 
