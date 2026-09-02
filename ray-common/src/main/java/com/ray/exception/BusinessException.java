@@ -27,6 +27,10 @@ public class BusinessException extends RuntimeException {
         return new BusinessException(404, code, message);
     }
 
+    public static BusinessException forbidden(String code, String message) {
+        return new BusinessException(403, code, message);
+    }
+
     public static BusinessException conflict(String code, String message) {
         return new BusinessException(409, code, message);
     }

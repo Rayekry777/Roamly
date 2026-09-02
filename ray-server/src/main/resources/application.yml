@@ -73,3 +73,6 @@ sa-token:
 ray:
   upload:
     image-dir: ${IMAGE_UPLOAD_DIR:./uploads}
+    temporary-retention-hours: ${MEDIA_TEMPORARY_RETENTION_HOURS:24}
+    cleanup-initial-delay-ms: ${MEDIA_CLEANUP_INITIAL_DELAY_MS:60000}
+    cleanup-interval-ms: ${MEDIA_CLEANUP_INTERVAL_MS:3600000}

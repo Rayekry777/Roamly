@@ -86,6 +86,12 @@ class OpenApiAndAuthRuntimeTest {
                 .isObject());
         assertTrue(
                 document.at("/paths/~1v1~1blog-images/post/responses/413").isObject());
+        assertTrue(
+                document.at("/paths/~1v1~1media~1images/post/responses/413").isObject());
+        assertTrue(
+                document.at("/paths/~1v1~1media~1images~1{mediaId}/delete/responses/403").isObject());
+        assertTrue(
+                document.at("/paths/~1v1~1media~1images~1{mediaId}/delete/responses/409").isObject());
         java.util.List<String> schemaNames = new ArrayList<>();
         document.at("/components/schemas").properties().forEach(entry -> schemaNames.add(entry.getKey()));
         assertTrue(schemaNames.contains("Result"));
@@ -109,6 +115,13 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/auth/sms-codes",
                 "POST /v1/auth/sessions",
                 "DELETE /v1/auth/session",
+                "GET /v1/cities",
+                "GET /v1/sections",
+                "GET /v1/sections/{sectionId}",
+                "PUT /v1/users/me/section-follows/{sectionId}",
+                "DELETE /v1/users/me/section-follows/{sectionId}",
+                "POST /v1/media/images",
+                "DELETE /v1/media/images/{mediaId}",
                 "GET /v1/users/me",
                 "GET /v1/users/{userId}",
                 "GET /v1/users/{userId}/profile",
@@ -159,6 +172,9 @@ class OpenApiAndAuthRuntimeTest {
         assertEquals(
                 HttpStatus.UNAUTHORIZED,
                 exchange("/v1/users/me", "Bearer invalid", HttpMethod.GET).getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/sections", "Bearer invalid", HttpMethod.GET).getStatusCode());
 
         String first = StpUtil.getStpLogic().createLoginSession(loginId);
         String second = StpUtil.getStpLogic().createLoginSession(loginId);

@@ -8,6 +8,7 @@ import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -32,9 +33,15 @@ public class MvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new SaInterceptor(handler -> {
-                    if (!isPublic(
-                            SaHolder.getRequest().getMethod(),
-                            SaHolder.getRequest().getRequestPath())) StpUtil.checkLogin();
+                    String method = SaHolder.getRequest().getMethod();
+                    String path = SaHolder.getRequest().getRequestPath();
+                    if (isOptionalAuthentication(method, path)) {
+                        if (StringUtils.hasText(SaHolder.getRequest().getHeader("Authorization"))) {
+                            StpUtil.checkLogin();
+                        }
+                    } else if (!isPublic(method, path)) {
+                        StpUtil.checkLogin();
+                    }
                 }))
                 .addPathPatterns("/v1/**");
     }
@@ -43,7 +50,8 @@ public class MvcConfig implements WebMvcConfigurer {
         if ("POST".equals(method) && ("/v1/auth/sms-codes".equals(path) || "/v1/auth/sessions".equals(path)))
             return true;
         if (!"GET".equals(method)) return false;
-        if (path.equals("/v1/shops")
+        if (path.equals("/v1/cities")
+                || path.equals("/v1/shops")
                 || path.matches("/v1/shops/[^/]+")
                 || path.matches("/v1/shops/[^/]+/vouchers")) return true;
         if (path.equals("/v1/shop-types")
@@ -53,5 +61,10 @@ public class MvcConfig implements WebMvcConfigurer {
         return path.matches("/v1/users/(?!me$)[^/]+")
                 || path.matches("/v1/users/(?!me/)[^/]+/profile")
                 || path.matches("/v1/users/(?!me/)[^/]+/blogs");
+    }
+
+    static boolean isOptionalAuthentication(String method, String path) {
+        return "GET".equals(method)
+                && (path.equals("/v1/sections") || path.matches("/v1/sections/[^/]+"));
     }
 }

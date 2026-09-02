@@ -3,15 +3,15 @@
 ```yaml
 stage: 1
 updatedAt: 2026-09-02
-status: 已实现
-implementationStatus: 未实现
+status: 开发中
+implementationStatus: 已实现
 schemaSnapshotStatus: 已实现
-runtimeDatabaseInitialized: 未确认
+runtimeDatabaseInitialized: 未实现
 ```
 
 ## 1. 阶段目标与边界
 
-本阶段冻结接口和 Schema，并直接更新开发数据库快照与种子数据；不实现 Controller、Service、Mapper 或小程序页面，也不执行数据库初始化。
+阶段 1 已冻结接口和 Schema，并直接更新开发数据库快照与种子数据；阶段 2 已完成后端源码、测试和 OpenAPI 实现。当前不改造小程序页面，也未执行数据库初始化。
 
 目标能力：
 
@@ -283,14 +283,14 @@ runtimeDatabaseInitialized: 未确认
 - 不创建 `db/migration`、`db/manual`、版本号、迁移历史或回退脚本。
 - `schema-init.sql` 会先删除再重建业务表，只能对允许重建的开发数据库执行。
 
-## 6. 阶段 2 实现要求
+## 6. 阶段 2 实现结果
 
-- 新增 City、ContentSection、SectionFollow、MediaAsset Entity、Request/VO、Mapper、Service 和 Controller。
-- 补齐 JavaDoc、构造器注入、业务日志、事务边界和统一异常。
-- Sa-Token 公开路由按方法精确放行，媒体与关注接口保持私有。
-- OpenAPI 必须实现本文件冻结的 operationId、Schema、状态码和 Bearer 覆盖。
-- 媒体物理文件和数据库记录失败时必须补偿，不记录原始文件内容或完整本地路径。
-- `DATABASE_SCHEMA.md` 已同步为 SQL 快照事实；运行数据库是否已经重建必须单独确认，不能只凭文档判断。
+- 已新增 City、ContentSection、SectionFollow、MediaAsset Entity、VO、Mapper、Service 和 Controller。
+- 已实现启用城市排序、分区可选鉴权、批量关注状态合并以及关注/取消关注幂等语义。
+- 已实现媒体所有权、临时状态、24 小时过期、真实图片宽高校验、数据库失败文件补偿和定时清理重试。
+- Sa-Token 路由按方法区分公开、可选认证和私有接口；可选认证接口携带无效 Token 时返回 401。
+- OpenAPI 已包含冻结的 operationId、Schema、状态码、Bearer 和统一错误响应。
+- `DATABASE_SCHEMA.md` 已同步为 SQL 快照事实；测试连接的运行数据库尚未重建，因此当前阶段保持“开发中”。
 
 ## 7. 验收清单
 
@@ -302,3 +302,10 @@ runtimeDatabaseInitialized: 未确认
 - 临时媒体过期清理、删除重试和数据库/文件补偿可验证。
 - `schema-init.sql` 与 `seed-dev.sql` 在可重建的隔离 MySQL 8.x 环境完整初始化通过。
 - 初始化后表、列、索引和种子数据与本契约一致。
+
+## 8. 验证记录
+
+- Reactor `mvn test`：34 项，0 失败，10 项外部环境测试默认跳过。
+- 真实 OpenAPI/Sa-Token 启动测试：5 项，0 失败；强制 `spring.sql.init.mode=never`。
+- OpenAPI 已验证全部路径集合、唯一 `operationId`、可解析 `$ref`、Bearer 声明以及媒体 403/409/413 响应。
+- 当前运行数据库确认尚无 `tb_media_asset`，未执行包含 `DROP TABLE` 的 `schema-init.sql`。

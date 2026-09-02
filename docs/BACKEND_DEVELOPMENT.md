@@ -171,7 +171,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 ## 6. 完整 API 目标草案
 
-本节接口均为目标契约；已存在接口在“状态”列标记，新增接口统一为“未实现”。每个接口实现时必须补齐唯一 `operationId`、真实 `@ApiResponses`、参数说明、安全声明和 Schema。
+本节接口均为目标契约，实际进度以“状态”列为准。每个接口实现时必须补齐唯一 `operationId`、真实 `@ApiResponses`、参数说明、安全声明和 Schema。
 
 ### 6.1 认证、用户与用户关注
 
@@ -194,14 +194,14 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 查询参数 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| GET | `/v1/cities` | 公开 | 无 | `Result<List<CityVO>>` | 未实现 |
-| GET | `/v1/sections` | 可选 | `followedOnly` | `Result<List<SectionVO>>` | 未实现 |
-| GET | `/v1/sections/{sectionId}` | 可选 | 无 | `Result<SectionDetailVO>` | 未实现 |
+| GET | `/v1/cities` | 公开 | 无 | `Result<List<CityVO>>` | 已实现 |
+| GET | `/v1/sections` | 可选 | `followedOnly` | `Result<List<SectionVO>>` | 已实现 |
+| GET | `/v1/sections/{sectionId}` | 可选 | 无 | `Result<SectionDetailVO>` | 已实现 |
 | GET | `/v1/sections/{sectionId}/posts` | 可选 | `cityCode,sort,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
-| PUT | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 未实现 |
-| DELETE | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 未实现 |
+| PUT | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 已实现 |
+| DELETE | `/v1/users/me/section-follows/{sectionId}` | 登录 | 无 | 204 | 已实现 |
 | GET | `/v1/feeds/recommended` | 可选 | `cityCode,cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
-| GET | `/v1/feeds/following` | 登录 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 目标重构 |
+| GET | `/v1/feeds/following` | 登录 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
 
 规则：
 
@@ -267,8 +267,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| POST | `/v1/media/images` | 登录 | multipart `file` | 201 `Result<MediaAssetVO>` | 未实现 |
-| DELETE | `/v1/media/images/{mediaId}` | 所有者 | 无 | 204 | 未实现 |
+| POST | `/v1/media/images` | 登录 | multipart `file` | 201 `Result<MediaAssetVO>` | 已实现 |
+| DELETE | `/v1/media/images/{mediaId}` | 所有者 | 无 | 204 | 已实现 |
 
 - 单张最大 10MB，只允许 JPEG、PNG、WebP，并同时校验扩展名、Content-Type 和文件签名。
 - 上传成功生成 `TEMPORARY` 媒体，返回字符串 ID、相对资源地址、宽高、大小和 MIME 类型。
@@ -557,6 +557,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 
 - 不引入 Flyway、Liquibase、编号迁移脚本、迁移历史表或独立回退脚本。
 - 所有表的最终结构直接修改 `schema-init.sql`，开发初始化数据直接修改 `seed-dev.sql`。
+- 后续所有阶段都遵守该规则，不创建阶段迁移目录或版本化 SQL 文件。
 - 每次结构变化同步更新 `DATABASE_SCHEMA.md`、Entity、Mapper、OpenAPI 和测试。
 - `schema-init.sql` 是可重建环境的完整快照，会执行 `DROP TABLE`；运行前必须明确允许丢弃当前开发库数据。
 - 需要保留的数据先导出，重建后再通过受控导入或 `seed-dev.sql` 的转换语句恢复；不在仓库维护多版本升级链。
@@ -584,7 +585,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 |---:|---|---|---|
 | 0 | 完成后端和小程序总契约 | 两份契约、链接、状态和范围一致 | 已实现 |
 | 1 | 冻结城市、分区、媒体字段并更新 SQL 快照 | OpenAPI、DDL 与种子数据已写入结构/数据真源 | 已实现 |
-| 2 | 实现城市、分区、分区关注、临时媒体 | 后端测试、OpenAPI、文档通过 | 未实现 |
+| 2 | 实现城市、分区、分区关注、临时媒体 | 后端测试、OpenAPI、文档通过 | 开发中 |
 | 3 | 冻结统一动态、点赞和 Blog 数据转换 | 字段、索引及快照种子映射定稿 | 未实现 |
 | 4 | 实现 Post、媒体绑定、点赞和数据转换 | 新接口可用，重建后的数据核对一致 | 未实现 |
 | 5 | 改造小程序导航、首页卡片和发布器 | 五入口、分区标签和统一发布验收 | 未实现 |
@@ -645,8 +646,9 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 三模块重构 | Reactor `mvn clean test` 通过：22 项、0 失败，其中 10 项外部环境测试默认跳过；编译通过 |
 | 2026-09-02 | Sa-Token、OpenAPI 与最小启动 | test Profile、Redis database 15、`spring.sql.init.mode=never` 下运行时测试通过 |
 | 2026-09-02 | API v1 与小程序迁移 | Bearer、字符串 ID、统一响应、Nginx `/api` 边界及小程序验证通过 |
-| 2026-09-02 | 本次新产品设计 | 仅完成契约设计，目标源码、SQL、OpenAPI 和页面均未实现 |
-| 2026-09-02 | 阶段 1 城市、分区与媒体设计 | 字段级 API、4 张新表、2 张现有表调整和种子数据已写入 SQL 快照；未执行数据库初始化，运行能力仍未实现 |
+| 2026-09-02 | 本次新产品设计 | 完成全栈契约基线；各目标能力按阶段状态推进 |
+| 2026-09-02 | 阶段 1 城市、分区与媒体设计 | 字段级 API、4 张新表、2 张现有表调整和种子数据已写入 SQL 快照；未执行数据库初始化 |
+| 2026-09-02 | 阶段 2 后端实现 | 城市、分区、分区关注与临时媒体源码和 OpenAPI 已实现；34 项默认测试及 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库未按新快照重建，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 

@@ -63,7 +63,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResult> uploadTooLarge(MaxUploadSizeExceededException exception) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(ErrorResult.of("IMAGE_TOO_LARGE", "单张图片不能超过10MB"));
+                .body(ErrorResult.of("MEDIA_TOO_LARGE", "单张图片不能超过10MB"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

@@ -35,6 +35,11 @@ public class Shop implements Serializable {
     private Long typeId;
 
     /**
+     * 城市编码
+     */
+    private String cityCode;
+
+    /**
      * 商铺图片，多个图片以','隔开
      */
     private String images;
@@ -83,6 +88,11 @@ public class Shop implements Serializable {
      * 营业时间，例如 10:00-22:00
      */
     private String openHours;
+
+    /**
+     * 经营状态：0 停用，1 启用
+     */
+    private Integer status;
 
     /**
      * 创建时间

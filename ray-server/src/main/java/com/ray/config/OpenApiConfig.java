@@ -1,5 +1,7 @@
 package com.ray.config;
 
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
 import com.ray.result.CursorPageResult;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
@@ -13,7 +15,9 @@ import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
@@ -41,7 +45,10 @@ public class OpenApiConfig {
         registerSchema(components, "PageResult", PageResult.class);
         registerSchema(components, "CursorPageResult", CursorPageResult.class);
         return new OpenAPI()
-                .info(new Info().title("Roamly 本地生活服务 API").version("1.0.0").description("Roamly 小程序使用的版本化 HTTP API"))
+                .info(new Info()
+                        .title("Roamly 本地生活服务 API")
+                        .version("1.0.0")
+                        .description("Roamly 小程序使用的版本化 HTTP API"))
                 .servers(List.of(new Server().url("/api").description("Nginx 对外 API 前缀")))
                 .components(components)
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME));
@@ -57,14 +64,22 @@ public class OpenApiConfig {
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
-                if (operation.getSecurity() != null && !operation.getSecurity().isEmpty())
+                if ((operation.getSecurity() != null && !operation.getSecurity().isEmpty())
+                        || isOptionalAuthentication(path)) {
                     addError(operation.getResponses(), "401", "登录无效或已过期");
+                }
                 if (mayReturnNotFound(method, path)) addError(operation.getResponses(), "404", "资源不存在");
+                if (mayReturnForbidden(method, path)) addError(operation.getResponses(), "403", "无权操作该资源");
                 if (method == HttpMethod.POST && path.matches("/v1/seckill-vouchers/\\{[^/]+}/orders")) {
                     addError(operation.getResponses(), "409", "库存不足或重复下单");
                 }
-                if (method == HttpMethod.POST && path.equals("/v1/blog-images"))
+                if (method == HttpMethod.DELETE && path.equals("/v1/media/images/{mediaId}")) {
+                    addError(operation.getResponses(), "409", "媒体已经绑定业务");
+                }
+                if (method == HttpMethod.POST
+                        && (path.equals("/v1/blog-images") || path.equals("/v1/media/images"))) {
                     addError(operation.getResponses(), "413", "文件过大");
+                }
             }));
         };
     }
@@ -76,17 +91,16 @@ public class OpenApiConfig {
         components.addSchemas(name, resolvedSchema.schema);
     }
 
-    private void addError(
-            io.swagger.v3.oas.models.responses.ApiResponses responses, String status, String description) {
+    private void addError(ApiResponses responses, String status, String description) {
         responses.addApiResponse(
                 status,
                 new ApiResponse()
                         .description(description)
                         .content(new Content()
                                 .addMediaType(
-                                        org.springframework.http.MediaType.APPLICATION_JSON_VALUE,
+                                        APPLICATION_JSON_VALUE,
                                         new MediaType()
-                                                .schema(new io.swagger.v3.oas.models.media.Schema<>()
+                                                .schema(new Schema<>()
                                                         .$ref("#/components/schemas/ErrorResult")))));
     }
 
@@ -95,7 +109,19 @@ public class OpenApiConfig {
         if (path.matches("/v1/users/\\{userId}") && method == HttpMethod.GET) return true;
         if (path.matches("/v1/shops/\\{shopId}") && (method == HttpMethod.GET || method == HttpMethod.PUT))
             return true;
+        if (path.equals("/v1/sections/{sectionId}")) return method == HttpMethod.GET;
+        if (path.equals("/v1/users/me/section-follows/{sectionId}"))
+            return method == HttpMethod.PUT || method == HttpMethod.DELETE;
+        if (path.equals("/v1/media/images/{mediaId}")) return method == HttpMethod.DELETE;
         return path.matches("/v1/blogs/\\{blogId}(/like|/likes)?")
                 && (method == HttpMethod.GET || method == HttpMethod.PUT || method == HttpMethod.DELETE);
+    }
+
+    private boolean mayReturnForbidden(HttpMethod method, String path) {
+        return method == HttpMethod.DELETE && path.equals("/v1/media/images/{mediaId}");
+    }
+
+    private boolean isOptionalAuthentication(String path) {
+        return path.equals("/v1/sections") || path.equals("/v1/sections/{sectionId}");
     }
 }

@@ -4,15 +4,18 @@ import cn.hutool.core.util.StrUtil;
 import com.ray.exception.BusinessException;
 import com.ray.service.ImageStorageService;
 import jakarta.annotation.PostConstruct;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -42,20 +45,26 @@ public class ImageStorageServiceImpl implements ImageStorageService {
         }
     }
 
-    /** 校验并保存图片。 */
+    /** 校验图片类型和有效尺寸后写入本地上传目录。 */
     @Override
-    public String store(MultipartFile image) {
+    public StoredImage storeImage(MultipartFile image) {
         if (image == null || image.isEmpty()) throw BusinessException.badRequest("EMPTY_IMAGE", "上传文件不能为空");
-        if (image.getSize() > MAX_SIZE) throw new BusinessException(413, "IMAGE_TOO_LARGE", "单张图片不能超过10MB");
+        if (image.getSize() > MAX_SIZE) throw new BusinessException(413, "MEDIA_TOO_LARGE", "单张图片不能超过10MB");
+        Path target = null;
+        String path = null;
         try {
-            String extension = validate(image);
-            String path = newPath(extension);
-            Path target = resolve(path);
+            byte[] content = image.getBytes();
+            if (content.length > MAX_SIZE)
+                throw new BusinessException(413, "MEDIA_TOO_LARGE", "单张图片不能超过10MB");
+            ImageInfo info = inspect(image, content);
+            path = newPath(info.extension());
+            target = resolve(path);
             Files.createDirectories(target.getParent());
-            image.transferTo(target);
+            Files.write(target, content, StandardOpenOption.CREATE_NEW);
             log.info("[图片上传] 图片保存成功，路径={}", path);
-            return path;
+            return new StoredImage(path, info.mimeType(), content.length, info.width(), info.height());
         } catch (IOException exception) {
+            deletePartialFile(target, path);
             throw new BusinessException(500, "IMAGE_STORE_FAILED", "图片保存失败");
         }
     }
@@ -73,7 +82,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
         log.info("[图片上传] 未使用图片已清理，路径={}", path);
     }
 
-    private String validate(MultipartFile image) throws IOException {
+    private ImageInfo inspect(MultipartFile image, byte[] content) {
         String name = Objects.requireNonNullElse(image.getOriginalFilename(), "");
         String extension = StrUtil.subAfter(name, ".", true).toLowerCase(Locale.ROOT);
         String contentType = image.getContentType();
@@ -81,29 +90,96 @@ public class ImageStorageServiceImpl implements ImageStorageService {
                 || !TYPES.contains(contentType)
                 || !EXTENSIONS.get(extension).equals(contentType))
             throw BusinessException.badRequest("INVALID_IMAGE_TYPE", "仅支持内容与扩展名一致的 JPEG、PNG、WebP 图片");
-        try (InputStream input = image.getInputStream()) {
-            if (!matches(contentType, input.readNBytes(12)))
-                throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "图片内容格式无效");
+
+        ImageDimensions dimensions = dimensions(contentType, content);
+        return new ImageInfo(
+                "jpeg".equals(extension) ? "jpg" : extension,
+                contentType,
+                dimensions.width(),
+                dimensions.height());
+    }
+
+    private ImageDimensions dimensions(String contentType, byte[] content) {
+        if ("image/webp".equals(contentType)) return webpDimensions(content);
+        if (!matchesRasterSignature(contentType, content))
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "图片内容格式无效");
+
+        BufferedImage image;
+        try {
+            image = ImageIO.read(new ByteArrayInputStream(content));
+        } catch (IOException exception) {
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "图片内容无法解码");
         }
-        return "jpeg".equals(extension) ? "jpg" : extension;
+        if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0)
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "图片内容无法解码");
+        return new ImageDimensions(image.getWidth(), image.getHeight());
     }
 
-    private boolean matches(String type, byte[] h) {
-        if ("image/jpeg".equals(type)) return h.length >= 3 && u(h[0]) == 0xff && u(h[1]) == 0xd8 && u(h[2]) == 0xff;
-        if ("image/png".equals(type))
-            return h.length >= 8 && u(h[0]) == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G';
-        return h.length >= 12
-                && h[0] == 'R'
-                && h[1] == 'I'
-                && h[2] == 'F'
-                && h[3] == 'F'
-                && h[8] == 'W'
-                && h[9] == 'E'
-                && h[10] == 'B'
-                && h[11] == 'P';
+    private boolean matchesRasterSignature(String type, byte[] content) {
+        if ("image/jpeg".equals(type))
+            return content.length >= 3
+                    && unsigned(content[0]) == 0xff
+                    && unsigned(content[1]) == 0xd8
+                    && unsigned(content[2]) == 0xff;
+        return content.length >= 8
+                && unsigned(content[0]) == 0x89
+                && content[1] == 'P'
+                && content[2] == 'N'
+                && content[3] == 'G'
+                && unsigned(content[4]) == 0x0d
+                && unsigned(content[5]) == 0x0a
+                && unsigned(content[6]) == 0x1a
+                && unsigned(content[7]) == 0x0a;
     }
 
-    private int u(byte value) {
+    private ImageDimensions webpDimensions(byte[] content) {
+        if (content.length < 30
+                || content[0] != 'R'
+                || content[1] != 'I'
+                || content[2] != 'F'
+                || content[3] != 'F'
+                || content[8] != 'W'
+                || content[9] != 'E'
+                || content[10] != 'B'
+                || content[11] != 'P')
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "WebP 图片内容格式无效");
+
+        String chunk = new String(content, 12, 4, java.nio.charset.StandardCharsets.US_ASCII);
+        return switch (chunk) {
+            case "VP8X" -> new ImageDimensions(
+                    1 + littleEndian24(content, 24), 1 + littleEndian24(content, 27));
+            case "VP8L" -> losslessWebpDimensions(content);
+            case "VP8 " -> lossyWebpDimensions(content);
+            default -> throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "WebP 图片编码格式无效");
+        };
+    }
+
+    private ImageDimensions losslessWebpDimensions(byte[] content) {
+        if (unsigned(content[20]) != 0x2f)
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "WebP 图片内容格式无效");
+        int width = 1 + unsigned(content[21]) + ((unsigned(content[22]) & 0x3f) << 8);
+        int height = 1
+                + ((unsigned(content[22]) & 0xc0) >> 6)
+                + (unsigned(content[23]) << 2)
+                + ((unsigned(content[24]) & 0x0f) << 10);
+        return new ImageDimensions(width, height);
+    }
+
+    private ImageDimensions lossyWebpDimensions(byte[] content) {
+        if (unsigned(content[23]) != 0x9d || unsigned(content[24]) != 0x01 || unsigned(content[25]) != 0x2a)
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "WebP 图片内容格式无效");
+        int width = (unsigned(content[26]) | (unsigned(content[27]) << 8)) & 0x3fff;
+        int height = (unsigned(content[28]) | (unsigned(content[29]) << 8)) & 0x3fff;
+        if (width == 0 || height == 0)
+            throw BusinessException.badRequest("INVALID_IMAGE_CONTENT", "WebP 图片尺寸无效");
+        return new ImageDimensions(width, height);
+    }
+
+    private int littleEndian24(byte[] content, int offset) {
+        return unsigned(content[offset]) | (unsigned(content[offset + 1]) << 8) | (unsigned(content[offset + 2]) << 16);
+    }
+
+    private int unsigned(byte value) {
         return value & 0xff;
     }
 
@@ -119,4 +195,17 @@ public class ImageStorageServiceImpl implements ImageStorageService {
         int hash = id.hashCode();
         return StrUtil.format("/blogs/{}/{}/{}.{}", hash & 0xf, (hash >> 4) & 0xf, id, suffix);
     }
+
+    private void deletePartialFile(Path target, String path) {
+        if (target == null) return;
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException cleanupException) {
+            log.warn("[图片上传] 写入失败后的残留文件清理失败，路径={}", path, cleanupException);
+        }
+    }
+
+    private record ImageInfo(String extension, String mimeType, int width, int height) {}
+
+    private record ImageDimensions(int width, int height) {}
 }

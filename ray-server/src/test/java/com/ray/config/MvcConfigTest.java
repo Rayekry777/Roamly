@@ -9,6 +9,7 @@ class MvcConfigTest {
     @Test
     void publicRoutesAreMethodSensitive() {
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops"));
+        assertTrue(MvcConfig.isPublic("GET", "/v1/cities"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/blogs/1"));
         assertTrue(MvcConfig.isPublic("POST", "/v1/auth/sessions"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/users/1/profile"));
@@ -19,5 +20,9 @@ class MvcConfigTest {
         assertFalse(MvcConfig.isPublic("GET", "/v1/users/me"));
         assertFalse(MvcConfig.isPublic("GET", "/v1/users/me/blogs"));
         assertFalse(MvcConfig.isPublic("POST", "/v1/auth/session"));
+        assertFalse(MvcConfig.isPublic("GET", "/v1/sections"));
+        assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/sections"));
+        assertTrue(MvcConfig.isOptionalAuthentication("GET", "/v1/sections/1"));
+        assertFalse(MvcConfig.isOptionalAuthentication("POST", "/v1/sections"));
     }
 }

@@ -1,12 +1,15 @@
 package com.ray.utils.converter;
 
 import com.ray.entity.Blog;
+import com.ray.entity.ContentSection;
 import com.ray.entity.Shop;
 import com.ray.entity.ShopType;
 import com.ray.entity.User;
 import com.ray.entity.UserInfo;
 import com.ray.entity.Voucher;
 import com.ray.vo.BlogVO;
+import com.ray.vo.SectionDetailVO;
+import com.ray.vo.SectionVO;
 import com.ray.vo.ShopTypeVO;
 import com.ray.vo.ShopVO;
 import com.ray.vo.UserInfoVO;
@@ -54,6 +57,28 @@ public final class ViewMapper {
                 shop.getScore(),
                 shop.getOpenHours(),
                 shop.getDistance());
+    }
+
+    public static SectionVO toSection(ContentSection section, boolean followedByMe) {
+        return new SectionVO(
+                IdUtils.format(section.getId()),
+                section.getCode(),
+                section.getName(),
+                section.getIcon(),
+                Integer.valueOf(1).equals(section.getAllowShopVisit()),
+                followedByMe);
+    }
+
+    public static SectionDetailVO toSectionDetail(ContentSection section, boolean followedByMe) {
+        return new SectionDetailVO(
+                IdUtils.format(section.getId()),
+                section.getCode(),
+                section.getName(),
+                section.getIcon(),
+                Integer.valueOf(1).equals(section.getAllowShopVisit()),
+                followedByMe,
+                section.getDescription(),
+                section.getCover());
     }
 
     public static BlogVO toBlog(Blog blog) {

@@ -1,13 +1,18 @@
 package com.ray.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ray.exception.BusinessException;
 import com.ray.service.impl.ImageStorageServiceImpl;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
@@ -17,11 +22,22 @@ class ImageStorageServiceTest {
     Path uploadDirectory;
 
     @Test
-    void storesValidJpegImage() {
+    void storesValidJpegImage() throws IOException {
         ImageStorageService service = new ImageStorageServiceImpl(uploadDirectory.toString());
-        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
-        String path = service.store(new MockMultipartFile("file", "shop.jpg", "image/jpeg", jpeg));
+        String path = service.store(new MockMultipartFile("file", "shop.jpg", "image/jpeg", jpeg()));
         assertTrue(Files.exists(uploadDirectory.resolve(path.substring(1))));
+    }
+
+    @Test
+    void returnsDecodedImageMetadata() throws IOException {
+        ImageStorageService service = new ImageStorageServiceImpl(uploadDirectory.toString());
+        ImageStorageService.StoredImage stored =
+                service.storeImage(new MockMultipartFile("file", "shop.jpg", "image/jpeg", jpeg()));
+        assertTrue(stored.size() > 0);
+        assertTrue(stored.path().endsWith(".jpg"));
+        assertEquals("image/jpeg", stored.mimeType());
+        assertEquals(2, stored.width());
+        assertEquals(3, stored.height());
     }
 
     @Test
@@ -49,10 +65,9 @@ class ImageStorageServiceTest {
     }
 
     @Test
-    void deletesStoredImage() {
+    void deletesStoredImage() throws IOException {
         ImageStorageService service = new ImageStorageServiceImpl(uploadDirectory.toString());
-        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
-        String path = service.store(new MockMultipartFile("file", "shop.jpg", "image/jpeg", jpeg));
+        String path = service.store(new MockMultipartFile("file", "shop.jpg", "image/jpeg", jpeg()));
         service.delete(path);
         assertFalse(Files.exists(uploadDirectory.resolve(path.substring(1))));
     }
@@ -61,5 +76,12 @@ class ImageStorageServiceTest {
     void rejectsPathTraversal() {
         ImageStorageService service = new ImageStorageServiceImpl(uploadDirectory.toString());
         assertThrows(BusinessException.class, () -> service.delete("../../outside.jpg"));
+    }
+
+    private byte[] jpeg() throws IOException {
+        BufferedImage image = new BufferedImage(2, 3, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "jpg", output);
+        return output.toByteArray();
     }
 }
