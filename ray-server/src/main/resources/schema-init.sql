@@ -1,6 +1,75 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS `tb_city`;
+CREATE TABLE `tb_city` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `code` varchar(16) NOT NULL COMMENT '稳定城市编码',
+  `name` varchar(64) NOT NULL COMMENT '城市名称',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+  `sort` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '展示顺序',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_city_code` (`code`) USING BTREE,
+  INDEX `idx_city_status_sort` (`status`, `sort`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '城市字典' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_content_section`;
+CREATE TABLE `tb_content_section` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `code` varchar(32) NOT NULL COMMENT '稳定分区编码',
+  `name` varchar(32) NOT NULL COMMENT '分区名称',
+  `description` varchar(255) NULL DEFAULT NULL COMMENT '分区说明',
+  `icon` varchar(255) NULL DEFAULT NULL COMMENT '图标相对路径',
+  `cover` varchar(255) NULL DEFAULT NULL COMMENT '封面相对路径',
+  `allow_shop_visit` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否允许探店：0否，1是',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+  `sort` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '展示顺序',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_section_code` (`code`) USING BTREE,
+  INDEX `idx_section_status_sort` (`status`, `sort`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '官方内容分区' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_section_follow`;
+CREATE TABLE `tb_section_follow` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID，逻辑关联tb_user.id',
+  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联tb_content_section.id',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_section_follow_user_section` (`user_id`, `section_id`) USING BTREE,
+  INDEX `idx_section_follow_section_time` (`section_id`, `create_time`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户关注分区关系' ROW_FORMAT = Dynamic;
+
+
+DROP TABLE IF EXISTS `tb_media_asset`;
+CREATE TABLE `tb_media_asset` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `owner_user_id` bigint UNSIGNED NOT NULL COMMENT '上传用户ID，逻辑关联tb_user.id',
+  `storage_path` varchar(512) NOT NULL COMMENT '唯一相对存储路径',
+  `mime_type` varchar(64) NOT NULL COMMENT '实际图片MIME类型',
+  `file_size` bigint UNSIGNED NOT NULL COMMENT '文件字节数',
+  `width` int UNSIGNED NOT NULL COMMENT '图片像素宽度',
+  `height` int UNSIGNED NOT NULL COMMENT '图片像素高度',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态：0临时，1已绑定，2已删除',
+  `bound_type` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '绑定类型：1动态，2商户点评',
+  `bound_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '绑定业务ID',
+  `expire_time` timestamp NULL DEFAULT NULL COMMENT '临时资产过期时间',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_media_storage_path` (`storage_path`) USING BTREE,
+  INDEX `idx_media_status_expire` (`status`, `expire_time`, `id`) USING BTREE,
+  INDEX `idx_media_owner_status` (`owner_user_id`, `status`, `id`) USING BTREE,
+  INDEX `idx_media_bound` (`bound_type`, `bound_id`, `id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '媒体资产' ROW_FORMAT = Dynamic;
+
+
 DROP TABLE IF EXISTS `tb_blog`;
 CREATE TABLE `tb_blog`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -48,8 +117,8 @@ CREATE TABLE `tb_seckill_voucher`  (
   `voucher_id` bigint(20) UNSIGNED NOT NULL COMMENT '关联的优惠券的id',
   `stock` int(8) NOT NULL COMMENT '库存',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `begin_time` timestamp NULL DEFAULT NULL COMMENT '生效时间',
-    `end_time` timestamp NULL DEFAULT NULL COMMENT '失效时间',
+  `begin_time` timestamp NULL DEFAULT NULL COMMENT '生效时间',
+  `end_time` timestamp NULL DEFAULT NULL COMMENT '失效时间',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`voucher_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '秒杀优惠券表，与优惠券是一对一关系' ROW_FORMAT = Compact;
@@ -60,6 +129,7 @@ CREATE TABLE `tb_shop`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺名称',
   `type_id` bigint(20) UNSIGNED NOT NULL COMMENT '商铺类型的id',
+  `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '330100' COMMENT '城市编码',
   `images` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺图片，多个图片以\',\'隔开',
   `area` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '商圈，例如陆家嘴',
   `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '地址',
@@ -70,10 +140,12 @@ CREATE TABLE `tb_shop`  (
   `comments` int(10) UNSIGNED NOT NULL COMMENT '评论数量',
   `score` int(2) UNSIGNED NOT NULL COMMENT '评分，1~5分，乘10保存，避免小数',
   `open_hours` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '营业时间，例如 10:00-22:00',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '经营状态：0停用，1启用',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
-  INDEX `foreign_key_type`(`type_id`) USING BTREE
+  INDEX `foreign_key_type`(`type_id`) USING BTREE,
+  INDEX `idx_shop_city_type_status`(`city_code`, `type_id`, `status`, `id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
@@ -107,6 +179,7 @@ DROP TABLE IF EXISTS `tb_user_info`;
 CREATE TABLE `tb_user_info`  (
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '主键，用户id',
   `city` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '城市名称',
+  `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '当前城市编码',
   `introduce` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '个人介绍，不要超过128个字符',
   `fans` int(8) UNSIGNED NULL DEFAULT 0 COMMENT '粉丝数量',
   `followee` int(8) UNSIGNED NULL DEFAULT 0 COMMENT '关注的人的数量',
