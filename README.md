@@ -51,4 +51,4 @@ mvn -DskipTests compile
 mvn -pl ray-server -am dependency:tree
 ```
 
-本轮不执行 `package`、`install`、部署或 Docker 产物生成。详细设计与状态见 `BACKEND_DEVELOPMENT.md`，数据库结构见 `DATABASE_SCHEMA.md`，破坏性接口迁移见 `API_V1_MIGRATION.md`。
+本轮不执行 `package`、`install`、部署或 Docker 产物生成。详细设计与状态见 [后端开发与全栈设计契约](docs/BACKEND_DEVELOPMENT.md)，当前数据库结构见 [数据库结构文档](docs/DATABASE_SCHEMA.md)。
