@@ -7,12 +7,20 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
 public class WebExceptionAdvice {
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public Result handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        log.warn("[图片上传] 上传文件超过限制，最大字节数={}", e.getMaxUploadSize());
+        return Result.fail("单张图片不能超过10MB");
+    }
 
     @ExceptionHandler(RuntimeException.class)
     public Result handleRuntimeException(RuntimeException e) {
