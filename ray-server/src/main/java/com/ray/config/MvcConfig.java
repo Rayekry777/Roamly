@@ -63,6 +63,7 @@ public class MvcConfig implements WebMvcConfigurer {
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/reviews")) return true;
         if ("GET".equals(method) && (path.matches("/v1/shops/[^/]+/voucher-products")
                 || path.matches("/v1/voucher-products/[^/]+"))) return true;
+        if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/posts")) return true;
         return path.matches("/v1/users/(?!me$)[^/]+")
                 || path.matches("/v1/users/(?!me/)[^/]+/profile")
                 || path.matches("/v1/users/(?!me/)[^/]+/blogs");

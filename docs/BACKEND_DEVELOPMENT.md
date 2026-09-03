@@ -299,7 +299,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | GET | `/v1/shop-types` | 公开 | 无 | `Result<List<ShopTypeVO>>` | 已实现 |
 | GET | `/v1/shops` | 公开 | 筛选与分页 | `Result<PageResult<ShopCardVO>>` | 目标扩展 |
 | GET | `/v1/shops/{shopId}` | 可选 | 经纬度可选 | `Result<ShopDetailVO>` | 目标扩展 |
-| GET | `/v1/shops/{shopId}/posts` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
+| GET | `/v1/shops/{shopId}/posts` | 公开 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 开发中 |
 | GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 开发中 |
 | POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateDTO` | 201 `Result<ShopReviewVO>` | 开发中 |
 | PUT | `/v1/shops/{shopId}/reviews/me` | 登录 | `ShopReviewUpdateDTO` | `Result<ShopReviewVO>` | 开发中 |
@@ -678,6 +678,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-03 | 阶段 9 商户点评后端实现 | 冻结点评 DTO/VO、operationId、评分排序、唯一点评、消费认证过渡查询和媒体事务；新增点评表、媒体关系、Controller/Service/Mapper、OpenAPI Schema 与匿名读取路由；后端 `mvn test` 通过 62 项（10 项外部环境测试跳过），`mvn -DskipTests compile` 通过。运行数据库重建、真实端点和小程序真机验收未完成，阶段保持开发中 |
 | 2026-09-03 | 阶段 10 团购订单与券包 | 已提交团购商品、待支付订单、取消返库、订单/券包查询、开发 SQL 和 API；补充不公开的支付确认服务，按订单唯一约束幂等发券并累计销量。真实支付回调、数据库快照重建、过期刷新和真机验收未完成，阶段保持开发中 |
 | 2026-09-03 | 快照表名一致性修复 | 将 Entity 与动态/评论 Mapper 中遗留的 `tb_*` 表名统一为 `schema-init.sql` 使用的无前缀表名；消除重建开发数据库后信息流、评论和点赞查询的直接 SQL 表不存在风险。67 项默认测试通过，真实数据库端点仍待隔离环境验证 |
+| 2026-09-03 | 商户关联动态 | 冻结并实现 `GET /v1/shops/{shopId}/posts`：匿名读取、仅正常探店动态、按发布时间游标分页，复用 `PostCardVO`；待真实数据库和小程序商户详情联调后验收 |
 
 ## 13. 当前风险与明确非目标
 

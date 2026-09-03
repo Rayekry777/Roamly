@@ -196,6 +196,7 @@ public class OpenApiConfig {
         if (path.equals("/v1/comments/{commentId}/replies")) return true;
         if (path.equals("/v1/comments/{commentId}") || path.equals("/v1/comments/{commentId}/like")) return true;
         if (path.equals("/v1/shops/{shopId}/reviews")) return method == HttpMethod.GET || method == HttpMethod.POST;
+        if (path.equals("/v1/shops/{shopId}/posts")) return method == HttpMethod.GET;
         if (path.equals("/v1/shops/{shopId}/reviews/me")) return method == HttpMethod.PUT || method == HttpMethod.DELETE;
         if (path.equals("/v1/shops/{shopId}/voucher-products") || path.equals("/v1/voucher-products/{productId}"))
             return method == HttpMethod.GET;

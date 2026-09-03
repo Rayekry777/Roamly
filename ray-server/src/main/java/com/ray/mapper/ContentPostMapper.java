@@ -61,6 +61,17 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
             @Param("offset") int offset,
             @Param("limit") int limit);
 
+    /** 按发布时间查询指定商户关联的正常探店动态。 */
+    @Select(
+            "SELECT p.* FROM post p WHERE p.status = 0 AND p.shop_visit = 1 AND p.shop_id = #{shopId} "
+                    + "AND (#{cursorTime} IS NULL OR p.create_time <= #{cursorTime}) "
+                    + "ORDER BY p.create_time DESC, p.id DESC LIMIT #{offset}, #{limit}")
+    List<ContentPost> selectShopPosts(
+            @Param("shopId") Long shopId,
+            @Param("cursorTime") LocalDateTime cursorTime,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
+
     /** 按发布时间查询分区动态，可选城市隔离。 */
     @Select(
             "<script>SELECT p.* FROM post p "

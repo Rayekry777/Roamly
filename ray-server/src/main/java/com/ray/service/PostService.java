@@ -47,6 +47,9 @@ public interface PostService extends IService<ContentPost> {
     /** 按发布时间查询当前用户关注作者的动态。 */
     CursorPageResult<PostCardVO> listFollowingFeed(Long cursor, int offset, int size);
 
+    /** 按发布时间查询指定商户关联的正常探店动态。 */
+    CursorPageResult<PostCardVO> listShopPosts(Long shopId, Long cursor, int offset, int size);
+
     /** 按分区、可选城市和排序方式查询动态。 */
     CursorPageResult<PostCardVO> listSectionPosts(
             Long sectionId,

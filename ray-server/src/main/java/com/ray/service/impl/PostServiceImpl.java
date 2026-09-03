@@ -332,6 +332,17 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return toCursorPage(posts, cursor, offset, size, this::createdTimeScore);
     }
 
+    /** 查询商户关联的正常探店动态，不混入普通漫游动态。 */
+    @Override
+    public CursorPageResult<PostCardVO> listShopPosts(Long shopId, Long cursor, int offset, int size) {
+        requireCursorOffset(cursor, offset);
+        Shop shop = shopService.getById(shopId);
+        if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus()))
+            throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
+        List<ContentPost> posts = baseMapper.selectShopPosts(shopId, toCursorTime(cursor), offset, size + 1);
+        return toCursorPage(posts, cursor, offset, size, this::createdTimeScore);
+    }
+
     /** 校验分区和城市后按最新或热门查询分区动态。 */
     @Override
     public CursorPageResult<PostCardVO> listSectionPosts(
