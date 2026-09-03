@@ -2,13 +2,13 @@
 
 当前结构来源：`ray-server/src/main/resources/schema-init.sql`；开发数据来源：`ray-server/src/main/resources/seed-dev.sql`。两者由 `ray-server/src/main/resources/application-dev.yml` 按“先结构、后数据”的顺序初始化。
 
-结构版本：开发初始化快照（截至 2026-09-03，阶段 9）
-业务表数量：21 张
+结构版本：开发初始化快照（截至 2026-09-03，阶段 10）
+业务表数量：23 张
 数据库：MySQL / InnoDB / utf8mb4
 
 表命名约定：业务表直接使用关键业务名，采用小写下划线命名（例如 `user`、`content_section`、`post_comment`），不添加 `tb` 或其他统一前缀。后续新增表沿用该规则；本文及 SQL 中的表名以当前开发库重建后的名称为准。
 
-数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照，阶段 9 新增商户点评及点评媒体；当前测试数据库尚未按该快照重建。
+数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照，阶段 9 新增商户点评及点评媒体，阶段 10 新增团购商品和用户券、扩展订单快照字段；当前测试数据库尚未按该快照重建。
 
 ## 表目录索引
 
@@ -23,18 +23,20 @@
 | 7 | `follow` | 用户关注关系 | [查看字段](#follow-用户关注关系) |
 | 8 | `voucher` | 商户优惠券 | [查看字段](#voucher-商户优惠券) |
 | 9 | `seckill_voucher` | 秒杀优惠券 | [查看字段](#seckill_voucher-秒杀优惠券) |
-| 10 | `voucher_order` | 优惠券订单 | [查看字段](#voucher_order-优惠券订单) |
-| 11 | `city` | 城市字典 | [查看字段](#city-城市字典) |
-| 12 | `content_section` | 官方内容分区 | [查看字段](#content_section-官方内容分区) |
-| 13 | `section_follow` | 用户关注分区 | [查看字段](#section_follow-用户关注分区) |
-| 14 | `media_asset` | 临时和已绑定媒体 | [查看字段](#media_asset-媒体资产) |
-| 15 | `post` | 统一社区动态 | [查看字段](#post-统一社区动态) |
-| 16 | `post_media` | 动态媒体关系与顺序 | [查看字段](#post_media-动态媒体关系) |
-| 17 | `post_like` | 动态点赞事实 | [查看字段](#post_like-动态点赞事实) |
-| 18 | `post_comment` | 动态根评论与追加回复 | [查看字段](#post_comment-动态评论与追加回复) |
-| 19 | `post_comment_like` | 动态评论点赞事实 | [查看字段](#post_comment_like-动态评论点赞事实) |
-| 20 | `shop_review` | 商户独立点评 | [查看字段](#shop_review-商户独立点评) |
-| 21 | `shop_review_media` | 商户点评媒体关系 | [查看字段](#shop_review_media-商户点评媒体关系) |
+| 10 | `voucher_product` | 团购商品 | [查看字段](#voucher_product-团购商品) |
+| 11 | `voucher_order` | 优惠券订单 | [查看字段](#voucher_order-优惠券订单) |
+| 12 | `user_voucher` | 用户券实例 | [查看字段](#user_voucher-用户券实例) |
+| 13 | `city` | 城市字典 | [查看字段](#city-城市字典) |
+| 14 | `content_section` | 官方内容分区 | [查看字段](#content_section-官方内容分区) |
+| 15 | `section_follow` | 用户关注分区 | [查看字段](#section_follow-用户关注分区) |
+| 16 | `media_asset` | 临时和已绑定媒体 | [查看字段](#media_asset-媒体资产) |
+| 17 | `post` | 统一社区动态 | [查看字段](#post-统一社区动态) |
+| 18 | `post_media` | 动态媒体关系与顺序 | [查看字段](#post_media-动态媒体关系) |
+| 19 | `post_like` | 动态点赞事实 | [查看字段](#post_like-动态点赞事实) |
+| 20 | `post_comment` | 动态根评论与追加回复 | [查看字段](#post_comment-动态评论与追加回复) |
+| 21 | `post_comment_like` | 动态评论点赞事实 | [查看字段](#post_comment_like-动态评论点赞事实) |
+| 22 | `shop_review` | 商户独立点评 | [查看字段](#shop_review-商户独立点评) |
+| 23 | `shop_review_media` | 商户点评媒体关系 | [查看字段](#shop_review_media-商户点评媒体关系) |
 
 ## 表索引总览
 
@@ -431,6 +433,18 @@
 | `create_time` | `timestamp` | 否 | 当前时间 | 创建时间 |
 
 `review_id + sort` 和 `media_asset_id` 分别使用唯一索引，最多绑定 9 张当前用户拥有的临时媒体；媒体所有权、临时状态和删除清理由应用事务保证。
+
+### `voucher_product` 团购商品
+
+商品标题、封面、规则、分售价与库存字段均在此表维护；金额以分保存。`sale_type` 为 `NORMAL/SECKILL`，`status` 为 `DRAFT/ON_SALE/SOLD_OUT/OFF_SALE`，并通过 `idx_voucher_product_shop_status`、`idx_voucher_product_sale` 支持商户列表和销售期查询。库存由应用条件更新扣减，支付成功后再增加 `sold_count`。
+
+### `voucher_order` 团购订单扩展
+
+保留旧 `voucher_id` 字段以兼容历史秒杀订单；新订单使用 `product_id`，并保存 `shop_id`、`product_title`、`unit_price`、`quantity`、`total_amount`、`pay_amount` 快照。新增索引 `idx_order_user_status_time`、`idx_order_product_user`。订单状态仍使用旧数字编码，接口层映射为 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`。
+
+### `user_voucher` 用户券实例
+
+保存订单发放的唯一券码、商品和商户快照、状态及有效期。`uk_user_voucher_code` 保证券码唯一，`uk_user_voucher_order` 保证支付事件按订单幂等发券，`idx_user_voucher_user_status_expire` 支持用户券包查询。第一阶段未接入支付和核销，当前不会生成虚构券实例。
 
 ## 关系、初始化与演进说明
 

@@ -18,6 +18,12 @@ import com.ray.vo.PostMediaVO;
 import com.ray.vo.ReviewMediaVO;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.ShopReviewVO;
+import com.ray.vo.VoucherOrderDetailVO;
+import com.ray.vo.VoucherOrderVO;
+import com.ray.vo.VoucherProductDetailVO;
+import com.ray.vo.VoucherProductVO;
+import com.ray.vo.UserVoucherVO;
+import com.ray.dto.VoucherOrderCreateDTO;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
@@ -58,6 +64,7 @@ public class OpenApiConfig {
         registerSchema(components, "CursorPageResult", CursorPageResult.class);
         registerPostSchemas(components);
         registerReviewSchemas(components);
+        registerVoucherSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -77,6 +84,7 @@ public class OpenApiConfig {
             registerSchema(openApi.getComponents(), "CursorPageResult", CursorPageResult.class);
             registerPostSchemas(openApi.getComponents());
             registerReviewSchemas(openApi.getComponents());
+            registerVoucherSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -91,6 +99,11 @@ public class OpenApiConfig {
                 if (method == HttpMethod.POST && path.matches("/v1/seckill-vouchers/\\{[^/]+}/orders")) {
                     addError(operation.getResponses(), "409", "库存不足或重复下单");
                 }
+                if (path.matches("/v1/voucher-products/\\{[^/]+}/orders") && method == HttpMethod.POST) {
+                    addError(operation.getResponses(), "409", "库存不足、超过限购或订单状态冲突");
+                }
+                if (path.matches("/v1/users/me/orders/\\{[^/]+}")
+                        && method == HttpMethod.DELETE) addError(operation.getResponses(), "409", "订单状态不允许取消");
                 if ((method == HttpMethod.POST && path.equals("/v1/posts"))
                         || (method == HttpMethod.PUT && path.equals("/v1/posts/{postId}"))) {
                     addError(operation.getResponses(), "409", "媒体已绑定或动态状态冲突");
@@ -138,6 +151,15 @@ public class OpenApiConfig {
         registerSchema(components, "ShopReviewVO", ShopReviewVO.class);
     }
 
+    private void registerVoucherSchemas(Components components) {
+        registerSchema(components, "VoucherOrderCreateDTO", VoucherOrderCreateDTO.class);
+        registerSchema(components, "VoucherProductVO", VoucherProductVO.class);
+        registerSchema(components, "VoucherProductDetailVO", VoucherProductDetailVO.class);
+        registerSchema(components, "VoucherOrderVO", VoucherOrderVO.class);
+        registerSchema(components, "VoucherOrderDetailVO", VoucherOrderDetailVO.class);
+        registerSchema(components, "UserVoucherVO", UserVoucherVO.class);
+    }
+
     private void addError(ApiResponses responses, String status, String description) {
         responses.addApiResponse(
                 status,
@@ -175,6 +197,11 @@ public class OpenApiConfig {
         if (path.equals("/v1/comments/{commentId}") || path.equals("/v1/comments/{commentId}/like")) return true;
         if (path.equals("/v1/shops/{shopId}/reviews")) return method == HttpMethod.GET || method == HttpMethod.POST;
         if (path.equals("/v1/shops/{shopId}/reviews/me")) return method == HttpMethod.PUT || method == HttpMethod.DELETE;
+        if (path.equals("/v1/shops/{shopId}/voucher-products") || path.equals("/v1/voucher-products/{productId}"))
+            return method == HttpMethod.GET;
+        if (path.equals("/v1/voucher-products/{productId}/orders")) return method == HttpMethod.POST;
+        if (path.equals("/v1/users/me/orders/{orderId}") || path.equals("/v1/users/me/vouchers/{userVoucherId}"))
+            return true;
         if (path.equals("/v1/users/{userId}/posts")) return method == HttpMethod.GET;
         return path.matches("/v1/blogs/\\{blogId}(/like|/likes)?")
                 && (method == HttpMethod.GET || method == HttpMethod.PUT || method == HttpMethod.DELETE);

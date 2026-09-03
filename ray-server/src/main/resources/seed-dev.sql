@@ -167,4 +167,13 @@ INSERT INTO `user` VALUES (4, '13456789011', '', 'user_slxaxy2au9f3tanffaxr', ''
 INSERT INTO `user` VALUES (5, '13456789001', '', 'user_n0bb8mwwg4', '', '2022-01-07 16:11:33', '2022-01-07 16:11:33');
 INSERT INTO `voucher` VALUES (1, 1, '50元代金券', '周一至周日均可使用', '全场通用\\n无需预约\\n可无限叠加\\不兑现、不找零\\n仅限堂食', 4750, 5000, 0, 1, '2022-01-04 09:42:39', '2022-01-04 09:43:31');
 
+INSERT INTO `voucher_product`
+  (`id`, `shop_id`, `title`, `sub_title`, `cover`, `rules`, `pay_price`, `original_price`, `deduction_value`,
+   `sale_type`, `total_stock`, `available_stock`, `sold_count`, `purchase_limit`, `validity_type`, `valid_days`, `status`)
+VALUES
+  (1001, 1, '103 茶餐厅 100 元代金券', '工作日、周末通用', NULL, '不可与店内其他优惠同享', 8000, 10000, 10000,
+   'NORMAL', 200, 200, 0, 1, 'DAYS_AFTER_PURCHASE', 30, 'ON_SALE'),
+  (1002, 4, 'Mamala 双人下午茶套餐', '限店内堂食使用', NULL, '请提前向商户确认可用时间', 16800, 22800, NULL,
+   'NORMAL', 80, 80, 0, 1, 'DAYS_AFTER_PURCHASE', 15, 'ON_SALE');
+
 SET FOREIGN_KEY_CHECKS = 1;

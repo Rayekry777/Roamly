@@ -324,11 +324,50 @@ CREATE TABLE `voucher`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
+DROP TABLE IF EXISTS `user_voucher`;
+DROP TABLE IF EXISTS `voucher_product`;
 DROP TABLE IF EXISTS `voucher_order`;
+CREATE TABLE `voucher_product` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `shop_id` bigint UNSIGNED NOT NULL,
+  `title` varchar(120) NOT NULL,
+  `sub_title` varchar(255) NULL,
+  `cover` varchar(255) NULL,
+  `rules` varchar(2000) NULL,
+  `pay_price` bigint UNSIGNED NOT NULL,
+  `original_price` bigint UNSIGNED NULL,
+  `deduction_value` bigint UNSIGNED NULL,
+  `sale_type` varchar(16) NOT NULL DEFAULT 'NORMAL',
+  `total_stock` int UNSIGNED NOT NULL DEFAULT 0,
+  `available_stock` int UNSIGNED NOT NULL DEFAULT 0,
+  `sold_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `purchase_limit` int UNSIGNED NOT NULL DEFAULT 1,
+  `sale_begin_time` timestamp NULL,
+  `sale_end_time` timestamp NULL,
+  `validity_type` varchar(32) NOT NULL DEFAULT 'DAYS_AFTER_PURCHASE',
+  `valid_begin_time` timestamp NULL,
+  `valid_end_time` timestamp NULL,
+  `valid_days` int UNSIGNED NULL,
+  `status` varchar(16) NOT NULL DEFAULT 'DRAFT',
+  `version` int UNSIGNED NOT NULL DEFAULT 0,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_voucher_product_shop_status` (`shop_id`,`status`,`id`),
+  INDEX `idx_voucher_product_sale` (`status`,`sale_begin_time`,`sale_end_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='团购商品';
+
 CREATE TABLE `voucher_order`  (
   `id` bigint(20) NOT NULL COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '下单的用户id',
-  `voucher_id` bigint(20) UNSIGNED NOT NULL COMMENT '购买的代金券id',
+  `voucher_id` bigint(20) UNSIGNED NULL COMMENT '旧优惠券ID；新团购订单为空',
+  `product_id` bigint(20) UNSIGNED NULL COMMENT '团购商品ID',
+  `shop_id` bigint(20) UNSIGNED NULL COMMENT '商户ID快照',
+  `product_title` varchar(120) NULL COMMENT '商品标题快照',
+  `unit_price` bigint UNSIGNED NULL COMMENT '单价，单位分',
+  `quantity` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '购买数量',
+  `total_amount` bigint UNSIGNED NULL COMMENT '总金额，单位分',
+  `pay_amount` bigint UNSIGNED NULL COMMENT '支付金额，单位分',
   `pay_type` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '支付方式 1：余额支付；2：支付宝；3：微信',
   `status` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '订单状态，1：未支付；2：已支付；3：已核销；4：已取消；5：退款中；6：已退款',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下单时间',
@@ -336,8 +375,30 @@ CREATE TABLE `voucher_order`  (
   `use_time` timestamp NULL DEFAULT NULL COMMENT '核销时间',
   `refund_time` timestamp NULL DEFAULT NULL COMMENT '退款时间',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_order_user_status_time` (`user_id`,`status`,`create_time`,`id`),
+  INDEX `idx_order_product_user` (`product_id`,`user_id`,`id`)
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
+
+CREATE TABLE `user_voucher` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` bigint UNSIGNED NOT NULL,
+  `order_id` bigint NOT NULL,
+  `product_id` bigint UNSIGNED NOT NULL,
+  `shop_id` bigint UNSIGNED NOT NULL,
+  `voucher_code` varchar(64) NOT NULL,
+  `status` varchar(16) NOT NULL DEFAULT 'UNUSED',
+  `valid_begin_time` timestamp NULL,
+  `expire_time` timestamp NULL,
+  `use_time` timestamp NULL,
+  `refund_time` timestamp NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_user_voucher_code` (`voucher_code`),
+  UNIQUE INDEX `uk_user_voucher_order` (`order_id`),
+  INDEX `idx_user_voucher_user_status_expire` (`user_id`,`status`,`expire_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户券实例';
 
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -29,6 +29,7 @@ implementationStatus: 未实现
 - [阶段 7：Threads 式评论、删除语义与排序契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)
 - [阶段 8：Threads 式评论后端实现记录](./stages/STAGE_08_POST_COMMENTS_IMPLEMENTATION.md)
 - [阶段 9：商户点评后端实现记录](./stages/STAGE_09_SHOP_REVIEW_IMPLEMENTATION.md)
+- [阶段 10：团购商品、订单与券包实现记录](./stages/STAGE_10_VOUCHER_ORDER_WALLET_IMPLEMENTATION.md)
 
 ## 2. 当前系统基线
 
@@ -59,7 +60,7 @@ implementationStatus: 未实现
 
 ### 2.3 当前数据库与迁移风险
 
-- 当前数据库快照有 19 张业务表，结构来源为 `ray-server/src/main/resources/schema-init.sql`。
+- 当前数据库快照有 23 张业务表，结构来源为 `ray-server/src/main/resources/schema-init.sql`；阶段 10 新增 `voucher_product` 与 `user_voucher`，并扩展 `voucher_order` 商品快照字段。
 - 数据库不使用 Flyway、Liquibase、编号迁移或迁移历史，结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。
 - `schema-init.sql` 含 `DROP TABLE`，只允许用于全新开发数据库，禁止在现有数据库或生产数据库执行。
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) 记录当前 SQL 快照事实；运行中的数据库是否已按快照重建需要单独确认。
@@ -326,14 +327,14 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| GET | `/v1/shops/{shopId}/voucher-products` | 公开 | `status` | `Result<List<VoucherProductVO>>` | 未实现 |
-| GET | `/v1/voucher-products/{productId}` | 公开 | 无 | `Result<VoucherProductDetailVO>` | 未实现 |
-| POST | `/v1/voucher-products/{productId}/orders` | 登录 | `VoucherOrderCreateDTO` | 201 `Result<VoucherOrderVO>` | 未实现 |
-| GET | `/v1/users/me/orders` | 登录 | `status,page,size` | `Result<PageResult<VoucherOrderVO>>` | 未实现 |
-| GET | `/v1/users/me/orders/{orderId}` | 登录 | 无 | `Result<VoucherOrderDetailVO>` | 未实现 |
-| DELETE | `/v1/users/me/orders/{orderId}` | 登录 | 无 | 204 | 未实现 |
-| GET | `/v1/users/me/vouchers` | 登录 | `status,page,size` | `Result<PageResult<UserVoucherVO>>` | 未实现 |
-| GET | `/v1/users/me/vouchers/{userVoucherId}` | 登录 | 无 | `Result<UserVoucherDetailVO>` | 未实现 |
+| GET | `/v1/shops/{shopId}/voucher-products` | 公开 | `status` | `Result<List<VoucherProductVO>>` | 开发中 |
+| GET | `/v1/voucher-products/{productId}` | 公开 | 无 | `Result<VoucherProductDetailVO>` | 开发中 |
+| POST | `/v1/voucher-products/{productId}/orders` | 登录 | `VoucherOrderCreateDTO` | 201 `Result<VoucherOrderVO>` | 开发中 |
+| GET | `/v1/users/me/orders` | 登录 | `status,page,size` | `Result<PageResult<VoucherOrderVO>>` | 开发中 |
+| GET | `/v1/users/me/orders/{orderId}` | 登录 | 无 | `Result<VoucherOrderDetailVO>` | 开发中 |
+| DELETE | `/v1/users/me/orders/{orderId}` | 登录 | 无 | 204 | 开发中 |
+| GET | `/v1/users/me/vouchers` | 登录 | `status,page,size` | `Result<PageResult<UserVoucherVO>>` | 开发中 |
+| GET | `/v1/users/me/vouchers/{userVoucherId}` | 登录 | 无 | `Result<UserVoucherVO>` | 开发中 |
 
 - `VoucherOrderCreateDTO.quantity` 第一阶段固定为 1，字段保留并校验为 1。
 - 创建订单时服务端重新读取价格、销售期、库存、限购和商户状态，不信任客户端金额。

@@ -12,7 +12,7 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("tb_voucher_order")
+@TableName("voucher_order")
 public class VoucherOrder implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -32,6 +32,27 @@ public class VoucherOrder implements Serializable {
      * 购买的代金券id
      */
     private Long voucherId;
+
+    /** 新团购商品 ID。 */
+    private Long productId;
+
+    /** 商户 ID 快照。 */
+    private Long shopId;
+
+    /** 商品标题快照。 */
+    private String productTitle;
+
+    /** 下单时单价，单位分。 */
+    private Long unitPrice;
+
+    /** 购买数量，第一阶段固定为 1。 */
+    private Integer quantity;
+
+    /** 订单总金额，单位分。 */
+    private Long totalAmount;
+
+    /** 实际支付金额，单位分。 */
+    private Long payAmount;
 
     /**
      * 支付方式 1：余额支付；2：支付宝；3：微信
