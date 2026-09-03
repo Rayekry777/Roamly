@@ -6,31 +6,33 @@
 业务表数量：19 张
 数据库：MySQL / InnoDB / utf8mb4
 
+表命名约定：业务表直接使用关键业务名，采用小写下划线命名（例如 `user`、`content_section`、`post_comment`），不添加 `tb` 或其他统一前缀。后续新增表沿用该规则；本文及 SQL 中的表名以当前开发库重建后的名称为准。
+
 数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照；当前测试数据库尚未按该快照重建。
 
 ## 表目录索引
 
 | 序号 | 表 | 用途 | 字段明细 |
 |---:|---|---|---|
-| 1 | `tb_user` | 用户账号 | [查看字段](#tb_user-用户账号) |
-| 2 | `tb_user_info` | 用户扩展资料 | [查看字段](#tb_user_info-用户扩展资料) |
-| 3 | `tb_shop_type` | 商户分类 | [查看字段](#tb_shop_type-商户分类) |
-| 4 | `tb_shop` | 商户信息与地理坐标 | [查看字段](#tb_shop-商户信息与地理坐标) |
-| 5 | `tb_blog` | 探店笔记 | [查看字段](#tb_blog-探店笔记) |
-| 6 | `tb_blog_comments` | 笔记评论与回复 | [查看字段](#tb_blog_comments-笔记评论与回复) |
-| 7 | `tb_follow` | 用户关注关系 | [查看字段](#tb_follow-用户关注关系) |
-| 8 | `tb_voucher` | 商户优惠券 | [查看字段](#tb_voucher-商户优惠券) |
-| 9 | `tb_seckill_voucher` | 秒杀优惠券 | [查看字段](#tb_seckill_voucher-秒杀优惠券) |
-| 10 | `tb_voucher_order` | 优惠券订单 | [查看字段](#tb_voucher_order-优惠券订单) |
-| 11 | `tb_city` | 城市字典 | [查看字段](#tb_city-城市字典) |
-| 12 | `tb_content_section` | 官方内容分区 | [查看字段](#tb_content_section-官方内容分区) |
-| 13 | `tb_section_follow` | 用户关注分区 | [查看字段](#tb_section_follow-用户关注分区) |
-| 14 | `tb_media_asset` | 临时和已绑定媒体 | [查看字段](#tb_media_asset-媒体资产) |
-| 15 | `tb_post` | 统一社区动态 | [查看字段](#tb_post-统一社区动态) |
-| 16 | `tb_post_media` | 动态媒体关系与顺序 | [查看字段](#tb_post_media-动态媒体关系) |
-| 17 | `tb_post_like` | 动态点赞事实 | [查看字段](#tb_post_like-动态点赞事实) |
-| 18 | `tb_post_comment` | 动态根评论与追加回复 | [查看字段](#tb_post_comment-动态评论与追加回复) |
-| 19 | `tb_post_comment_like` | 动态评论点赞事实 | [查看字段](#tb_post_comment_like-动态评论点赞事实) |
+| 1 | `user` | 用户账号 | [查看字段](#user-用户账号) |
+| 2 | `user_info` | 用户扩展资料 | [查看字段](#user_info-用户扩展资料) |
+| 3 | `shop_type` | 商户分类 | [查看字段](#shop_type-商户分类) |
+| 4 | `shop` | 商户信息与地理坐标 | [查看字段](#shop-商户信息与地理坐标) |
+| 5 | `blog` | 探店笔记 | [查看字段](#blog-探店笔记) |
+| 6 | `blog_comments` | 笔记评论与回复 | [查看字段](#blog_comments-笔记评论与回复) |
+| 7 | `follow` | 用户关注关系 | [查看字段](#follow-用户关注关系) |
+| 8 | `voucher` | 商户优惠券 | [查看字段](#voucher-商户优惠券) |
+| 9 | `seckill_voucher` | 秒杀优惠券 | [查看字段](#seckill_voucher-秒杀优惠券) |
+| 10 | `voucher_order` | 优惠券订单 | [查看字段](#voucher_order-优惠券订单) |
+| 11 | `city` | 城市字典 | [查看字段](#city-城市字典) |
+| 12 | `content_section` | 官方内容分区 | [查看字段](#content_section-官方内容分区) |
+| 13 | `section_follow` | 用户关注分区 | [查看字段](#section_follow-用户关注分区) |
+| 14 | `media_asset` | 临时和已绑定媒体 | [查看字段](#media_asset-媒体资产) |
+| 15 | `post` | 统一社区动态 | [查看字段](#post-统一社区动态) |
+| 16 | `post_media` | 动态媒体关系与顺序 | [查看字段](#post_media-动态媒体关系) |
+| 17 | `post_like` | 动态点赞事实 | [查看字段](#post_like-动态点赞事实) |
+| 18 | `post_comment` | 动态根评论与追加回复 | [查看字段](#post_comment-动态评论与追加回复) |
+| 19 | `post_comment_like` | 动态评论点赞事实 | [查看字段](#post_comment_like-动态评论点赞事实) |
 
 ## 表索引总览
 
@@ -38,81 +40,81 @@
 
 | 表 | 索引名 | 类型 | 索引列（顺序） | 用途 |
 |---|---|---|---|---|
-| `tb_blog` | `PRIMARY` | 主键（BTREE） | `id` | 笔记唯一标识 |
-| `tb_blog_comments` | `PRIMARY` | 主键（BTREE） | `id` | 评论唯一标识 |
-| `tb_city` | `PRIMARY` | 主键（BTREE） | `id` | 城市唯一标识 |
-| `tb_city` | `uk_city_code` | 唯一索引（BTREE） | `code` | 保证城市编码唯一 |
-| `tb_city` | `idx_city_status_sort` | 普通索引（BTREE） | `status, sort, id` | 启用城市稳定排序 |
-| `tb_content_section` | `PRIMARY` | 主键（BTREE） | `id` | 分区唯一标识 |
-| `tb_content_section` | `uk_section_code` | 唯一索引（BTREE） | `code` | 保证稳定分区编码唯一 |
-| `tb_content_section` | `idx_section_status_sort` | 普通索引（BTREE） | `status, sort, id` | 启用分区稳定排序 |
-| `tb_follow` | `PRIMARY` | 主键（BTREE） | `id` | 关注记录唯一标识 |
-| `tb_follow` | `uk_follow_user_target` | 唯一索引（BTREE） | `user_id, follow_user_id` | 保证用户关注关系唯一 |
-| `tb_follow` | `idx_follow_target_user` | 普通索引（BTREE） | `follow_user_id, user_id` | 按作者查询粉丝并投递关注时间线 |
-| `tb_media_asset` | `PRIMARY` | 主键（BTREE） | `id` | 媒体资产唯一标识 |
-| `tb_media_asset` | `uk_media_storage_path` | 唯一索引（BTREE） | `storage_path` | 保证存储路径唯一 |
-| `tb_media_asset` | `idx_media_status_expire` | 普通索引（BTREE） | `status, expire_time, id` | 扫描过期临时媒体 |
-| `tb_media_asset` | `idx_media_owner_status` | 普通索引（BTREE） | `owner_user_id, status, id` | 按用户和状态查询媒体 |
-| `tb_media_asset` | `idx_media_bound` | 普通索引（BTREE） | `bound_type, bound_id, id` | 查询业务绑定媒体 |
-| `tb_post` | `PRIMARY` | 主键（BTREE） | `id` | 动态唯一标识 |
-| `tb_post` | `idx_post_section_status_time` | 普通索引（BTREE） | `section_id, status, create_time, id` | 分区动态时间流 |
-| `tb_post` | `idx_post_user_status_time` | 普通索引（BTREE） | `user_id, status, create_time, id` | 用户动态列表 |
-| `tb_post` | `idx_post_shop_status_time` | 普通索引（BTREE） | `shop_id, status, create_time, id` | 商户探店动态 |
-| `tb_post` | `idx_post_city_status_time` | 普通索引（BTREE） | `city_code, status, create_time, id` | 城市动态候选集 |
-| `tb_post_media` | `PRIMARY` | 主键（BTREE） | `id` | 动态媒体关系唯一标识 |
-| `tb_post_media` | `uk_post_media_sort` | 唯一索引（BTREE） | `post_id, sort` | 保证动态内媒体顺序唯一 |
-| `tb_post_media` | `uk_post_media_asset` | 唯一索引（BTREE） | `media_asset_id` | 防止媒体资产重复绑定 |
-| `tb_post_like` | `PRIMARY` | 主键（BTREE） | `id` | 点赞关系唯一标识 |
-| `tb_post_like` | `uk_post_like_post_user` | 唯一索引（BTREE） | `post_id, user_id` | 保证点赞幂等 |
-| `tb_post_like` | `idx_post_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户点赞时间序查询 |
-| `tb_post_comment` | `PRIMARY` | 主键（BTREE） | `id` | 评论唯一标识 |
-| `tb_post_comment` | `idx_comment_post_root_time` | 普通索引（BTREE） | `post_id, root_id, status, create_time, id` | 根评论候选与稳定时间排序 |
-| `tb_post_comment` | `idx_comment_root_status_time` | 普通索引（BTREE） | `root_id, status, create_time, id` | 按根讨论正序追加回复 |
-| `tb_post_comment` | `idx_comment_parent_status` | 普通索引（BTREE） | `parent_id, status, id` | 查询直接子回复和删除关系 |
-| `tb_post_comment_like` | `PRIMARY` | 主键（BTREE） | `id` | 评论点赞记录唯一标识 |
-| `tb_post_comment_like` | `uk_comment_like_comment_user` | 唯一索引（BTREE） | `comment_id, user_id` | 保证评论点赞幂等 |
-| `tb_post_comment_like` | `idx_comment_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户评论点赞时间序查询 |
-| `tb_section_follow` | `PRIMARY` | 主键（BTREE） | `id` | 分区关注记录唯一标识 |
-| `tb_section_follow` | `uk_section_follow_user_section` | 唯一索引（BTREE） | `user_id, section_id` | 防止重复关注分区 |
-| `tb_section_follow` | `idx_section_follow_section_time` | 普通索引（BTREE） | `section_id, create_time, id` | 分区关注者时间序查询 |
-| `tb_seckill_voucher` | `PRIMARY` | 主键（BTREE） | `voucher_id` | 秒杀券与优惠券一对一记录标识 |
-| `tb_shop` | `PRIMARY` | 主键（BTREE） | `id` | 商户唯一标识 |
-| `tb_shop` | `foreign_key_type` | 普通索引（BTREE） | `type_id` | 按商户分类查询；名称沿用脚本中的历史命名，不代表实际外键 |
-| `tb_shop` | `idx_shop_city_type_status` | 普通索引（BTREE） | `city_code, type_id, status, id` | 按城市、分类和经营状态查询 |
-| `tb_shop_type` | `PRIMARY` | 主键（BTREE） | `id` | 分类唯一标识 |
-| `tb_user` | `PRIMARY` | 主键（BTREE） | `id` | 用户唯一标识 |
-| `tb_user` | `uniqe_key_phone` | 唯一索引（BTREE） | `phone` | 保证手机号唯一；名称沿用脚本中的拼写 |
-| `tb_user_info` | `PRIMARY` | 主键（BTREE） | `user_id` | 用户扩展资料唯一标识 |
-| `tb_voucher` | `PRIMARY` | 主键（BTREE） | `id` | 优惠券唯一标识 |
-| `tb_voucher_order` | `PRIMARY` | 主键（BTREE） | `id` | 订单唯一标识 |
+| `blog` | `PRIMARY` | 主键（BTREE） | `id` | 笔记唯一标识 |
+| `blog_comments` | `PRIMARY` | 主键（BTREE） | `id` | 评论唯一标识 |
+| `city` | `PRIMARY` | 主键（BTREE） | `id` | 城市唯一标识 |
+| `city` | `uk_city_code` | 唯一索引（BTREE） | `code` | 保证城市编码唯一 |
+| `city` | `idx_city_status_sort` | 普通索引（BTREE） | `status, sort, id` | 启用城市稳定排序 |
+| `content_section` | `PRIMARY` | 主键（BTREE） | `id` | 分区唯一标识 |
+| `content_section` | `uk_section_code` | 唯一索引（BTREE） | `code` | 保证稳定分区编码唯一 |
+| `content_section` | `idx_section_status_sort` | 普通索引（BTREE） | `status, sort, id` | 启用分区稳定排序 |
+| `follow` | `PRIMARY` | 主键（BTREE） | `id` | 关注记录唯一标识 |
+| `follow` | `uk_follow_user_target` | 唯一索引（BTREE） | `user_id, follow_user_id` | 保证用户关注关系唯一 |
+| `follow` | `idx_follow_target_user` | 普通索引（BTREE） | `follow_user_id, user_id` | 按作者查询粉丝并投递关注时间线 |
+| `media_asset` | `PRIMARY` | 主键（BTREE） | `id` | 媒体资产唯一标识 |
+| `media_asset` | `uk_media_storage_path` | 唯一索引（BTREE） | `storage_path` | 保证存储路径唯一 |
+| `media_asset` | `idx_media_status_expire` | 普通索引（BTREE） | `status, expire_time, id` | 扫描过期临时媒体 |
+| `media_asset` | `idx_media_owner_status` | 普通索引（BTREE） | `owner_user_id, status, id` | 按用户和状态查询媒体 |
+| `media_asset` | `idx_media_bound` | 普通索引（BTREE） | `bound_type, bound_id, id` | 查询业务绑定媒体 |
+| `post` | `PRIMARY` | 主键（BTREE） | `id` | 动态唯一标识 |
+| `post` | `idx_post_section_status_time` | 普通索引（BTREE） | `section_id, status, create_time, id` | 分区动态时间流 |
+| `post` | `idx_post_user_status_time` | 普通索引（BTREE） | `user_id, status, create_time, id` | 用户动态列表 |
+| `post` | `idx_post_shop_status_time` | 普通索引（BTREE） | `shop_id, status, create_time, id` | 商户探店动态 |
+| `post` | `idx_post_city_status_time` | 普通索引（BTREE） | `city_code, status, create_time, id` | 城市动态候选集 |
+| `post_media` | `PRIMARY` | 主键（BTREE） | `id` | 动态媒体关系唯一标识 |
+| `post_media` | `uk_post_media_sort` | 唯一索引（BTREE） | `post_id, sort` | 保证动态内媒体顺序唯一 |
+| `post_media` | `uk_post_media_asset` | 唯一索引（BTREE） | `media_asset_id` | 防止媒体资产重复绑定 |
+| `post_like` | `PRIMARY` | 主键（BTREE） | `id` | 点赞关系唯一标识 |
+| `post_like` | `uk_post_like_post_user` | 唯一索引（BTREE） | `post_id, user_id` | 保证点赞幂等 |
+| `post_like` | `idx_post_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户点赞时间序查询 |
+| `post_comment` | `PRIMARY` | 主键（BTREE） | `id` | 评论唯一标识 |
+| `post_comment` | `idx_comment_post_root_time` | 普通索引（BTREE） | `post_id, root_id, status, create_time, id` | 根评论候选与稳定时间排序 |
+| `post_comment` | `idx_comment_root_status_time` | 普通索引（BTREE） | `root_id, status, create_time, id` | 按根讨论正序追加回复 |
+| `post_comment` | `idx_comment_parent_status` | 普通索引（BTREE） | `parent_id, status, id` | 查询直接子回复和删除关系 |
+| `post_comment_like` | `PRIMARY` | 主键（BTREE） | `id` | 评论点赞记录唯一标识 |
+| `post_comment_like` | `uk_comment_like_comment_user` | 唯一索引（BTREE） | `comment_id, user_id` | 保证评论点赞幂等 |
+| `post_comment_like` | `idx_comment_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户评论点赞时间序查询 |
+| `section_follow` | `PRIMARY` | 主键（BTREE） | `id` | 分区关注记录唯一标识 |
+| `section_follow` | `uk_section_follow_user_section` | 唯一索引（BTREE） | `user_id, section_id` | 防止重复关注分区 |
+| `section_follow` | `idx_section_follow_section_time` | 普通索引（BTREE） | `section_id, create_time, id` | 分区关注者时间序查询 |
+| `seckill_voucher` | `PRIMARY` | 主键（BTREE） | `voucher_id` | 秒杀券与优惠券一对一记录标识 |
+| `shop` | `PRIMARY` | 主键（BTREE） | `id` | 商户唯一标识 |
+| `shop` | `foreign_key_type` | 普通索引（BTREE） | `type_id` | 按商户分类查询；名称沿用脚本中的历史命名，不代表实际外键 |
+| `shop` | `idx_shop_city_type_status` | 普通索引（BTREE） | `city_code, type_id, status, id` | 按城市、分类和经营状态查询 |
+| `shop_type` | `PRIMARY` | 主键（BTREE） | `id` | 分类唯一标识 |
+| `user` | `PRIMARY` | 主键（BTREE） | `id` | 用户唯一标识 |
+| `user` | `uniqe_key_phone` | 唯一索引（BTREE） | `phone` | 保证手机号唯一；名称沿用脚本中的拼写 |
+| `user_info` | `PRIMARY` | 主键（BTREE） | `user_id` | 用户扩展资料唯一标识 |
+| `voucher` | `PRIMARY` | 主键（BTREE） | `id` | 优惠券唯一标识 |
+| `voucher_order` | `PRIMARY` | 主键（BTREE） | `id` | 订单唯一标识 |
 
 ## 表清单与隔离范围
 
 | 表 | 用途 | 隔离范围 | 主键 | 关系与约束摘要 |
 |---|---|---|---|---|
-| `tb_user` | 用户账号 | 平台级 | `id` | `phone` 唯一；无实际外键 |
-| `tb_user_info` | 用户扩展资料 | 平台级（按用户） | `user_id` | 与 `tb_user` 逻辑一对一 |
-| `tb_city` | 城市字典 | 平台级 | `id` | `code` 唯一；无实际外键 |
-| `tb_content_section` | 官方内容分区 | 平台级 | `id` | `code` 唯一；`ROAM_DAILY` 为系统分区 |
-| `tb_section_follow` | 用户关注分区 | 平台级（按用户） | `id` | 用户与分区组合唯一；均为逻辑关联 |
-| `tb_media_asset` | 临时和已绑定媒体 | 平台级（按用户） | `id` | 路径唯一；所有者和绑定业务为逻辑关联 |
-| `tb_post` | 统一社区动态 | 城市/用户级 | `id` | 用户、分区、商户和城市均为逻辑关联；保留旧 Blog ID |
-| `tb_post_media` | 动态媒体关系与顺序 | 动态级 | `id` | 动态内顺序唯一；一个媒体资产只能出现一次 |
-| `tb_post_like` | 动态点赞事实 | 用户/动态级 | `id` | 用户与动态组合唯一；计数以事实关系为依据校正 |
-| `tb_post_comment` | 动态评论与追加回复 | 动态级 | `id` | 根评论、直接目标和被回复用户均为逻辑关联；删除根评论可保留占位 |
-| `tb_post_comment_like` | 动态评论点赞事实 | 用户/评论级 | `id` | 用户与评论组合唯一；点赞计数以事实关系校正 |
-| `tb_shop_type` | 商户分类 | 平台级 | `id` | 无实际外键 |
-| `tb_shop` | 商户信息与地理坐标 | 平台级 | `id` | `type_id` 逻辑关联 `tb_shop_type.id`；有普通索引 |
-| `tb_blog` | 探店笔记 | 平台级（按用户） | `id` | `shop_id`、`user_id` 分别逻辑关联商户和用户 |
-| `tb_blog_comments` | 笔记评论/回复 | 平台级（按用户） | `id` | `blog_id`、`user_id`、`parent_id`、`answer_id` 均为逻辑关联 |
-| `tb_follow` | 用户关注关系 | 平台级（按用户） | `id` | `user_id`、`follow_user_id` 为逻辑关联；组合唯一并支持按作者反查粉丝 |
-| `tb_voucher` | 商户优惠券 | 平台级 | `id` | `shop_id` 逻辑关联 `tb_shop.id` |
-| `tb_seckill_voucher` | 秒杀券库存与时间 | 平台级 | `voucher_id` | `voucher_id` 逻辑关联 `tb_voucher.id`，业务上一对一 |
-| `tb_voucher_order` | 优惠券订单 | 平台级（按用户） | `id` | `user_id`、`voucher_id` 为逻辑关联 |
+| `user` | 用户账号 | 平台级 | `id` | `phone` 唯一；无实际外键 |
+| `user_info` | 用户扩展资料 | 平台级（按用户） | `user_id` | 与 `user` 逻辑一对一 |
+| `city` | 城市字典 | 平台级 | `id` | `code` 唯一；无实际外键 |
+| `content_section` | 官方内容分区 | 平台级 | `id` | `code` 唯一；`ROAM_DAILY` 为系统分区 |
+| `section_follow` | 用户关注分区 | 平台级（按用户） | `id` | 用户与分区组合唯一；均为逻辑关联 |
+| `media_asset` | 临时和已绑定媒体 | 平台级（按用户） | `id` | 路径唯一；所有者和绑定业务为逻辑关联 |
+| `post` | 统一社区动态 | 城市/用户级 | `id` | 用户、分区、商户和城市均为逻辑关联；保留旧 Blog ID |
+| `post_media` | 动态媒体关系与顺序 | 动态级 | `id` | 动态内顺序唯一；一个媒体资产只能出现一次 |
+| `post_like` | 动态点赞事实 | 用户/动态级 | `id` | 用户与动态组合唯一；计数以事实关系为依据校正 |
+| `post_comment` | 动态评论与追加回复 | 动态级 | `id` | 根评论、直接目标和被回复用户均为逻辑关联；删除根评论可保留占位 |
+| `post_comment_like` | 动态评论点赞事实 | 用户/评论级 | `id` | 用户与评论组合唯一；点赞计数以事实关系校正 |
+| `shop_type` | 商户分类 | 平台级 | `id` | 无实际外键 |
+| `shop` | 商户信息与地理坐标 | 平台级 | `id` | `type_id` 逻辑关联 `shop_type.id`；有普通索引 |
+| `blog` | 探店笔记 | 平台级（按用户） | `id` | `shop_id`、`user_id` 分别逻辑关联商户和用户 |
+| `blog_comments` | 笔记评论/回复 | 平台级（按用户） | `id` | `blog_id`、`user_id`、`parent_id`、`answer_id` 均为逻辑关联 |
+| `follow` | 用户关注关系 | 平台级（按用户） | `id` | `user_id`、`follow_user_id` 为逻辑关联；组合唯一并支持按作者反查粉丝 |
+| `voucher` | 商户优惠券 | 平台级 | `id` | `shop_id` 逻辑关联 `shop.id` |
+| `seckill_voucher` | 秒杀券库存与时间 | 平台级 | `voucher_id` | `voucher_id` 逻辑关联 `voucher.id`，业务上一对一 |
+| `voucher_order` | 优惠券订单 | 平台级（按用户） | `id` | `user_id`、`voucher_id` 为逻辑关联 |
 
 ## 表字段明细
 
-### `tb_user` 用户账号
+### `user` 用户账号
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
@@ -124,13 +126,13 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_user_info` 用户扩展资料
+### `user_info` 用户扩展资料
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
-| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 主键；逻辑关联 `tb_user.id` |
+| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 主键；逻辑关联 `user.id` |
 | `city` | `varchar(64)` | 是 | `''` | 城市名称 |
-| `city_code` | `varchar(16)` | 是 | `NULL` | 当前城市编码；逻辑关联 `tb_city.code` |
+| `city_code` | `varchar(16)` | 是 | `NULL` | 当前城市编码；逻辑关联 `city.code` |
 | `introduce` | `varchar(128)` | 是 | `NULL` | 个人介绍，业务上不超过 128 个字符 |
 | `fans` | `int(8) UNSIGNED` | 是 | `0` | 粉丝数量 |
 | `followee` | `int(8) UNSIGNED` | 是 | `0` | 关注人数 |
@@ -141,7 +143,7 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_shop_type` 商户分类
+### `shop_type` 商户分类
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
@@ -152,14 +154,14 @@
 | `create_time` | `timestamp` | 是 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 是 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_shop` 商户信息与地理坐标
+### `shop` 商户信息与地理坐标
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20) UNSIGNED` | 否 | 自增 | 主键；商户 ID |
 | `name` | `varchar(128)` | 否 | 无 | 商铺名称 |
-| `type_id` | `bigint(20) UNSIGNED` | 否 | 无 | 商铺分类 ID；逻辑关联 `tb_shop_type.id`；索引 `foreign_key_type` |
-| `city_code` | `varchar(16)` | 否 | `'330100'` | 城市编码；逻辑关联 `tb_city.code` |
+| `type_id` | `bigint(20) UNSIGNED` | 否 | 无 | 商铺分类 ID；逻辑关联 `shop_type.id`；索引 `foreign_key_type` |
+| `city_code` | `varchar(16)` | 否 | `'330100'` | 城市编码；逻辑关联 `city.code` |
 | `images` | `varchar(1024)` | 否 | 无 | 商铺图片，多张以逗号分隔 |
 | `area` | `varchar(128)` | 是 | `NULL` | 商圈，例如“陆家嘴” |
 | `address` | `varchar(255)` | 否 | 无 | 商铺地址 |
@@ -174,13 +176,13 @@
 | `create_time` | `timestamp` | 是 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 是 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_blog` 探店笔记
+### `blog` 探店笔记
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20) UNSIGNED` | 否 | 自增 | 主键；笔记 ID |
-| `shop_id` | `bigint(20)` | 否 | 无 | 商户 ID；逻辑关联 `tb_shop.id` |
-| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 发布用户 ID；逻辑关联 `tb_user.id` |
+| `shop_id` | `bigint(20)` | 否 | 无 | 商户 ID；逻辑关联 `shop.id` |
+| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 发布用户 ID；逻辑关联 `user.id` |
 | `title` | `varchar(255)` | 否 | 无 | 笔记标题 |
 | `images` | `varchar(2048)` | 否 | 无 | 探店照片，最多 9 张，逗号分隔 |
 | `content` | `varchar(2048)` | 否 | 无 | 探店文字描述 |
@@ -189,13 +191,13 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_blog_comments` 笔记评论与回复
+### `blog_comments` 笔记评论与回复
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20) UNSIGNED` | 否 | 自增 | 主键；评论 ID |
-| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 评论用户 ID；逻辑关联 `tb_user.id` |
-| `blog_id` | `bigint(20) UNSIGNED` | 否 | 无 | 笔记 ID；逻辑关联 `tb_blog.id` |
+| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 评论用户 ID；逻辑关联 `user.id` |
+| `blog_id` | `bigint(20) UNSIGNED` | 否 | 无 | 笔记 ID；逻辑关联 `blog.id` |
 | `parent_id` | `bigint(20) UNSIGNED` | 否 | 无 | 所属一级评论 ID；一级评论使用 0 |
 | `answer_id` | `bigint(20) UNSIGNED` | 否 | 无 | 被回复的评论 ID |
 | `content` | `varchar(255)` | 否 | 无 | 回复内容 |
@@ -204,23 +206,23 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_follow` 用户关注关系
+### `follow` 用户关注关系
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20)` | 否 | 自增 | 主键；关注记录 ID |
-| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 发起关注的用户 ID；逻辑关联 `tb_user.id` |
-| `follow_user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 被关注的用户 ID；逻辑关联 `tb_user.id` |
+| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 发起关注的用户 ID；逻辑关联 `user.id` |
+| `follow_user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 被关注的用户 ID；逻辑关联 `user.id` |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 关注创建时间 |
 
-`user_id + follow_user_id` 使用唯一索引 `uk_follow_user_target` 保证关注关系幂等；`follow_user_id + user_id` 使用普通索引 `idx_follow_target_user` 支持按动态作者查询粉丝。阶段 6 的关注流读取仍以该表和 `tb_post` 为事实来源，不依赖 Redis 时间线完整性。
+`user_id + follow_user_id` 使用唯一索引 `uk_follow_user_target` 保证关注关系幂等；`follow_user_id + user_id` 使用普通索引 `idx_follow_target_user` 支持按动态作者查询粉丝。阶段 6 的关注流读取仍以该表和 `post` 为事实来源，不依赖 Redis 时间线完整性。
 
-### `tb_voucher` 商户优惠券
+### `voucher` 商户优惠券
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20) UNSIGNED` | 否 | 自增 | 主键；优惠券 ID |
-| `shop_id` | `bigint(20) UNSIGNED` | 是 | `NULL` | 商铺 ID；逻辑关联 `tb_shop.id` |
+| `shop_id` | `bigint(20) UNSIGNED` | 是 | `NULL` | 商铺 ID；逻辑关联 `shop.id` |
 | `title` | `varchar(255)` | 否 | 无 | 代金券标题 |
 | `sub_title` | `varchar(255)` | 是 | `NULL` | 副标题 |
 | `rules` | `varchar(1024)` | 是 | `NULL` | 使用规则 |
@@ -231,11 +233,11 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_seckill_voucher` 秒杀优惠券
+### `seckill_voucher` 秒杀优惠券
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
-| `voucher_id` | `bigint(20) UNSIGNED` | 否 | 无 | 主键；逻辑关联 `tb_voucher.id`，业务上一对一 |
+| `voucher_id` | `bigint(20) UNSIGNED` | 否 | 无 | 主键；逻辑关联 `voucher.id`，业务上一对一 |
 | `stock` | `int(8)` | 否 | 无 | 秒杀库存 |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `begin_time` | `timestamp` | 是 | `NULL` | 生效时间；为空表示未配置生效时间 |
@@ -244,13 +246,13 @@
 
 说明：`begin_time` 与 `end_time` 使用 `timestamp NULL DEFAULT NULL`，以兼容 MySQL 严格模式；业务层应明确处理空时间。
 
-### `tb_voucher_order` 优惠券订单
+### `voucher_order` 优惠券订单
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint(20)` | 否 | 无 | 主键；订单 ID，由应用生成 |
-| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 下单用户 ID；逻辑关联 `tb_user.id` |
-| `voucher_id` | `bigint(20) UNSIGNED` | 否 | 无 | 购买的代金券 ID；逻辑关联 `tb_voucher.id` |
+| `user_id` | `bigint(20) UNSIGNED` | 否 | 无 | 下单用户 ID；逻辑关联 `user.id` |
+| `voucher_id` | `bigint(20) UNSIGNED` | 否 | 无 | 购买的代金券 ID；逻辑关联 `voucher.id` |
 | `pay_type` | `tinyint(1) UNSIGNED` | 否 | `1` | 支付方式：1 余额，2 支付宝，3 微信 |
 | `status` | `tinyint(1) UNSIGNED` | 否 | `1` | 订单状态：1 未支付，2 已支付，3 已核销，4 已取消，5 退款中，6 已退款 |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 下单时间 |
@@ -259,7 +261,7 @@
 | `refund_time` | `timestamp` | 是 | `NULL` | 退款时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_city` 城市字典
+### `city` 城市字典
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
@@ -271,7 +273,7 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_content_section` 官方内容分区
+### `content_section` 官方内容分区
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
@@ -287,23 +289,23 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
-### `tb_section_follow` 用户关注分区
+### `section_follow` 用户关注分区
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
-| `user_id` | `bigint UNSIGNED` | 否 | 无 | 用户 ID；逻辑关联 `tb_user.id` |
-| `section_id` | `bigint UNSIGNED` | 否 | 无 | 分区 ID；逻辑关联 `tb_content_section.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 用户 ID；逻辑关联 `user.id` |
+| `section_id` | `bigint UNSIGNED` | 否 | 无 | 分区 ID；逻辑关联 `content_section.id` |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 关注时间 |
 
 `user_id + section_id` 使用唯一索引，保证关注操作幂等。
 
-### `tb_media_asset` 媒体资产
+### `media_asset` 媒体资产
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键；媒体资产 ID |
-| `owner_user_id` | `bigint UNSIGNED` | 否 | 无 | 上传用户；逻辑关联 `tb_user.id` |
+| `owner_user_id` | `bigint UNSIGNED` | 否 | 无 | 上传用户；逻辑关联 `user.id` |
 | `storage_path` | `varchar(512)` | 否 | 无 | 相对存储路径；唯一索引 |
 | `mime_type` | `varchar(64)` | 否 | 无 | 实际识别的图片 MIME 类型 |
 | `file_size` | `bigint UNSIGNED` | 否 | 无 | 文件字节数 |
@@ -318,59 +320,59 @@
 
 应用层维护状态约束：临时媒体的绑定字段为空且过期时间非空；已绑定媒体的绑定字段非空且过期时间为空。
 
-### `tb_post` 统一社区动态
+### `post` 统一社区动态
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键；开发 Blog 转换保留原 ID |
-| `user_id` | `bigint UNSIGNED` | 否 | 无 | 发布用户；逻辑关联 `tb_user.id` |
-| `section_id` | `bigint UNSIGNED` | 否 | 无 | 官方分区；逻辑关联 `tb_content_section.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 发布用户；逻辑关联 `user.id` |
+| `section_id` | `bigint UNSIGNED` | 否 | 无 | 官方分区；逻辑关联 `content_section.id` |
 | `shop_visit` | `tinyint UNSIGNED` | 否 | `0` | 是否探店：0 否，1 是 |
-| `shop_id` | `bigint UNSIGNED` | 是 | `NULL` | 探店商户；逻辑关联 `tb_shop.id`；普通动态为空 |
-| `city_code` | `varchar(16)` | 否 | 无 | 城市编码；逻辑关联 `tb_city.code` |
+| `shop_id` | `bigint UNSIGNED` | 是 | `NULL` | 探店商户；逻辑关联 `shop.id`；普通动态为空 |
+| `city_code` | `varchar(16)` | 否 | 无 | 城市编码；逻辑关联 `city.code` |
 | `title` | `varchar(120)` | 是 | `NULL` | 可选标题 |
 | `content` | `varchar(5000)` | 否 | 无 | 动态正文 |
-| `liked_count` | `int UNSIGNED` | 否 | `0` | 点赞冗余计数，以 `tb_post_like` 校正 |
-| `comment_count` | `int UNSIGNED` | 否 | `0` | 正常评论冗余计数，以 `tb_post_comment` 校正 |
+| `liked_count` | `int UNSIGNED` | 否 | `0` | 点赞冗余计数，以 `post_like` 校正 |
+| `comment_count` | `int UNSIGNED` | 否 | `0` | 正常评论冗余计数，以 `post_comment` 校正 |
 | `status` | `tinyint UNSIGNED` | 否 | `0` | 0 正常，1 隐藏，2 已删除 |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `update_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
 
 普通动态必须绑定编码为 `ROAM_DAILY` 的分区且 `shop_id` 为空；探店动态必须绑定允许探店的启用分区和启用商户，城市取商户城市。该跨字段约束由应用维护，数据库快照不声明 `CHECK`。
 
-### `tb_post_media` 动态媒体关系
+### `post_media` 动态媒体关系
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
-| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `tb_post.id` |
-| `media_asset_id` | `bigint UNSIGNED` | 否 | 无 | 媒体 ID；逻辑关联 `tb_media_asset.id`；全表唯一 |
+| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `post.id` |
+| `media_asset_id` | `bigint UNSIGNED` | 否 | 无 | 媒体 ID；逻辑关联 `media_asset.id`；全表唯一 |
 | `sort` | `tinyint UNSIGNED` | 否 | 无 | 动态内展示顺序，从 0 开始 |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 
 `post_id + sort` 使用唯一索引，`media_asset_id` 使用唯一索引。最多 9 张、连续排序和媒体所有权由应用事务校验。
 
-### `tb_post_like` 动态点赞事实
+### `post_like` 动态点赞事实
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
-| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `tb_post.id` |
-| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点赞用户；逻辑关联 `tb_user.id` |
+| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `post.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点赞用户；逻辑关联 `user.id` |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 点赞时间 |
 
-`post_id + user_id` 使用唯一索引保证点赞幂等；`tb_post_like` 是事实真源，Redis 与 `tb_post.liked_count` 均可由其重建或校正。
+`post_id + user_id` 使用唯一索引保证点赞幂等；`post_like` 是事实真源，Redis 与 `post.liked_count` 均可由其重建或校正。
 
-### `tb_post_comment` 动态评论与追加回复
+### `post_comment` 动态评论与追加回复
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键；评论 ID |
-| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `tb_post.id` |
-| `user_id` | `bigint UNSIGNED` | 否 | 无 | 评论用户；逻辑关联 `tb_user.id` |
+| `post_id` | `bigint UNSIGNED` | 否 | 无 | 动态 ID；逻辑关联 `post.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 评论用户；逻辑关联 `user.id` |
 | `root_id` | `bigint UNSIGNED` | 是 | `NULL` | 所属根评论；根评论为空，回复逻辑关联同表根记录 |
 | `parent_id` | `bigint UNSIGNED` | 是 | `NULL` | 直接回复目标；根评论为空，回复逻辑关联同表任意正常记录 |
-| `reply_to_user_id` | `bigint UNSIGNED` | 是 | `NULL` | 被回复用户；根评论为空，逻辑关联 `tb_user.id` |
+| `reply_to_user_id` | `bigint UNSIGNED` | 是 | `NULL` | 被回复用户；根评论为空，逻辑关联 `user.id` |
 | `content` | `varchar(1000)` | 是 | `NULL` | 正常评论必须有正文；作者删除后清空 |
 | `liked_count` | `int UNSIGNED` | 否 | `0` | 点赞冗余计数，以评论点赞事实校正 |
 | `reply_count` | `int UNSIGNED` | 否 | `0` | 有效回复冗余计数；仅根评论使用 |
@@ -381,24 +383,24 @@
 
 根评论的 `root_id`、`parent_id`、`reply_to_user_id` 均为空；回复的三个关系字段均非空且必须属于同一动态讨论。删除根评论仍有有效回复时保留占位，没有回复时不再返回；审核隐藏根评论时整个讨论对普通用户不可见。完整计数、排序和事务规则见 [阶段 7 评论契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)。
 
-### `tb_post_comment_like` 动态评论点赞事实
+### `post_comment_like` 动态评论点赞事实
 
 | 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
 |---|---|---|---|---|
 | `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
-| `comment_id` | `bigint UNSIGNED` | 否 | 无 | 评论 ID；逻辑关联 `tb_post_comment.id` |
-| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点赞用户；逻辑关联 `tb_user.id` |
+| `comment_id` | `bigint UNSIGNED` | 否 | 无 | 评论 ID；逻辑关联 `post_comment.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点赞用户；逻辑关联 `user.id` |
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 点赞时间 |
 
-`comment_id + user_id` 使用唯一索引保证点赞幂等；该表是评论点赞事实真源，`tb_post_comment.liked_count` 可由其重建或校正。
+`comment_id + user_id` 使用唯一索引保证点赞幂等；该表是评论点赞事实真源，`post_comment.liked_count` 可由其重建或校正。
 
 ## 关系、初始化与演进说明
 
 - 当前没有声明数据库级外键。`user_id`、`shop_id`、`section_id`、`post_id`、`comment_id`、`root_id`、`parent_id`、`reply_to_user_id`、`media_asset_id`、`type_id`、`blog_id`、`voucher_id` 等关联由应用层校验和维护，不能将字段命名或 Entity 注解视为数据库约束。
-- `tb_user_info.user_id`、`tb_seckill_voucher.voucher_id` 使用主键承载逻辑一对一关系；`tb_follow` 由数据库组合唯一索引和应用幂等逻辑共同防止重复关注。
+- `user_info.user_id`、`seckill_voucher.voucher_id` 使用主键承载逻辑一对一关系；`follow` 由数据库组合唯一索引和应用幂等逻辑共同防止重复关注。
 - `seed-dev.sql` 仅供开发环境初始化，现包含杭州、5 个官方分区、用户、商户、分类、笔记和优惠券等示例数据，按分区编码将 4 条 Blog 转换为 Post，并将可解析的旧评论关系转换为新评论；当前开发样例没有旧评论行，因此不会生成虚构评论。
-- 旧 Blog 图片缺少可靠媒体元数据，当前不生成 `tb_media_asset` 和 `tb_post_media`；旧点赞用户集合仅存在 Redis 时也不伪造 `tb_post_like`。两项在 Post 业务实现阶段完成真实探测与核对。
-- 旧评论只保留已有点赞聚合数，不伪造 `tb_post_comment_like` 用户事实；孤儿回复在真实重建前必须导出核对。
+- 旧 Blog 图片缺少可靠媒体元数据，当前不生成 `media_asset` 和 `post_media`；旧点赞用户集合仅存在 Redis 时也不伪造 `post_like`。两项在 Post 业务实现阶段完成真实探测与核对。
+- 旧评论只保留已有点赞聚合数，不伪造 `post_comment_like` 用户事实；孤儿回复在真实重建前必须导出核对。
 - 固定系统分区为 `ROAM_DAILY`“漫游日常”；业务必须按编码查询，不能依赖初始化生成的数据库 ID。
 - 数据库不做版本管理，后续结构继续直接维护 `schema-init.sql` 和 `seed-dev.sql`，并同步更新本文件。
 - `schema-init.sql` 包含 `DROP TABLE`，只能用于明确允许重建的开发数据库；生产环境和需保留数据的数据库不得直接执行。

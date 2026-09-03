@@ -25,6 +25,14 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
                     + "WHERE id = #{postId} AND status = 0")
     int decrementLikedCount(@Param("postId") Long postId);
 
+    /** 新增正常评论时增加动态评论冗余计数。 */
+    @Update("UPDATE tb_post SET comment_count = comment_count + 1 WHERE id = #{postId} AND status = 0")
+    int incrementCommentCount(@Param("postId") Long postId);
+
+    /** 删除或隐藏评论时减少动态评论冗余计数。 */
+    @Update("UPDATE tb_post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId} AND status = 0")
+    int decrementCommentCount(@Param("postId") Long postId);
+
     /** 按固定热度分值查询指定城市的推荐动态。 */
     @Select(
             "SELECT p.* FROM tb_post p "

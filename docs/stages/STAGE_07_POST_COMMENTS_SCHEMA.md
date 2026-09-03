@@ -17,7 +17,7 @@ runtimeDatabaseInitialized: 未实现
 
 - 冻结 `CommentCreateDTO`、`CommentVO`、`CommentThreadVO` 和现有 `HighlightCommentVO` 字段。
 - 冻结 7 个评论 HTTP 接口、operationId、鉴权和错误响应。
-- 新增 `tb_post_comment`、`tb_post_comment_like` 最终 SQL 快照。
+- 新增 `post_comment`、`post_comment_like` 最终 SQL 快照。
 - 冻结根评论与直接回复关系、计数语义、删除占位和审核隐藏规则。
 - 冻结热门评论分值、首页展示门槛、Redis 缓存和失效规则。
 - 在 `seed-dev.sql` 中加入可解析旧评论的转换逻辑，不伪造缺失点赞用户关系。
@@ -165,7 +165,7 @@ required: [root, previewReplies, replyCount, hasMoreReplies, nextReplyCursor, ne
 | 作者参与 | 0 | `false` | 根评论下无有效作者回复 |
 | 作者参与 | 1 | `true` | 根评论下存在有效作者回复 |
 
-### 5.2 `tb_post_comment`
+### 5.2 `post_comment`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -207,7 +207,7 @@ parent_id 指向同一 post_id、同一 root_id 讨论内的正常评论
 reply_to_user_id 等于 parent_id 对应评论的 user_id
 ```
 
-### 5.3 `tb_post_comment_like`
+### 5.3 `post_comment_like`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -218,13 +218,13 @@ reply_to_user_id 等于 parent_id 对应评论的 user_id
 
 索引：主键；唯一索引 `uk_comment_like_comment_user(comment_id,user_id)`；用户记录索引 `idx_comment_like_user_time(user_id,create_time,id)`。
 
-点赞关系是事实真源，`tb_post_comment.liked_count` 是可重算冗余值。数据库仍不声明物理外键。
+点赞关系是事实真源，`post_comment.liked_count` 是可重算冗余值。数据库仍不声明物理外键。
 
 ## 6. 计数与删除语义
 
 ### 6.1 计数定义
 
-- `tb_post.comment_count`：该动态状态为 `NORMAL` 的根评论和回复总数，不包含删除占位与审核隐藏记录。
+- `post.comment_count`：该动态状态为 `NORMAL` 的根评论和回复总数，不包含删除占位与审核隐藏记录。
 - 根评论 `reply_count`：所属讨论中状态为 `NORMAL` 的全部回复数量，不只统计直接回复。
 - 回复记录的 `reply_count` 固定为 0。
 - `liked_count`：对应评论的有效点赞关系数量；评论删除或隐藏后对外返回 0，但事实关系在物理清理前保留。
@@ -323,7 +323,7 @@ post:highlight-comment:{postId}
 
 ## 10. 旧评论转换
 
-`seed-dev.sql` 使用逻辑关系转换可解析的 `tb_blog_comments`：
+`seed-dev.sql` 使用逻辑关系转换可解析的 `blog_comments`：
 
 | 旧字段 | 新字段 | 规则 |
 |---|---|---|
@@ -341,7 +341,7 @@ post:highlight-comment:{postId}
 
 只有根评论存在、直接目标存在且属于同一旧 Blog 的回复才转换；孤儿回复必须在真实数据重建前导出核对，不伪造父关系。转换后仅对确有旧评论事实的 Post 按正常记录数校正 `comment_count`，避免空开发样例覆盖历史聚合值。
 
-旧数据没有评论点赞用户集合时 `tb_post_comment_like` 保持为空。阶段 8 或旧接口退役前如果能从可靠 Redis 数据恢复，必须核对用户、评论和计数后再写事实表。
+旧数据没有评论点赞用户集合时 `post_comment_like` 保持为空。阶段 8 或旧接口退役前如果能从可靠 Redis 数据恢复，必须核对用户、评论和计数后再写事实表。
 
 ## 11. 阶段验收
 

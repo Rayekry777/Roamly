@@ -15,8 +15,8 @@ runtimeDatabaseInitialized: 未实现
 
 阶段产物：
 
-- 新增 `tb_post`、`tb_post_media`、`tb_post_like` 三张表的最终快照。
-- 将 `seed-dev.sql` 中现有 Blog 样例转换到 `tb_post`，保留原 ID、计数和审计时间。
+- 新增 `post`、`post_media`、`post_like` 三张表的最终快照。
+- 将 `seed-dev.sql` 中现有 Blog 样例转换到 `post`，保留原 ID、计数和审计时间。
 - 明确普通动态、探店动态、媒体绑定、点赞幂等及作者权限规则。
 - 明确旧图片和旧 Redis 点赞关系的延后转换边界，不伪造缺失数据。
 
@@ -107,7 +107,7 @@ shopVisit=true
 
 数据库不增加跨字段 `CHECK`。普通/探店一致性、分区能力、商户状态和媒体状态由 Service 在事务内校验，以避免依赖不同 MySQL 版本的约束行为。
 
-### 3.2 `tb_post`
+### 3.2 `post`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -133,7 +133,7 @@ shopVisit=true
 - `idx_post_shop_status_time(shop_id,status,create_time,id)`：商户探店动态。
 - `idx_post_city_status_time(city_code,status,create_time,id)`：城市推荐候选。
 
-### 3.3 `tb_post_media`
+### 3.3 `post_media`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -145,7 +145,7 @@ shopVisit=true
 
 索引：主键；`uk_post_media_sort(post_id,sort)`；`uk_post_media_asset(media_asset_id)`。唯一媒体索引确保一个媒体资产最多绑定一次业务记录。
 
-### 3.4 `tb_post_like`
+### 3.4 `post_like`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -156,7 +156,7 @@ shopVisit=true
 
 索引：主键；`uk_post_like_post_user(post_id,user_id)`；`idx_post_like_user_time(user_id,create_time,id)`。
 
-`tb_post_like` 是点赞事实真源，`tb_post.liked_count` 是可重算冗余值，Redis 只承担加速和排序。
+`post_like` 是点赞事实真源，`post.liked_count` 是可重算冗余值，Redis 只承担加速和排序。
 
 ## 4. 事务、一致性与权限
 
@@ -168,7 +168,7 @@ shopVisit=true
 2. 校验分区、商户和城市来源，不接收客户端城市编码。
 3. 对去重后的媒体 ID 按 ID 升序加锁，防止并发交叉绑定。
 4. 校验媒体全部存在、属于当前用户、状态为 `TEMPORARY`、未过期且绑定字段为空。
-5. 写入 `tb_post`，再按请求顺序写入 `tb_post_media`。
+5. 写入 `post`，再按请求顺序写入 `post_media`。
 6. 条件更新媒体为 `BOUND`，设置 `bound_type=POST`、`bound_id=postId` 并清空 `expire_time`；实际更新数必须等于媒体数。
 7. 事务提交后投递关注流；Redis 失败不回滚已发布动态，交由补偿任务重建。
 
@@ -184,11 +184,11 @@ shopVisit=true
 
 ### 4.3 点赞幂等
 
-- 点赞：先插入 `tb_post_like`，只有实际新增关系时才将 `liked_count + 1`。
+- 点赞：先插入 `post_like`，只有实际新增关系时才将 `liked_count + 1`。
 - 取消点赞：先删除当前用户关系，只有实际删除关系时才将 `liked_count - 1`，并使用非负保护。
 - 唯一索引处理同一用户并发重复点赞；重复 PUT、DELETE 均返回 204。
 - 数据库事务提交后同步 `post:liked:{postId}`；Redis 写失败进入补偿，不修改数据库成功结果。
-- 点赞用户列表以 `tb_post_like.create_time,id` 稳定排序，不能只依赖 Redis。
+- 点赞用户列表以 `post_like.create_time,id` 稳定排序，不能只依赖 Redis。
 
 ## 5. 旧 Blog 开发数据转换
 
@@ -218,21 +218,21 @@ shopVisit=true
 
 ### 5.2 明确延后项
 
-- 旧 `images` 只有逗号分隔路径，没有可靠 MIME、文件大小、宽高和所有者校验结果。本阶段不向 `tb_media_asset` 或 `tb_post_media` 写入伪造数据。
+- 旧 `images` 只有逗号分隔路径，没有可靠 MIME、文件大小、宽高和所有者校验结果。本阶段不向 `media_asset` 或 `post_media` 写入伪造数据。
 - 后续在允许重建并具备旧文件目录的隔离环境执行受控旧文件探测：成功读取并校验的图片才生成已绑定媒体；缺失或损坏文件进入核对清单，不阻断其他动态。
-- 旧点赞用户关系仅存在 Redis 时，本阶段不伪造 `tb_post_like`。在旧 Blog 接口停写前读取旧集合，按保留的 Post ID 写入事实表并核对计数。
-- `tb_blog`、`tb_blog_comments` 继续保留，旧接口仍按当前状态运行；阶段 11 完成全栈切换与核对后再退役。
+- 旧点赞用户关系仅存在 Redis 时，本阶段不伪造 `post_like`。在旧 Blog 接口停写前读取旧集合，按保留的 Post ID 写入事实表并核对计数。
+- `blog`、`blog_comments` 继续保留，旧接口仍按当前状态运行；阶段 11 完成全栈切换与核对后再退役。
 
 ### 5.3 重建后核对规则
 
 仅在用户明确允许重建隔离开发库后执行以下核对；本阶段未执行：
 
-- `tb_post` 行数等于 `tb_blog` 行数，且 ID 集合完全一致。
+- `post` 行数等于 `blog` 行数，且 ID 集合完全一致。
 - 每条 Post 的作者、商户、标题、正文、计数和审计时间与 Blog 映射一致。
 - 所有 Post 的 `section_id` 均能解析到启用分区，且没有硬编码分区 ID。
 - 普通动态全部属于 `ROAM_DAILY` 且 `shop_id is null`。
 - 探店动态全部具有有效商户，城市与商户城市一致，分区允许探店。
-- 当前阶段允许 `tb_post_media` 与 `tb_post_like` 为空；必须在阶段 4 完成真实转换后再核对媒体和点赞关系。
+- 当前阶段允许 `post_media` 与 `post_like` 为空；必须在阶段 4 完成真实转换后再核对媒体和点赞关系。
 
 ## 6. 验收与验证记录
 
@@ -248,7 +248,7 @@ shopVisit=true
 验证记录：
 
 - 静态扫描：`schema-init.sql` 共 17 个 `CREATE TABLE`，其中 3 个为 Post 相关表。
-- 静态扫描：`seed-dev.sql` 保留 4 条 Blog 样例并通过 1 条 `INSERT ... SELECT` 统一转换，分区关联使用 `tb_content_section.code`。
+- 静态扫描：`seed-dev.sql` 保留 4 条 Blog 样例并通过 1 条 `INSERT ... SELECT` 统一转换，分区关联使用 `content_section.code`。
 - 静态扫描：资源目录不存在数据库版本目录、编号 SQL 或回退脚本。
 - Reactor `mvn test`：34 项，0 失败，10 项外部环境测试默认跳过。
 - Reactor `mvn -DskipTests compile`：通过。

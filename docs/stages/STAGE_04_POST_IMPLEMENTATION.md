@@ -44,7 +44,7 @@ legacyLikeConversionStatus: 未实现
 ### 删除和点赞
 
 - 动态删除为 `status=DELETED` 逻辑删除，保留媒体、点赞和后续评论审计关系。
-- 点赞使用 `tb_post_like(post_id,user_id)` 唯一索引和 `INSERT IGNORE` 收敛并发重复请求。
+- 点赞使用 `post_like(post_id,user_id)` 唯一索引和 `INSERT IGNORE` 收敛并发重复请求。
 - 只有实际新增或删除点赞事实时才修改 `liked_count`。
 - Redis `post:liked:{postId}` 在事务提交后同步；失败只记录不含用户敏感信息的告警，不回滚数据库事实。
 - 关注流投递使用 `feed:following:{userId}`，在发布事务提交后执行；失败由后续信息流补偿阶段处理。

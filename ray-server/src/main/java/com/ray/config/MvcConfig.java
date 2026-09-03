@@ -58,6 +58,8 @@ public class MvcConfig implements WebMvcConfigurer {
                 || path.equals("/v1/blogs")
                 || path.matches("/v1/blogs/[^/]+")
                 || path.matches("/v1/blogs/[^/]+/likes")) return true;
+        if (path.matches("/v1/posts/[^/]+/comments")
+                || path.matches("/v1/comments/[^/]+/replies")) return true;
         return path.matches("/v1/users/(?!me$)[^/]+")
                 || path.matches("/v1/users/(?!me/)[^/]+/profile")
                 || path.matches("/v1/users/(?!me/)[^/]+/blogs");
@@ -70,6 +72,8 @@ public class MvcConfig implements WebMvcConfigurer {
                         || path.matches("/v1/sections/[^/]+/posts")
                         || path.equals("/v1/feeds/recommended")
                         || path.matches("/v1/posts/[^/]+")
+                        || path.matches("/v1/posts/[^/]+/comments")
+                        || path.matches("/v1/comments/[^/]+/replies")
                         || path.matches("/v1/posts/[^/]+/likes")
                         || path.matches("/v1/users/(?!me/)[^/]+/posts"));
     }

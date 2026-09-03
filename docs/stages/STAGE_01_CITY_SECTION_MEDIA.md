@@ -180,7 +180,7 @@ runtimeDatabaseInitialized: 未实现
 | 商户经营状态 | 0 | `DISABLED` |
 | 商户经营状态 | 1 | `ENABLED` |
 
-### 3.2 `tb_city`
+### 3.2 `city`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -194,7 +194,7 @@ runtimeDatabaseInitialized: 未实现
 
 索引：主键；`uk_city_code(code)`；`idx_city_status_sort(status,sort,id)`。
 
-### 3.3 `tb_content_section`
+### 3.3 `content_section`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -212,7 +212,7 @@ runtimeDatabaseInitialized: 未实现
 
 索引：主键；`uk_section_code(code)`；`idx_section_status_sort(status,sort,id)`。
 
-### 3.4 `tb_section_follow`
+### 3.4 `section_follow`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -223,7 +223,7 @@ runtimeDatabaseInitialized: 未实现
 
 索引：主键；`uk_section_follow_user_section(user_id,section_id)`；`idx_section_follow_section_time(section_id,create_time,id)`。
 
-### 3.5 `tb_media_asset`
+### 3.5 `media_asset`
 
 | 字段 | MySQL 类型 | Null | 默认 | 说明 |
 |---|---|---|---|---|
@@ -247,10 +247,10 @@ runtimeDatabaseInitialized: 未实现
 
 ### 3.6 现有表变更
 
-- `tb_shop.city_code varchar(16) NOT NULL DEFAULT '330100'`：兼容当前尚未传入城市编码的商户写入；城市接口完成后移除业务对默认值的依赖。
-- `tb_shop.status tinyint unsigned NOT NULL DEFAULT 1`。
+- `shop.city_code varchar(16) NOT NULL DEFAULT '330100'`：兼容当前尚未传入城市编码的商户写入；城市接口完成后移除业务对默认值的依赖。
+- `shop.status tinyint unsigned NOT NULL DEFAULT 1`。
 - 新增 `idx_shop_city_type_status(city_code,type_id,status,id)`。
-- `tb_user_info.city_code varchar(16) NULL`：已有用户没有选择时允许为空。
+- `user_info.city_code varchar(16) NULL`：已有用户没有选择时允许为空。
 
 所有关系仍由应用维护逻辑外键，本阶段不增加数据库外键。
 
@@ -278,7 +278,7 @@ runtimeDatabaseInitialized: 未实现
 
 - 结构真源：`ray-server/src/main/resources/schema-init.sql`。
 - 开发数据真源：`ray-server/src/main/resources/seed-dev.sql`。
-- 本阶段直接新增 4 张表，并修改 `tb_shop`、`tb_user_info` 的最终建表定义。
+- 本阶段直接新增 4 张表，并修改 `shop`、`user_info` 的最终建表定义。
 - `seed-dev.sql` 初始化杭州和 5 个官方分区；现有商户 INSERT 使用显式列名，新增列使用建表默认值。
 - 不创建 `db/migration`、`db/manual`、版本号、迁移历史或回退脚本。
 - `schema-init.sql` 会先删除再重建业务表，只能对允许重建的开发数据库执行。
@@ -308,4 +308,4 @@ runtimeDatabaseInitialized: 未实现
 - Reactor `mvn test`：34 项，0 失败，10 项外部环境测试默认跳过。
 - 真实 OpenAPI/Sa-Token 启动测试：5 项，0 失败；强制 `spring.sql.init.mode=never`。
 - OpenAPI 已验证全部路径集合、唯一 `operationId`、可解析 `$ref`、Bearer 声明以及媒体 403/409/413 响应。
-- 当前运行数据库确认尚无 `tb_media_asset`，未执行包含 `DROP TABLE` 的 `schema-init.sql`。
+- 当前运行数据库确认尚无 `media_asset`，未执行包含 `DROP TABLE` 的 `schema-init.sql`。

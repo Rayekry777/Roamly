@@ -1,8 +1,8 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP TABLE IF EXISTS `tb_city`;
-CREATE TABLE `tb_city` (
+DROP TABLE IF EXISTS `city`;
+CREATE TABLE `city` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code` varchar(16) NOT NULL COMMENT '稳定城市编码',
   `name` varchar(64) NOT NULL COMMENT '城市名称',
@@ -16,8 +16,8 @@ CREATE TABLE `tb_city` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '城市字典' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_content_section`;
-CREATE TABLE `tb_content_section` (
+DROP TABLE IF EXISTS `content_section`;
+CREATE TABLE `content_section` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code` varchar(32) NOT NULL COMMENT '稳定分区编码',
   `name` varchar(32) NOT NULL COMMENT '分区名称',
@@ -35,11 +35,11 @@ CREATE TABLE `tb_content_section` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '官方内容分区' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_section_follow`;
-CREATE TABLE `tb_section_follow` (
+DROP TABLE IF EXISTS `section_follow`;
+CREATE TABLE `section_follow` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID，逻辑关联tb_user.id',
-  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联tb_content_section.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID，逻辑关联user.id',
+  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联content_section.id',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_section_follow_user_section` (`user_id`, `section_id`) USING BTREE,
@@ -47,10 +47,10 @@ CREATE TABLE `tb_section_follow` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户关注分区关系' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_media_asset`;
-CREATE TABLE `tb_media_asset` (
+DROP TABLE IF EXISTS `media_asset`;
+CREATE TABLE `media_asset` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `owner_user_id` bigint UNSIGNED NOT NULL COMMENT '上传用户ID，逻辑关联tb_user.id',
+  `owner_user_id` bigint UNSIGNED NOT NULL COMMENT '上传用户ID，逻辑关联user.id',
   `storage_path` varchar(512) NOT NULL COMMENT '唯一相对存储路径',
   `mime_type` varchar(64) NOT NULL COMMENT '实际图片MIME类型',
   `file_size` bigint UNSIGNED NOT NULL COMMENT '文件字节数',
@@ -70,14 +70,14 @@ CREATE TABLE `tb_media_asset` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '媒体资产' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_post`;
-CREATE TABLE `tb_post` (
+DROP TABLE IF EXISTS `post`;
+CREATE TABLE `post` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '发布用户ID，逻辑关联tb_user.id',
-  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联tb_content_section.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '发布用户ID，逻辑关联user.id',
+  `section_id` bigint UNSIGNED NOT NULL COMMENT '分区ID，逻辑关联content_section.id',
   `shop_visit` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否探店：0否，1是',
-  `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '商户ID，逻辑关联tb_shop.id；普通动态为空',
-  `city_code` varchar(16) NOT NULL COMMENT '城市编码，逻辑关联tb_city.code',
+  `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '商户ID，逻辑关联shop.id；普通动态为空',
+  `city_code` varchar(16) NOT NULL COMMENT '城市编码，逻辑关联city.code',
   `title` varchar(120) NULL DEFAULT NULL COMMENT '可选标题',
   `content` varchar(5000) NOT NULL COMMENT '动态正文',
   `liked_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '点赞数量冗余值',
@@ -93,11 +93,11 @@ CREATE TABLE `tb_post` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '统一社区动态' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_post_media`;
-CREATE TABLE `tb_post_media` (
+DROP TABLE IF EXISTS `post_media`;
+CREATE TABLE `post_media` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
-  `media_asset_id` bigint UNSIGNED NOT NULL COMMENT '媒体资产ID，逻辑关联tb_media_asset.id',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
+  `media_asset_id` bigint UNSIGNED NOT NULL COMMENT '媒体资产ID，逻辑关联media_asset.id',
   `sort` tinyint UNSIGNED NOT NULL COMMENT '动态内展示顺序，从0开始',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
@@ -106,11 +106,11 @@ CREATE TABLE `tb_post_media` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态媒体关系' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_post_like`;
-CREATE TABLE `tb_post_like` (
+DROP TABLE IF EXISTS `post_like`;
+CREATE TABLE `post_like` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联tb_user.id',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联user.id',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_post_like_post_user` (`post_id`, `user_id`) USING BTREE,
@@ -118,11 +118,11 @@ CREATE TABLE `tb_post_like` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态点赞事实' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_post_comment`;
-CREATE TABLE `tb_post_comment` (
+DROP TABLE IF EXISTS `post_comment`;
+CREATE TABLE `post_comment` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联tb_post.id',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '评论用户ID，逻辑关联tb_user.id',
+  `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '评论用户ID，逻辑关联user.id',
   `root_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '所属根评论ID；根评论为空',
   `parent_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '直接回复目标评论ID；根评论为空',
   `reply_to_user_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '被回复用户ID；根评论为空',
@@ -140,11 +140,11 @@ CREATE TABLE `tb_post_comment` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论与追加回复' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_post_comment_like`;
-CREATE TABLE `tb_post_comment_like` (
+DROP TABLE IF EXISTS `post_comment_like`;
+CREATE TABLE `post_comment_like` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `comment_id` bigint UNSIGNED NOT NULL COMMENT '评论ID，逻辑关联tb_post_comment.id',
-  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联tb_user.id',
+  `comment_id` bigint UNSIGNED NOT NULL COMMENT '评论ID，逻辑关联post_comment.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '点赞用户ID，逻辑关联user.id',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_comment_like_comment_user` (`comment_id`, `user_id`) USING BTREE,
@@ -152,8 +152,8 @@ CREATE TABLE `tb_post_comment_like` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论点赞事实' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `tb_blog`;
-CREATE TABLE `tb_blog`  (
+DROP TABLE IF EXISTS `blog`;
+CREATE TABLE `blog`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `shop_id` bigint(20) NOT NULL COMMENT '商户id',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
@@ -168,8 +168,8 @@ CREATE TABLE `tb_blog`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_blog_comments`;
-CREATE TABLE `tb_blog_comments`  (
+DROP TABLE IF EXISTS `blog_comments`;
+CREATE TABLE `blog_comments`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
   `blog_id` bigint(20) UNSIGNED NOT NULL COMMENT '探店id',
@@ -184,8 +184,8 @@ CREATE TABLE `tb_blog_comments`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_follow`;
-CREATE TABLE `tb_follow`  (
+DROP TABLE IF EXISTS `follow`;
+CREATE TABLE `follow`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
   `follow_user_id` bigint(20) UNSIGNED NOT NULL COMMENT '关联的用户id',
@@ -196,8 +196,8 @@ CREATE TABLE `tb_follow`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_seckill_voucher`;
-CREATE TABLE `tb_seckill_voucher`  (
+DROP TABLE IF EXISTS `seckill_voucher`;
+CREATE TABLE `seckill_voucher`  (
   `voucher_id` bigint(20) UNSIGNED NOT NULL COMMENT '关联的优惠券的id',
   `stock` int(8) NOT NULL COMMENT '库存',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -208,8 +208,8 @@ CREATE TABLE `tb_seckill_voucher`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '秒杀优惠券表，与优惠券是一对一关系' ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_shop`;
-CREATE TABLE `tb_shop`  (
+DROP TABLE IF EXISTS `shop`;
+CREATE TABLE `shop`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺名称',
   `type_id` bigint(20) UNSIGNED NOT NULL COMMENT '商铺类型的id',
@@ -233,8 +233,8 @@ CREATE TABLE `tb_shop`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_shop_type`;
-CREATE TABLE `tb_shop_type`  (
+DROP TABLE IF EXISTS `shop_type`;
+CREATE TABLE `shop_type`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '类型名称',
   `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '图标',
@@ -245,8 +245,8 @@ CREATE TABLE `tb_shop_type`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_user`;
-CREATE TABLE `tb_user`  (
+DROP TABLE IF EXISTS `user`;
+CREATE TABLE `user`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `phone` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '手机号码',
   `password` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '密码，加密存储',
@@ -259,8 +259,8 @@ CREATE TABLE `tb_user`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 1010 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_user_info`;
-CREATE TABLE `tb_user_info`  (
+DROP TABLE IF EXISTS `user_info`;
+CREATE TABLE `user_info`  (
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '主键，用户id',
   `city` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '城市名称',
   `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '当前城市编码',
@@ -277,8 +277,8 @@ CREATE TABLE `tb_user_info`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_voucher`;
-CREATE TABLE `tb_voucher`  (
+DROP TABLE IF EXISTS `voucher`;
+CREATE TABLE `voucher`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `shop_id` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT '商铺id',
   `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '代金券标题',
@@ -294,8 +294,8 @@ CREATE TABLE `tb_voucher`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `tb_voucher_order`;
-CREATE TABLE `tb_voucher_order`  (
+DROP TABLE IF EXISTS `voucher_order`;
+CREATE TABLE `voucher_order`  (
   `id` bigint(20) NOT NULL COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '下单的用户id',
   `voucher_id` bigint(20) UNSIGNED NOT NULL COMMENT '购买的代金券id',

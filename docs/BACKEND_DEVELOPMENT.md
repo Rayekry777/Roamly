@@ -27,6 +27,7 @@ implementationStatus: 未实现
 - [阶段 5：小程序导航、首页卡片与统一发布实现记录](./stages/STAGE_05_MINIAPP_NAV_HOME_PUBLISH.md)
 - [阶段 6：推荐、关注与分区信息流实现记录](./stages/STAGE_06_POST_FEEDS.md)
 - [阶段 7：Threads 式评论、删除语义与排序契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)
+- [阶段 8：Threads 式评论后端实现记录](./stages/STAGE_08_POST_COMMENTS_IMPLEMENTATION.md)
 
 ## 2. 当前系统基线
 
@@ -135,6 +136,7 @@ shopVisit = true
 命名约定：
 
 - Entity 使用单数业务名：`ContentSection`、`ContentPost`、`PostComment`。
+- 数据库表直接使用关键业务名，采用小写下划线命名，不添加 `tb` 前缀；新增表必须遵循该规则，并同步更新 `DATABASE_SCHEMA.md` 与初始化 SQL。
 - 数据传输对象使用“业务动作 + DTO”，例如 `PostCreateDTO`。
 - 展示模型统一使用 `VO`。
 - 项目响应模型继续使用 `Result` 后缀，避免与依赖的 `ApiResponse` 重名。
@@ -218,7 +220,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 推荐与热门排序游标由服务端生成，客户端不得解析游标业务含义。
 - 游标分页默认 `size=10`、最大 20；同排序值使用 `nextOffset` 续页，首次请求不得只传 `offset`。
 - 推荐和分区热门固定按 `createdHour + likedCount * 1000 + commentCount * 2000` 排序；分区最新和关注流按发布时间排序。
-- 关注流以 `tb_follow` 与 `tb_post` 的数据库事实查询为准，Redis ZSET 只保留为后续加速数据。
+- 关注流以 `follow` 与 `post` 的数据库事实查询为准，Redis ZSET 只保留为后续加速数据。
 - 评论能力尚未实现，三个信息流返回的 `highlightComment` 当前为空。
 
 ### 6.3 动态
@@ -378,23 +380,23 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 表 | 用途 | 隔离范围 | 状态 |
 |---|---|---|---|
-| `tb_city` | 可用城市字典 | 平台级 | 已实现 |
-| `tb_content_section` | 官方内容分区 | 平台级 | 已实现 |
-| `tb_section_follow` | 用户关注分区 | 用户级 | 已实现 |
-| `tb_media_asset` | 临时和已绑定媒体 | 用户级 | 已实现 |
-| `tb_post` | 统一社区动态 | 城市/用户级 | 已实现 |
-| `tb_post_media` | 动态媒体及顺序 | 动态级 | 已实现 |
-| `tb_post_like` | 动态点赞事实 | 用户/动态级 | 已实现 |
-| `tb_post_comment` | 根评论和追加回复 | 动态级 | 已实现 |
-| `tb_post_comment_like` | 评论点赞事实 | 用户/评论级 | 已实现 |
-| `tb_shop_review` | 商户点评 | 商户/用户级 | 未实现 |
-| `tb_shop_review_media` | 点评媒体及顺序 | 点评级 | 未实现 |
-| `tb_voucher_product` | 团购商品 | 商户级 | 未实现 |
-| `tb_user_voucher` | 用户券实例 | 用户级 | 未实现 |
+| `city` | 可用城市字典 | 平台级 | 已实现 |
+| `content_section` | 官方内容分区 | 平台级 | 已实现 |
+| `section_follow` | 用户关注分区 | 用户级 | 已实现 |
+| `media_asset` | 临时和已绑定媒体 | 用户级 | 已实现 |
+| `post` | 统一社区动态 | 城市/用户级 | 已实现 |
+| `post_media` | 动态媒体及顺序 | 动态级 | 已实现 |
+| `post_like` | 动态点赞事实 | 用户/动态级 | 已实现 |
+| `post_comment` | 根评论和追加回复 | 动态级 | 已实现 |
+| `post_comment_like` | 评论点赞事实 | 用户/评论级 | 已实现 |
+| `shop_review` | 商户点评 | 商户/用户级 | 未实现 |
+| `shop_review_media` | 点评媒体及顺序 | 点评级 | 未实现 |
+| `voucher_product` | 团购商品 | 商户级 | 未实现 |
+| `user_voucher` | 用户券实例 | 用户级 | 未实现 |
 
 ### 7.3 字段与索引
 
-#### `tb_city`
+#### `city`
 
 | 字段 | 建议类型 | 可空 | 说明 |
 |---|---|---|---|
@@ -407,7 +409,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 索引：唯一索引 `uk_city_code(code)`；列表索引 `idx_city_status_sort(status,sort,id)`。
 
-#### `tb_content_section`
+#### `content_section`
 
 | 字段 | 建议类型 | 可空 | 说明 |
 |---|---|---|---|
@@ -424,13 +426,13 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 索引：唯一索引 `uk_section_code(code)`；列表索引 `idx_section_status_sort(status,sort,id)`。初始化固定分区 `ROAM_DAILY`，并由应用保证其存在且不可删除。
 
-#### `tb_section_follow`
+#### `section_follow`
 
 字段：`id`、`user_id`、`section_id`、`create_time`。
 
 索引：唯一索引 `uk_section_follow_user_section(user_id,section_id)`；反向查询索引 `idx_section_follow_section_time(section_id,create_time,id)`。
 
-#### `tb_media_asset`
+#### `media_asset`
 
 字段：`id`、`owner_user_id`、`storage_path`、`mime_type`、`file_size`、`width`、`height`、`status`、`bound_type`、`bound_id`、`expire_time`、`create_time`、`update_time`。
 
@@ -438,7 +440,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - `bound_type` 第一阶段允许 `POST`、`SHOP_REVIEW`。
 - 索引：唯一索引 `uk_media_storage_path(storage_path)`；清理索引 `idx_media_status_expire(status,expire_time,id)`；用户查询索引 `idx_media_owner_status(owner_user_id,status,id)`。
 
-#### `tb_post`
+#### `post`
 
 字段：`id`、`user_id`、`section_id`、`shop_visit`、可空 `shop_id`、`city_code`、可空 `title`、`content`、`liked_count`、`comment_count`、`status`、`create_time`、`update_time`。
 
@@ -451,19 +453,19 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
   - `idx_post_shop_status_time(shop_id,status,create_time,id)`
   - `idx_post_city_status_time(city_code,status,create_time,id)`
 
-#### `tb_post_media`
+#### `post_media`
 
 字段：`id`、`post_id`、`media_asset_id`、`sort`、`create_time`。
 
 索引：唯一索引 `uk_post_media_sort(post_id,sort)`；唯一索引 `uk_post_media_asset(media_asset_id)`。
 
-#### `tb_post_like`
+#### `post_like`
 
 字段：`id`、`post_id`、`user_id`、`create_time`。
 
 索引：唯一索引 `uk_post_like_post_user(post_id,user_id)`；用户记录索引 `idx_post_like_user_time(user_id,create_time,id)`。
 
-#### `tb_post_comment`
+#### `post_comment`
 
 字段：`id`、`post_id`、`user_id`、可空 `root_id`、可空 `parent_id`、可空 `reply_to_user_id`、可空 `content`、`liked_count`、`reply_count`、`author_replied`、`status`、`create_time`、`update_time`。
 
@@ -475,13 +477,13 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
   - `idx_comment_root_status_time(root_id,status,create_time,id)`
   - `idx_comment_parent_status(parent_id,status,id)`
 
-#### `tb_post_comment_like`
+#### `post_comment_like`
 
 字段：`id`、`comment_id`、`user_id`、`create_time`。
 
 索引：唯一索引 `uk_comment_like_comment_user(comment_id,user_id)`；用户记录索引 `idx_comment_like_user_time(user_id,create_time,id)`。
 
-#### `tb_shop_review`
+#### `shop_review`
 
 字段：`id`、`shop_id`、`user_id`、可空 `verified_user_voucher_id`、`score`、`content`、`status`、`create_time`、`update_time`。
 
@@ -490,13 +492,13 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 列表索引 `idx_review_shop_status_time(shop_id,status,create_time,id)`。
 - 聚合索引 `idx_review_shop_status_score(shop_id,status,score)`。
 
-#### `tb_shop_review_media`
+#### `shop_review_media`
 
 字段：`id`、`review_id`、`media_asset_id`、`sort`、`create_time`。
 
 索引：唯一索引 `uk_review_media_sort(review_id,sort)`；唯一索引 `uk_review_media_asset(media_asset_id)`。
 
-#### `tb_voucher_product`
+#### `voucher_product`
 
 字段：`id`、`shop_id`、`title`、可空 `sub_title`、可空 `cover`、`rules`、`pay_price`、`original_price`、`deduction_value`、`sale_type`、`total_stock`、`available_stock`、`sold_count`、`purchase_limit`、可空 `sale_begin_time`、可空 `sale_end_time`、`validity_type`、可空 `valid_begin_time`、可空 `valid_end_time`、可空 `valid_days`、`status`、`version`、`create_time`、`update_time`。
 
@@ -506,7 +508,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - `status`：`DRAFT / ON_SALE / SOLD_OUT / OFF_SALE`。
 - 索引：`idx_voucher_product_shop_status(shop_id,status,id)`、`idx_voucher_product_sale(status,sale_begin_time,sale_end_time,id)`。
 
-#### `tb_voucher_order` 目标调整
+#### `voucher_order` 目标调整
 
 字段：`id`、`user_id`、`product_id`、`shop_id`、商品标题快照、单价快照、`quantity`、`total_amount`、`pay_amount`、`pay_type`、`status`、`create_time`、可空 `pay_time`、可空 `cancel_time`、可空 `refund_time`、`update_time`。
 
@@ -514,7 +516,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 索引：`idx_order_user_status_time(user_id,status,create_time,id)`、`idx_order_product_user(product_id,user_id,id)`。
 - 第一阶段一张订单只购买一种商品且数量固定为 1。
 
-#### `tb_user_voucher`
+#### `user_voucher`
 
 字段：`id`、`user_id`、`order_id`、`product_id`、`shop_id`、`voucher_code`、`status`、`valid_begin_time`、`expire_time`、可空 `use_time`、可空 `refund_time`、`create_time`、`update_time`。
 
@@ -525,10 +527,10 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 ### 7.4 现有表调整
 
-- `tb_shop` 增加 `city_code`、经营状态和 `idx_shop_city_type_status(city_code,type_id,status,id)`。
-- `tb_user_info` 增加 `city_code`，原 `city` 在迁移期保留用于显示兼容。
-- `tb_follow` 增加唯一索引 `uk_follow_user_target(user_id,follow_user_id)` 和反向查询索引 `idx_follow_target_user(follow_user_id,user_id)`。
-- 旧 `tb_blog`、`tb_blog_comments`、`tb_voucher`、`tb_seckill_voucher` 在迁移完成并校验前保留只读，最后阶段再退役。
+- `shop` 增加 `city_code`、经营状态和 `idx_shop_city_type_status(city_code,type_id,status,id)`。
+- `user_info` 增加 `city_code`，原 `city` 在迁移期保留用于显示兼容。
+- `follow` 增加唯一索引 `uk_follow_user_target(user_id,follow_user_id)` 和反向查询索引 `idx_follow_target_user(follow_user_id,user_id)`。
+- 旧 `blog`、`blog_comments`、`voucher`、`seckill_voucher` 在迁移完成并校验前保留只读，最后阶段再退役。
 
 ## 8. Redis、事务与一致性
 
@@ -536,17 +538,17 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | Key | 类型 | 用途 | 数据真源 |
 |---|---|---|---|
-| `feed:following:{userId}` | ZSET | 关注流时间线 | `tb_post` + `tb_follow` |
-| `post:liked:{postId}` | ZSET | 点赞状态和最近点赞用户 | `tb_post_like` |
+| `feed:following:{userId}` | ZSET | 关注流时间线 | `post` + `follow` |
+| `post:liked:{postId}` | ZSET | 点赞状态和最近点赞用户 | `post_like` |
 | `post:hot:{cityCode}:{period}` | ZSET | 城市热门动态 | 动态、点赞、评论事实 |
 | `section:hot:{sectionId}:{period}` | ZSET | 分区热门动态 | 动态、点赞、评论事实 |
-| `post:highlight-comment:{postId}` | STRING | 首页热门评论 ID | `tb_post_comment` |
-| `voucher:stock:{productId}` | STRING/HASH | 秒杀库存预扣 | `tb_voucher_product` |
-| `voucher:ordered:{productId}` | SET | 秒杀重复下单判断 | `tb_voucher_order` |
+| `post:highlight-comment:{postId}` | STRING | 首页热门评论 ID | `post_comment` |
+| `voucher:stock:{productId}` | STRING/HASH | 秒杀库存预扣 | `voucher_product` |
+| `voucher:ordered:{productId}` | SET | 秒杀重复下单判断 | `voucher_order` |
 
 Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 
-阶段 6 的关注流读取直接查询 `tb_post + tb_follow`，保证 Redis 未回填或投递失败时不漏动态；`feed:following:*` 当前仅保留发布后投递，待补齐回填、补偿与数据库降级策略后再作为读取加速层。
+阶段 6 的关注流读取直接查询 `post + follow`，保证 Redis 未回填或投递失败时不漏动态；`feed:following:*` 当前仅保留发布后投递，待补齐回填、补偿与数据库降级策略后再作为读取加速层。
 
 ### 8.2 事务边界
 
@@ -580,17 +582,17 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 
 ### 9.2 Blog 数据转换
 
-- `tb_blog.shop_id=0`：迁移为 `shop_visit=0`，绑定 `ROAM_DAILY`，城市取用户当前城市或首发默认城市。
-- `tb_blog.shop_id>0`：迁移为 `shop_visit=1`，保留商户，城市取商户城市，并绑定预设历史探店分区。
+- `blog.shop_id=0`：迁移为 `shop_visit=0`，绑定 `ROAM_DAILY`，城市取用户当前城市或首发默认城市。
+- `blog.shop_id>0`：迁移为 `shop_visit=1`，保留商户，城市取商户城市，并绑定预设历史探店分区。
 - 保留原 Blog ID 作为 Post ID，降低评论、URL 和 Redis 关系迁移复杂度。
-- 旧图片缺少可靠 MIME、文件大小和宽高，阶段 3 不伪造媒体资产；阶段 4 仅将可读取并通过校验的文件拆为媒体资产和 `tb_post_media` 顺序记录，失败项进入核对清单且不阻断其余动态。
-- `tb_blog_comments` 映射为根评论、直接父评论和回复用户；无法解析的孤儿评论进入异常清单，不伪造父关系。
+- 旧图片缺少可靠 MIME、文件大小和宽高，阶段 3 不伪造媒体资产；阶段 4 仅将可读取并通过校验的文件拆为媒体资产和 `post_media` 顺序记录，失败项进入核对清单且不阻断其余动态。
+- `blog_comments` 映射为根评论、直接父评论和回复用户；无法解析的孤儿评论进入异常清单，不伪造父关系。
 - 旧 Blog 点赞若只存在 Redis，按保留的 Post ID 转存数据库关系和新 Key；迁移前后核对点赞用户集合与计数。
 
 ### 9.3 优惠券数据转换
 
-- `tb_voucher` 迁移为 `tb_voucher_product`，普通券和秒杀券映射为不同 `sale_type`。
-- `tb_seckill_voucher` 的库存和销售时间合并进团购商品。
+- `voucher` 迁移为 `voucher_product`，普通券和秒杀券映射为不同 `sale_type`。
+- `seckill_voucher` 的库存和销售时间合并进团购商品。
 - 旧订单保留原 ID并补充商品、商户和金额快照。
 - 历史已核销订单生成 `USED` 用户券；已支付未核销订单生成 `UNUSED` 用户券；其他状态不发券。
 - 新接口切换后停止旧写入，不维护长期双写；开发库通过完整快照和种子数据重建。
@@ -607,7 +609,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 5 | 改造小程序导航、首页卡片和发布器 | 五入口、分区标签和统一发布验收 | 已实现 |
 | 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 开发中 |
 | 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 已实现 |
-| 8 | 实现评论后端与 Threads 式界面 | 评论、回复、定位、缓存和计数通过 | 未实现 |
+| 8 | 实现评论后端与 Threads 式界面 | 评论、回复、定位、缓存和计数通过 | 开发中 |
 | 9 | 冻结并实现商户点评 | 评分、媒体、唯一点评和消费标识通过 | 未实现 |
 | 10 | 冻结并实现团购商品、订单和券包 | 库存、限购、订单、发券幂等通过 | 未实现 |
 | 11 | 停用旧接口、切换 Redis、从快照移除旧表 | 全量核对和客户端切换完成 | 未实现 |
@@ -670,6 +672,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 阶段 5 小程序社区入口改造 | 五入口导航、推荐/关注首页、Post 卡片和统一发布器已实现；小程序 `npm run verify` 通过 20 个测试文件、66 项测试，依赖构建成功。后端信息流、运行数据库联调和真机验收顺延至对应阶段 |
 | 2026-09-02 | 阶段 6 Post 信息流实现 | 推荐、关注和分区最新/热门接口、同值偏移游标、城市隔离、数据库关注事实查询及 OpenAPI 已实现；51 项默认测试和 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库尚未按快照重建，热门评论尚未实现，阶段保持开发中 |
 | 2026-09-02 | 阶段 7 评论数据契约 | 冻结 7 个评论接口、DTO/VO、两张评论表、根/回复关系、删除占位、计数、热门公式、缓存和旧评论转换；SQL 快照增至 19 张表。51 项默认测试、5 项真实 OpenAPI/Sa-Token 测试、三模块编译、Markdown 链接和差异格式检查通过；HTTP 与小程序实现进入阶段 8，未执行数据库初始化 |
+| 2026-09-03 | 阶段 8 评论后端实现 | 新增评论 DTO/VO、PostComment/PostCommentLike Entity、Mapper、Service、Controller、评论缓存失效和首页热门评论批量组装入口；57 项默认测试、5 项真实 OpenAPI/Sa-Token 测试和三模块编译通过。评论小程序界面尚未全部验收，运行数据库未初始化，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 

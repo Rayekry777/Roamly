@@ -4,11 +4,14 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 import com.ray.dto.PostCreateDTO;
 import com.ray.dto.PostUpdateDTO;
+import com.ray.dto.CommentCreateDTO;
 import com.ray.result.CursorPageResult;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.vo.HighlightCommentVO;
+import com.ray.vo.CommentThreadVO;
+import com.ray.vo.CommentVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
@@ -79,6 +82,7 @@ public class OpenApiConfig {
                 }
                 if (mayReturnNotFound(method, path)) addError(operation.getResponses(), "404", "资源不存在");
                 if (mayReturnForbidden(method, path)) addError(operation.getResponses(), "403", "无权操作该资源");
+                if (mayReturnCommentConflict(method, path)) addError(operation.getResponses(), "409", "评论状态冲突");
                 if (method == HttpMethod.POST && path.matches("/v1/seckill-vouchers/\\{[^/]+}/orders")) {
                     addError(operation.getResponses(), "409", "库存不足或重复下单");
                 }
@@ -117,6 +121,9 @@ public class OpenApiConfig {
         registerSchema(components, "ShopSummaryVO", ShopSummaryVO.class);
         registerSchema(components, "PostCardVO", PostCardVO.class);
         registerSchema(components, "PostDetailVO", PostDetailVO.class);
+        registerSchema(components, "CommentVO", CommentVO.class);
+        registerSchema(components, "CommentThreadVO", CommentThreadVO.class);
+        registerSchema(components, "CommentCreateDTO", CommentCreateDTO.class);
     }
 
     private void addError(ApiResponses responses, String status, String description) {
@@ -151,6 +158,9 @@ public class OpenApiConfig {
         if (path.equals("/v1/posts/{postId}/like"))
             return method == HttpMethod.PUT || method == HttpMethod.DELETE;
         if (path.equals("/v1/posts/{postId}/likes")) return method == HttpMethod.GET;
+        if (path.equals("/v1/posts/{postId}/comments")) return true;
+        if (path.equals("/v1/comments/{commentId}/replies")) return true;
+        if (path.equals("/v1/comments/{commentId}") || path.equals("/v1/comments/{commentId}/like")) return true;
         if (path.equals("/v1/users/{userId}/posts")) return method == HttpMethod.GET;
         return path.matches("/v1/blogs/\\{blogId}(/like|/likes)?")
                 && (method == HttpMethod.GET || method == HttpMethod.PUT || method == HttpMethod.DELETE);
@@ -159,8 +169,15 @@ public class OpenApiConfig {
     private boolean mayReturnForbidden(HttpMethod method, String path) {
         if (method == HttpMethod.DELETE && path.equals("/v1/media/images/{mediaId}")) return true;
         if (method == HttpMethod.POST && path.equals("/v1/posts")) return true;
+        if (method == HttpMethod.DELETE && path.equals("/v1/comments/{commentId}")) return true;
         return path.equals("/v1/posts/{postId}")
                 && (method == HttpMethod.PUT || method == HttpMethod.DELETE);
+    }
+
+    private boolean mayReturnCommentConflict(HttpMethod method, String path) {
+        return path.matches("/v1/posts/\\{postId}/comments") && method == HttpMethod.POST
+                || path.matches("/v1/comments/\\{commentId}(/replies|/like)?")
+                        && (method == HttpMethod.POST || method == HttpMethod.PUT || method == HttpMethod.DELETE);
     }
 
     private boolean isOptionalAuthentication(String path) {
@@ -169,6 +186,8 @@ public class OpenApiConfig {
                 || path.equals("/v1/sections/{sectionId}/posts")
                 || path.equals("/v1/feeds/recommended")
                 || path.equals("/v1/posts/{postId}")
+                || path.equals("/v1/posts/{postId}/comments")
+                || path.equals("/v1/comments/{commentId}/replies")
                 || path.equals("/v1/posts/{postId}/likes")
                 || path.equals("/v1/users/{userId}/posts");
     }

@@ -97,6 +97,9 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1posts~1{postId}/put/responses/403").isObject());
         assertTrue(document.at("/paths/~1v1~1posts~1{postId}/put/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1posts~1{postId}/delete/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1posts~1{postId}~1comments/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1comments~1{commentId}/delete/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1comments~1{commentId}~1like/put/security").isArray());
         java.util.List<String> schemaNames = new ArrayList<>();
         document.at("/components/schemas").properties().forEach(entry -> schemaNames.add(entry.getKey()));
         assertTrue(schemaNames.contains("Result"));
@@ -105,6 +108,9 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("CursorPageResult"));
         assertTrue(schemaNames.contains("PostCreateDTO"));
         assertTrue(schemaNames.contains("PostDetailVO"));
+        assertTrue(schemaNames.contains("CommentCreateDTO"));
+        assertTrue(schemaNames.contains("CommentVO"));
+        assertTrue(schemaNames.contains("CommentThreadVO"));
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -116,6 +122,9 @@ class OpenApiAndAuthRuntimeTest {
                 document,
                 "CursorPageResult",
                 Set.of("items", "nextCursor", "nextOffset", "hasMore"));
+        assertSchemaProperties(document, "CommentCreateDTO", Set.of("content"));
+        assertSchemaProperties(document, "CommentVO", Set.of("id", "rootId", "author", "replyToUser", "content", "deleted", "postAuthor", "likedCount", "likedByMe", "deletable", "createdTime"));
+        assertSchemaProperties(document, "CommentThreadVO", Set.of("root", "previewReplies", "replyCount", "hasMoreReplies", "nextReplyCursor", "nextReplyOffset"));
         assertRefsResolve(document, document, schemaNames);
     }
 
@@ -141,6 +150,13 @@ class OpenApiAndAuthRuntimeTest {
                 "PUT /v1/posts/{postId}/like",
                 "DELETE /v1/posts/{postId}/like",
                 "GET /v1/posts/{postId}/likes",
+                "GET /v1/posts/{postId}/comments",
+                "POST /v1/posts/{postId}/comments",
+                "GET /v1/comments/{commentId}/replies",
+                "POST /v1/comments/{commentId}/replies",
+                "DELETE /v1/comments/{commentId}",
+                "PUT /v1/comments/{commentId}/like",
+                "DELETE /v1/comments/{commentId}/like",
                 "GET /v1/feeds/recommended",
                 "GET /v1/users/me",
                 "GET /v1/users/{userId}",

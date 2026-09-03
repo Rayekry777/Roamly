@@ -34,6 +34,7 @@ import com.ray.service.CurrentUserProvider;
 import com.ray.service.FollowService;
 import com.ray.service.MediaAssetService;
 import com.ray.service.PostService;
+import com.ray.service.PostCommentService;
 import com.ray.service.ShopService;
 import com.ray.service.UserInfoService;
 import com.ray.service.UserService;
@@ -42,6 +43,7 @@ import com.ray.utils.converter.ViewMapper;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
+import com.ray.vo.HighlightCommentVO;
 import com.ray.vo.SectionVO;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.UserVO;
@@ -62,6 +64,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -88,7 +91,38 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     private final FollowService followService;
     private final CurrentUserProvider currentUserProvider;
     private final StringRedisTemplate redis;
+    private final PostCommentService postCommentService;
 
+    /** Spring 运行时构造器，注入评论摘要批量查询能力。 */
+    @Autowired
+    public PostServiceImpl(
+            PostMediaMapper postMediaMapper,
+            PostLikeMapper postLikeMapper,
+            MediaAssetService mediaAssetService,
+            ContentSectionService contentSectionService,
+            ShopService shopService,
+            CityService cityService,
+            UserInfoService userInfoService,
+            UserService userService,
+            FollowService followService,
+            CurrentUserProvider currentUserProvider,
+            StringRedisTemplate redis,
+            PostCommentService postCommentService) {
+        this.postMediaMapper = postMediaMapper;
+        this.postLikeMapper = postLikeMapper;
+        this.mediaAssetService = mediaAssetService;
+        this.contentSectionService = contentSectionService;
+        this.shopService = shopService;
+        this.cityService = cityService;
+        this.userInfoService = userInfoService;
+        this.userService = userService;
+        this.followService = followService;
+        this.currentUserProvider = currentUserProvider;
+        this.redis = redis;
+        this.postCommentService = postCommentService;
+    }
+
+    /** 保留单元测试及旧调用方使用的构造器，不启用评论摘要批量查询。 */
     public PostServiceImpl(
             PostMediaMapper postMediaMapper,
             PostLikeMapper postLikeMapper,
@@ -101,17 +135,8 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             FollowService followService,
             CurrentUserProvider currentUserProvider,
             StringRedisTemplate redis) {
-        this.postMediaMapper = postMediaMapper;
-        this.postLikeMapper = postLikeMapper;
-        this.mediaAssetService = mediaAssetService;
-        this.contentSectionService = contentSectionService;
-        this.shopService = shopService;
-        this.cityService = cityService;
-        this.userInfoService = userInfoService;
-        this.userService = userService;
-        this.followService = followService;
-        this.currentUserProvider = currentUserProvider;
-        this.redis = redis;
+        this(postMediaMapper, postLikeMapper, mediaAssetService, contentSectionService, shopService,
+                cityService, userInfoService, userService, followService, currentUserProvider, redis, null);
     }
 
     /** 校验发布位置和媒体后创建动态，并在提交后投递关注流。 */
@@ -565,8 +590,11 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         Map<Long, Shop> shops = shopIds.isEmpty()
                 ? new HashMap<>()
                 : mapById(shopService.listByIds(shopIds), Shop::getId);
+        Map<Long, HighlightCommentVO> highlights = postCommentService == null
+                ? Map.of()
+                : postCommentService.findHighlights(new ArrayList<>(postIds));
         return new ViewContext(
-                users, sections, mediaByPost, likedPostIds, followedUserIds, shops, currentUserId);
+                users, sections, mediaByPost, likedPostIds, followedUserIds, shops, highlights, currentUserId);
     }
 
     private PostCardVO toCard(ContentPost post, ViewContext context) {
@@ -583,7 +611,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
                 valueOrZero(post.getCommentCount()),
                 context.likedPostIds().contains(post.getId()),
                 context.followedUserIds().contains(post.getUserId()),
-                null);
+                context.highlights().get(post.getId()));
     }
 
     private PostDetailVO toDetail(ContentPost post, ViewContext context) {
@@ -698,6 +726,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             Set<Long> likedPostIds,
             Set<Long> followedUserIds,
             Map<Long, Shop> shops,
+            Map<Long, HighlightCommentVO> highlights,
             Long currentUserId) {
         private static ViewContext empty() {
             return new ViewContext(
@@ -706,6 +735,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
                     Collections.emptyMap(),
                     Collections.emptySet(),
                     Collections.emptySet(),
+                    Collections.emptyMap(),
                     Collections.emptyMap(),
                     null);
         }

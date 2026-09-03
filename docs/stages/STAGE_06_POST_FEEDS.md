@@ -57,7 +57,7 @@ Authorization: Bearer <opaque-token>
 ```
 
 - 鉴权：必须登录。
-- 候选：`tb_follow.user_id` 为当前用户且 `follow_user_id` 等于动态作者。
+- 候选：`follow.user_id` 为当前用户且 `follow_user_id` 等于动态作者。
 - 排序：`create_time DESC, id DESC`。
 - 主要错误：参数校验 400、未登录或 Token 无效 401、服务异常 500。
 
@@ -113,26 +113,26 @@ SQL 与 Java 必须使用相同权重和小时粒度。该公式是阶段 6 的�
 
 ## 4. 数据访问与索引
 
-三个列表只查询状态正常的 `tb_post`，列表返回后批量装配作者、分区、媒体、点赞状态和作者关注状态，避免逐条 HTTP 请求。评论尚未实现，因此不读取热门评论。
+三个列表只查询状态正常的 `post`，列表返回后批量装配作者、分区、媒体、点赞状态和作者关注状态，避免逐条 HTTP 请求。评论尚未实现，因此不读取热门评论。
 
 关注流以 MySQL 事实关系查询为准：
 
 ```text
-tb_follow(user_id, follow_user_id)
-→ EXISTS 匹配 tb_post.user_id
-→ tb_post(status, create_time, id) 排序
+follow(user_id, follow_user_id)
+→ EXISTS 匹配 post.user_id
+→ post(status, create_time, id) 排序
 ```
 
-`schema-init.sql` 中 `tb_follow` 增加：
+`schema-init.sql` 中 `follow` 增加：
 
 - 唯一索引 `uk_follow_user_target(user_id, follow_user_id)`，保证关注关系唯一。
 - 普通索引 `idx_follow_target_user(follow_user_id, user_id)`，支持发布后查找粉丝并投递时间线。
 
-`tb_post` 继续使用阶段 3 已建立的城市、分区和用户时间索引。热度公式是计算排序，首版会在城市或分区候选集上计算；数据量增长后再依据慢查询证据选择物化热度或 Redis 排名，不提前增加冗余字段。
+`post` 继续使用阶段 3 已建立的城市、分区和用户时间索引。热度公式是计算排序，首版会在城市或分区候选集上计算；数据量增长后再依据慢查询证据选择物化热度或 Redis 排名，不提前增加冗余字段。
 
 ## 5. Redis 与一致性
 
-- `tb_post`、`tb_follow` 是关注流读取的事实来源。
+- `post`、`follow` 是关注流读取的事实来源。
 - 发布成功后的 `feed:following:{userId}` ZSET 投递继续保留，Redis 失败不回滚已经提交的动态。
 - 阶段 6 不从该 ZSET 读取，避免缓存缺失、历史数据未回填或短暂投递失败造成漏动态。
 - 推荐和分区热门流当前直接从数据库固定公式计算，不依赖 `post:hot:*` 或 `section:hot:*`。
@@ -175,8 +175,8 @@ tb_follow(user_id, follow_user_id)
 
 源码、鉴权、OpenAPI 和自动测试已经实现，但以下事项尚未完成：
 
-- 当前运行数据库未确认按最新 `schema-init.sql` 快照重建，不能把新增 `tb_follow` 索引视为已应用事实。
-- 未对真实 `tb_post` 数据执行三个查询的结果集、执行计划和性能验收。
+- 当前运行数据库未确认按最新 `schema-init.sql` 快照重建，不能把新增 `follow` 索引视为已应用事实。
+- 未对真实 `post` 数据执行三个查询的结果集、执行计划和性能验收。
 - 评论表和热门评论选择尚未实现，`highlightComment` 固定为空。
 - 小程序与真实信息流数据的联调及 Android、iOS 真机验收未完成。
 
