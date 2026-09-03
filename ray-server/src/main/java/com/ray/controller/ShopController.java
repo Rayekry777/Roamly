@@ -48,8 +48,11 @@ public class ShopController {
     @SecurityRequirements
     @Operation(summary = "查询商户详情", operationId = "getShop")
     @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功", useReturnTypeSchema = true))
-    public Result<ShopVO> get(@Parameter(description = "商户 ID") @PathVariable String shopId) {
-        return Result.ok(shopService.getShop(IdUtils.parse(shopId, "shopId")));
+    public Result<ShopVO> get(
+            @Parameter(description = "商户 ID") @PathVariable String shopId,
+            @Parameter(description = "经度，需与 latitude 同时提供") @RequestParam(required = false) Double longitude,
+            @Parameter(description = "纬度，需与 longitude 同时提供") @RequestParam(required = false) Double latitude) {
+        return Result.ok(shopService.getShop(IdUtils.parse(shopId, "shopId"), longitude, latitude));
     }
 
     @GetMapping

@@ -9,8 +9,8 @@ import com.ray.vo.ShopVO;
 
 /** 商户查询与维护业务。 */
 public interface ShopService extends IService<Shop> {
-    /** 查询指定商户并应用缓存策略。 */
-    ShopVO getShop(Long id);
+    /** 查询启用商户并在给出完整坐标时计算直线距离。 */
+    ShopVO getShop(Long id, Double longitude, Double latitude);
 
     /** 按城市、分类、关键词和排序方式分页查询启用商户。 */
     PageResult<ShopVO> listShops(

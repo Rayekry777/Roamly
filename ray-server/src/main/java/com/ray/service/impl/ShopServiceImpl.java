@@ -40,13 +40,17 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         this.cityService = cityService;
     }
 
-    /** 按 ID 查询商户并处理缓存穿透。 */
+    /** 按 ID 查询启用商户、处理缓存穿透并可选计算直线距离。 */
     @Override
-    public ShopVO getShop(Long id) {
+    public ShopVO getShop(Long id, Double longitude, Double latitude) {
+        validateCoordinates(longitude, latitude);
         Shop shop = cacheClient.queryWithPassThrough(
                 CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
-        if (shop == null) throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在");
-        return ViewMapper.toShop(shop);
+        if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus())) {
+            throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
+        }
+        ShopVO view = ViewMapper.toShop(shop);
+        return longitude == null ? view : withDistance(view, calculateDistanceMeters(longitude, latitude, shop.getX(), shop.getY()));
     }
 
     /** 按城市、分类、关键词、坐标和排序方式查询启用商户。 */
@@ -55,12 +59,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
             String cityCode, Long typeId, String keyword, String sort, int page, int size, Double longitude, Double latitude) {
         String normalizedCityCode = requireEnabledCity(cityCode);
         ShopSort shopSort = parseSort(sort);
-        if ((longitude == null) != (latitude == null)) {
-            throw BusinessException.badRequest("INCOMPLETE_COORDINATES", "longitude 和 latitude 必须同时提供");
-        }
-        if (longitude != null && (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90)) {
-            throw BusinessException.badRequest("INVALID_COORDINATES", "经纬度超出有效范围");
-        }
+        validateCoordinates(longitude, latitude);
         if (shopSort == ShopSort.DISTANCE && longitude == null) {
             throw BusinessException.badRequest("DISTANCE_REQUIRES_COORDINATES", "DISTANCE 排序必须同时提供 longitude 和 latitude");
         }
@@ -136,5 +135,31 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         } catch (IllegalArgumentException exception) {
             throw BusinessException.badRequest("INVALID_SHOP_SORT", "商户排序方式仅支持 DISTANCE、SCORE、POPULAR");
         }
+    }
+
+    private void validateCoordinates(Double longitude, Double latitude) {
+        if ((longitude == null) != (latitude == null)) {
+            throw BusinessException.badRequest("INCOMPLETE_COORDINATES", "longitude 和 latitude 必须同时提供");
+        }
+        if (longitude != null && (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90)) {
+            throw BusinessException.badRequest("INVALID_COORDINATES", "经纬度超出有效范围");
+        }
+    }
+
+    private double calculateDistanceMeters(double longitude, double latitude, Double shopLongitude, Double shopLatitude) {
+        if (shopLongitude == null || shopLatitude == null) return 0D;
+        double latitudeRadians = Math.toRadians(shopLatitude - latitude);
+        double longitudeRadians = Math.toRadians(shopLongitude - longitude);
+        double haversine = Math.sin(latitudeRadians / 2) * Math.sin(latitudeRadians / 2)
+                + Math.cos(Math.toRadians(latitude)) * Math.cos(Math.toRadians(shopLatitude))
+                * Math.sin(longitudeRadians / 2) * Math.sin(longitudeRadians / 2);
+        return 6_371_000D * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    }
+
+    private ShopVO withDistance(ShopVO shop, double distance) {
+        return new ShopVO(
+                shop.id(), shop.name(), shop.typeId(), shop.images(), shop.area(), shop.address(),
+                shop.longitude(), shop.latitude(), shop.avgPrice(), shop.sold(), shop.comments(),
+                shop.score(), shop.openHours(), distance);
     }
 }

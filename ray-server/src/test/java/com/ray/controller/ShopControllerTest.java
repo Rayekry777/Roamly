@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ray.handler.GlobalExceptionHandler;
 import com.ray.result.PageResult;
 import com.ray.service.ShopService;
+import com.ray.vo.ShopVO;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,5 +68,19 @@ class ShopControllerTest {
                 .andExpect(jsonPath("$.data.items").isArray());
 
         verify(shopService).listShops("330100", 2L, "咖啡", "DISTANCE", 2, 10, 120.1, 30.2);
+    }
+
+    /** 商户详情将可选坐标透传到服务层，以便返回距离。 */
+    @Test
+    void delegatesDetailCoordinates() throws Exception {
+        when(shopService.getShop(4L, 120.1, 30.2))
+                .thenReturn(new ShopVO("4", "咖啡店", "2", "", null, null, 120.1, 30.2,
+                        null, 0, 0, 0, null, 0D));
+
+        mockMvc.perform(get("/v1/shops/4").param("longitude", "120.1").param("latitude", "30.2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.distance").value(0D));
+
+        verify(shopService).getShop(4L, 120.1, 30.2);
     }
 }

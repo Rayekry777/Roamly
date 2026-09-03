@@ -31,6 +31,7 @@ implementationStatus: 未实现
 - [阶段 9：商户点评后端实现记录](./stages/STAGE_09_SHOP_REVIEW_IMPLEMENTATION.md)
 - [阶段 10：团购商品、订单与券包实现记录](./stages/STAGE_10_VOUCHER_ORDER_WALLET_IMPLEMENTATION.md)
 - [阶段 11：商户列表筛选与排序契约](./stages/STAGE_11_SHOP_LIST_CONTRACT_IMPLEMENTATION.md)
+- [阶段 12：商户详情与位置距离契约](./stages/STAGE_12_SHOP_DETAIL_LOCATION_CONTRACT.md)
 
 ## 2. 当前系统基线
 
@@ -299,7 +300,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 |---|---|---|---|---|---|
 | GET | `/v1/shop-types` | 公开 | 无 | `Result<List<ShopTypeVO>>` | 已实现 |
 | GET | `/v1/shops` | 公开 | `cityCode,typeId,keyword,sort,page,size,longitude,latitude` | `Result<PageResult<ShopVO>>` | 开发中 |
-| GET | `/v1/shops/{shopId}` | 可选 | 经纬度可选 | `Result<ShopDetailVO>` | 目标扩展 |
+| GET | `/v1/shops/{shopId}` | 公开 | `longitude,latitude` 可选 | `Result<ShopVO>` | 开发中 |
 | GET | `/v1/shops/{shopId}/posts` | 公开 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 开发中 |
 | GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 开发中 |
 | POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateDTO` | 201 `Result<ShopReviewVO>` | 开发中 |
@@ -316,6 +317,13 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 提交完整坐标时响应会提供米为单位的 `distance`；`SCORE` 按评分降序，`POPULAR` 按销量、点评数降序。
 - 查询只返回目标城市中 `status=1` 的商户；城市不存在或未启用返回 `CITY_NOT_FOUND`。
 - 实现与未完成的真实数据库、OpenAPI 端点验证记录见阶段 11。
+
+商户详情参数：
+
+- `longitude` 和 `latitude` 可选，但必须成对提交，且范围分别为 `[-180,180]`、`[-90,90]`。
+- 提交有效坐标时 `ShopVO.distance` 返回当前位置到商户坐标的直线距离（米）；未提交时为 `null`。
+- 详情仅返回 `status=1` 的商户；停用商户与不存在商户统一返回 `SHOP_NOT_FOUND`。
+- 团购商品、点评和关联探店动态保持各自资源接口按需加载，不重复拼入详情响应；实现与验收记录见阶段 12。
 
 点评请求：
 
