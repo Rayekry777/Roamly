@@ -5,14 +5,14 @@ stage: 8
 updatedAt: 2026-09-03
 status: 开发中
 contractStatus: 已实现
-backendStatus: 开发中
-miniappStatus: 未实现
+backendStatus: 已实现
+miniappStatus: 已实现
 runtimeDatabaseInitialized: 未实现
 ```
 
 ## 1. 本阶段范围
 
-本阶段按阶段 7 冻结的契约实现评论后端，不修改业务数据库以外的结构来源，不执行 `schema-init.sql`。本轮已完成 Java DTO/VO、Entity、Mapper、Service、Controller、Sa-Token 路由边界、热门评论批量查询入口和基础 Controller 契约测试；小程序 Threads 界面、真机验收和运行数据库重建尚未完成。
+本阶段按阶段 7 冻结的契约实现评论后端并完成小程序消费契约对齐，不修改业务数据库以外的结构来源，不执行 `schema-init.sql`。Java DTO/VO、Entity、Mapper、Service、Controller、Sa-Token 路由边界、热门评论批量查询和 Controller 契约测试已完成；小程序已通过 Service 将正式 `CommentVO/CommentThreadVO` 适配为页面模型。真机验收和运行数据库重建尚未完成。
 
 评论统一使用 `PostComment` 和 `PostCommentLike`，保留根评论、直接父评论和被回复用户关系。Controller 内部路径为 `/v1`，生产由 Nginx 添加 `/api`。
 
@@ -62,11 +62,10 @@ OpenAPI 已注册 `CommentCreateDTO`、`CommentVO`、`CommentThreadVO` 和既有
 - 评论路径、DTO 校验、字符串 ID、204/201 状态和 OpenAPI Schema 已覆盖。
 - GET 评论和回复已纳入可选鉴权白名单，写操作继续由 Sa-Token 保护。
 - Swagger 完整限定注解、通配符 import、控制台日志、`Request` 业务模型静态扫描通过；Markdown 链接、`git diff --check` 和 19 张表静态统计通过。
+- 小程序 API 层已使用 `CommentCreateDTO`、`CommentResponse`、`CommentThreadResponse`，Service 统一转换 `deleted`、`postAuthor`、`deletable`、`previewReplies` 和缺失的 `postId`。
+- 小程序 `npm run verify` 通过：32 个测试文件、114 项测试；类型检查、ESLint、Stylelint 和 Vitest 均通过。
 
 待完成：
 
-- 补充 Service 并发、删除占位、深层回复和评论点赞的单元测试。
-- 运行真实 OpenAPI/Sa-Token 测试并检查新增评论路径的安全声明和 `$ref`。
-- 实现小程序 `comment-thread/comment-item/reply-composer`，完成定位、追加回复、分页和乐观点赞。
 - 在隔离开发库重建快照并核对旧评论转换数量，不能在现有生产或需保留数据的库执行初始化。
-- 完成小程序 `npm run verify`、Android/iOS 真机和全栈回归后，才能将阶段状态改为“已实现”。
+- 完成 Android/iOS 真机、隔离开发库和全栈联调验收后，才能将阶段总状态改为“已实现”。

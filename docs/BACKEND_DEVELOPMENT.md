@@ -52,7 +52,7 @@ implementationStatus: 未实现
 | Blog 与 Blog 点赞 | `/v1/blogs/**` | 已实现 | 迁移至 Post 后废弃 |
 | 统一动态、媒体绑定与点赞 | `/v1/posts/**`、`/v1/users/**/posts` | 已实现 | 小程序首页与发布器已切换；运行数据库初始化和旧能力退役待完成 |
 | Post 推荐、关注与分区信息流 | `/v1/feeds/**`、`/v1/sections/{sectionId}/posts` | 已实现 | 数据库快照和真实数据联调待验收 |
-| 评论 | 无 HTTP 路由 | 未实现 | 由 PostComment 替代 |
+| Post 评论与回复 | `/v1/posts/**/comments`、`/v1/comments/**` | 已实现 | 已使用 PostComment 替代旧 Blog 评论能力；运行数据库重建与真机联调待验收 |
 | 优惠券与秒杀订单 | `/v1/vouchers`、`/v1/seckill-vouchers/**` | 已实现 | 迁移至团购商品和订单 |
 | Blog 图片 | `/v1/blog-images`、`/blogs/**` | 已实现 | 迁移至通用媒体资产 |
 
@@ -221,7 +221,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - 游标分页默认 `size=10`、最大 20；同排序值使用 `nextOffset` 续页，首次请求不得只传 `offset`。
 - 推荐和分区热门固定按 `createdHour + likedCount * 1000 + commentCount * 2000` 排序；分区最新和关注流按发布时间排序。
 - 关注流以 `follow` 与 `post` 的数据库事实查询为准，Redis ZSET 只保留为后续加速数据。
-- 评论能力尚未实现，三个信息流返回的 `highlightComment` 当前为空。
+- 三个信息流通过批量查询返回合格的 `highlightComment`；没有合格根评论时返回空，不产生逐动态评论请求。
 
 ### 6.3 动态
 
@@ -262,13 +262,13 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
-| GET | `/v1/posts/{postId}/comments` | 可选 | `sort,cursor,offset,size` | `Result<CursorPageResult<CommentThreadVO>>` | 未实现 |
-| POST | `/v1/posts/{postId}/comments` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 未实现 |
-| GET | `/v1/comments/{commentId}/replies` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<CommentVO>>` | 未实现 |
-| POST | `/v1/comments/{commentId}/replies` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 未实现 |
-| DELETE | `/v1/comments/{commentId}` | 作者 | 无 | 204 | 未实现 |
-| PUT | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 未实现 |
-| DELETE | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 未实现 |
+| GET | `/v1/posts/{postId}/comments` | 可选 | `sort,cursor,offset,size` | `Result<CursorPageResult<CommentThreadVO>>` | 已实现 |
+| POST | `/v1/posts/{postId}/comments` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 已实现 |
+| GET | `/v1/comments/{commentId}/replies` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<CommentVO>>` | 已实现 |
+| POST | `/v1/comments/{commentId}/replies` | 登录 | `CommentCreateDTO` | 201 `Result<CommentVO>` | 已实现 |
+| DELETE | `/v1/comments/{commentId}` | 作者 | 无 | 204 | 已实现 |
+| PUT | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 已实现 |
+| DELETE | `/v1/comments/{commentId}/like` | 登录 | 无 | 204 | 已实现 |
 
 - `CommentCreateDTO.content` 去除首尾空白后 1～1000 字。
 - 根评论列表默认 `size=10`、最大 20，支持 `HOT`、`LATEST`；回复默认 20、最大 50，并固定按创建时间升序追加。
@@ -672,7 +672,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 阶段 5 小程序社区入口改造 | 五入口导航、推荐/关注首页、Post 卡片和统一发布器已实现；小程序 `npm run verify` 通过 20 个测试文件、66 项测试，依赖构建成功。后端信息流、运行数据库联调和真机验收顺延至对应阶段 |
 | 2026-09-02 | 阶段 6 Post 信息流实现 | 推荐、关注和分区最新/热门接口、同值偏移游标、城市隔离、数据库关注事实查询及 OpenAPI 已实现；51 项默认测试和 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库尚未按快照重建，热门评论尚未实现，阶段保持开发中 |
 | 2026-09-02 | 阶段 7 评论数据契约 | 冻结 7 个评论接口、DTO/VO、两张评论表、根/回复关系、删除占位、计数、热门公式、缓存和旧评论转换；SQL 快照增至 19 张表。51 项默认测试、5 项真实 OpenAPI/Sa-Token 测试、三模块编译、Markdown 链接和差异格式检查通过；HTTP 与小程序实现进入阶段 8，未执行数据库初始化 |
-| 2026-09-03 | 阶段 8 评论后端实现 | 新增评论 DTO/VO、PostComment/PostCommentLike Entity、Mapper、Service、Controller、评论缓存失效和首页热门评论批量组装入口；57 项默认测试、5 项真实 OpenAPI/Sa-Token 测试和三模块编译通过。评论小程序界面尚未全部验收，运行数据库未初始化，阶段保持开发中 |
+| 2026-09-03 | 阶段 8 评论全栈契约对齐 | 新增评论 DTO/VO、PostComment/PostCommentLike Entity、Mapper、Service、Controller、缓存失效和首页热门评论批量组装；小程序 HTTP 响应与页面模型通过 Service 分层适配，`deleted/postAuthor/deletable/previewReplies` 已按正式契约消费。后端 57 项默认测试、5 项真实 OpenAPI/Sa-Token 测试及三模块编译通过；小程序 `npm run verify` 通过 32 个测试文件、114 项测试。运行数据库和真机验收未完成，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 
