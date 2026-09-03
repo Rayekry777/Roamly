@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 动态根评论和追加回复的持久化实体。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_post_comment")
+@TableName("post_comment")
 public class PostComment implements Serializable {
     private static final long serialVersionUID = 1L;
 

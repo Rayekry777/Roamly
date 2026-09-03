@@ -135,6 +135,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     public PageResult<UserVoucherVO> listVouchers(String status, int page, int size) {
         Long userId = currentUserProvider.requireUserId();
         validatePage(page, size);
+        userVoucherMapper.expireAvailableVouchers(userId);
         Page<UserVoucher> result = new Page<>(page, size);
         var wrapper = userVoucherMapper.selectPage(result, new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<UserVoucher>()
                 .eq("user_id", userId).orderByDesc("create_time"));
@@ -153,8 +154,10 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     /** 查询当前用户券详情。 */
     @Override
     public UserVoucherVO getVoucher(Long userVoucherId) {
+        Long userId = currentUserProvider.requireUserId();
+        userVoucherMapper.expireAvailableVouchers(userId);
         UserVoucher voucher = userVoucherMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<UserVoucher>()
-                .eq("id", userVoucherId).eq("user_id", currentUserProvider.requireUserId()));
+                .eq("id", userVoucherId).eq("user_id", userId));
         if (voucher == null) throw BusinessException.notFound("USER_VOUCHER_NOT_FOUND", "用户券不存在");
         return toVoucherVO(voucher);
     }

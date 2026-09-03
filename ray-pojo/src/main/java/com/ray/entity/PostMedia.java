@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 动态与媒体资产的有序关系。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_post_media")
+@TableName("post_media")
 public class PostMedia implements Serializable {
     private static final long serialVersionUID = 1L;
 

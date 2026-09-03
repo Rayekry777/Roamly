@@ -12,7 +12,7 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("tb_blog_comments")
+@TableName("blog_comments")
 public class BlogComment implements Serializable {
 
     private static final long serialVersionUID = 1L;

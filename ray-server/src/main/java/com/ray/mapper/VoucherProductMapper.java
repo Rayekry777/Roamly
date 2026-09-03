@@ -20,4 +20,9 @@ public interface VoucherProductMapper extends BaseMapper<VoucherProduct> {
             + "status = CASE WHEN status = 'SOLD_OUT' THEN 'ON_SALE' ELSE status END, version = version + 1 "
             + "WHERE id = #{productId}")
     int restoreStock(@Param("productId") Long productId, @Param("quantity") int quantity);
+
+    /** 在支付成功后增加已售数量；库存已在创建订单时预扣。 */
+    @Update("UPDATE voucher_product SET sold_count = sold_count + #{quantity}, version = version + 1 "
+            + "WHERE id = #{productId}")
+    int increaseSoldCount(@Param("productId") Long productId, @Param("quantity") int quantity);
 }

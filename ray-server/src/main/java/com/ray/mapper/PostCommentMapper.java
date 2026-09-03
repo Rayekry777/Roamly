@@ -15,9 +15,9 @@ public interface PostCommentMapper extends BaseMapper<PostComment> {
                     + "+ reply_count * 2000 + author_replied * 3000)";
 
     /** 查询根评论，删除但仍有有效回复的根评论返回占位。 */
-    @Select("<script>SELECT c.* FROM tb_post_comment c "
+    @Select("<script>SELECT c.* FROM post_comment c "
             + "WHERE c.post_id = #{postId} AND (c.status = 0 OR (c.status = 1 AND EXISTS "
-            + "(SELECT 1 FROM tb_post_comment r WHERE r.root_id = c.id AND r.status = 0))) "
+            + "(SELECT 1 FROM post_comment r WHERE r.root_id = c.id AND r.status = 0))) "
             + "AND c.root_id IS NULL "
             + "<if test='sort == \"HOT\"'>AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " &lt;= #{cursor}) "
             + "ORDER BY " + HOT_SCORE_SQL + " DESC, c.create_time DESC, c.id DESC</if>"
@@ -33,13 +33,13 @@ public interface PostCommentMapper extends BaseMapper<PostComment> {
             @Param("limit") int limit);
 
     /** 批量查询根评论的正常回复，供评论串预览避免 N+1 查询。 */
-    @Select("<script>SELECT c.* FROM tb_post_comment c WHERE c.root_id IN "
+    @Select("<script>SELECT c.* FROM post_comment c WHERE c.root_id IN "
             + "<foreach collection='rootIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> "
             + "AND c.status = 0 ORDER BY c.root_id ASC, c.create_time ASC, c.id ASC</script>")
     List<PostComment> selectRepliesByRoots(@Param("rootIds") List<Long> rootIds);
 
     /** 查询单个根评论下按时间追加的回复。 */
-    @Select("SELECT * FROM tb_post_comment WHERE root_id = #{rootId} AND status = 0 "
+    @Select("SELECT * FROM post_comment WHERE root_id = #{rootId} AND status = 0 "
             + "AND (#{cursorTime} IS NULL OR create_time >= #{cursorTime}) "
             + "ORDER BY create_time ASC, id ASC LIMIT #{offset}, #{limit}")
     List<PostComment> selectReplies(
@@ -49,39 +49,39 @@ public interface PostCommentMapper extends BaseMapper<PostComment> {
             @Param("limit") int limit);
 
     /** 统计根评论下仍可见的回复数量。 */
-    @Select("SELECT COUNT(*) FROM tb_post_comment WHERE root_id = #{rootId} AND status = 0")
+    @Select("SELECT COUNT(*) FROM post_comment WHERE root_id = #{rootId} AND status = 0")
     int countNormalReplies(@Param("rootId") Long rootId);
 
     /** 评论点赞事实新增时增加冗余计数。 */
-    @Update("UPDATE tb_post_comment SET liked_count = liked_count + 1 WHERE id = #{commentId} AND status = 0")
+    @Update("UPDATE post_comment SET liked_count = liked_count + 1 WHERE id = #{commentId} AND status = 0")
     int incrementLikedCount(@Param("commentId") Long commentId);
 
     /** 评论点赞事实删除时减少冗余计数。 */
     @Update(
-            "UPDATE tb_post_comment SET liked_count = GREATEST(liked_count - 1, 0) "
+            "UPDATE post_comment SET liked_count = GREATEST(liked_count - 1, 0) "
                     + "WHERE id = #{commentId} AND status = 0")
     int decrementLikedCount(@Param("commentId") Long commentId);
 
     /** 增加根评论的回复计数。 */
-    @Update("UPDATE tb_post_comment SET reply_count = reply_count + 1 WHERE id = #{rootId} AND status = 0")
+    @Update("UPDATE post_comment SET reply_count = reply_count + 1 WHERE id = #{rootId} AND status = 0")
     int incrementReplyCount(@Param("rootId") Long rootId);
 
     /** 减少根评论的回复计数。 */
-    @Update("UPDATE tb_post_comment SET reply_count = GREATEST(reply_count - 1, 0) WHERE id = #{rootId} AND status = 0")
+    @Update("UPDATE post_comment SET reply_count = GREATEST(reply_count - 1, 0) WHERE id = #{rootId} AND status = 0")
     int decrementReplyCount(@Param("rootId") Long rootId);
 
     /** 标记评论作者已参与讨论。 */
-    @Update("UPDATE tb_post_comment SET author_replied = 1 WHERE id = #{rootId} AND status = 0")
+    @Update("UPDATE post_comment SET author_replied = 1 WHERE id = #{rootId} AND status = 0")
     int markAuthorReplied(@Param("rootId") Long rootId);
 
     /** 根据当前有效回复重新计算动态作者参与标识。 */
-    @Update("UPDATE tb_post_comment SET author_replied = CASE WHEN EXISTS "
-            + "(SELECT 1 FROM tb_post_comment r JOIN tb_post p ON p.id = r.post_id "
-            + "WHERE r.root_id = tb_post_comment.id AND r.status = 0 AND r.user_id = p.user_id) THEN 1 ELSE 0 END "
+    @Update("UPDATE post_comment SET author_replied = CASE WHEN EXISTS "
+            + "(SELECT 1 FROM post_comment r JOIN post p ON p.id = r.post_id "
+            + "WHERE r.root_id = post_comment.id AND r.status = 0 AND r.user_id = p.user_id) THEN 1 ELSE 0 END "
             + "WHERE id = #{rootId} AND status = 0")
     int recalculateAuthorReplied(@Param("rootId") Long rootId);
 
     /** 逻辑删除评论并清空正文。 */
-    @Update("UPDATE tb_post_comment SET status = 1, content = NULL WHERE id = #{commentId} AND status = 0")
+    @Update("UPDATE post_comment SET status = 1, content = NULL WHERE id = #{commentId} AND status = 0")
     int markDeleted(@Param("commentId") Long commentId);
 }

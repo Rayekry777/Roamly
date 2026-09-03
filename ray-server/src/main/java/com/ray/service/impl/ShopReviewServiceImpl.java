@@ -17,6 +17,7 @@ import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopReviewMapper;
 import com.ray.mapper.ShopReviewMediaMapper;
 import com.ray.mapper.VoucherOrderMapper;
+import com.ray.mapper.UserVoucherMapper;
 import com.ray.result.PageResult;
 import com.ray.service.CurrentUserProvider;
 import com.ray.service.MediaAssetService;
@@ -50,6 +51,7 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
     private final CurrentUserProvider currentUserProvider;
     private final UserService userService;
     private final VoucherOrderMapper voucherOrderMapper;
+    private final UserVoucherMapper userVoucherMapper;
 
     public ShopReviewServiceImpl(
             ShopMapper shopMapper,
@@ -57,13 +59,15 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
             MediaAssetService mediaAssetService,
             CurrentUserProvider currentUserProvider,
             UserService userService,
-            VoucherOrderMapper voucherOrderMapper) {
+            VoucherOrderMapper voucherOrderMapper,
+            UserVoucherMapper userVoucherMapper) {
         this.shopMapper = shopMapper;
         this.mediaRelationMapper = mediaRelationMapper;
         this.mediaAssetService = mediaAssetService;
         this.currentUserProvider = currentUserProvider;
         this.userService = userService;
         this.voucherOrderMapper = voucherOrderMapper;
+        this.userVoucherMapper = userVoucherMapper;
     }
 
     /** 按最新或高分排序查询商户正常点评。 */
@@ -241,7 +245,8 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
     private ShopReviewVO toView(ShopReview review, UserVO author, List<ReviewMediaVO> media, Long currentUserId) {
         boolean verified = false;
         try {
-            verified = voucherOrderMapper.existsVerifiedPurchase(review.getUserId(), review.getShopId());
+            verified = userVoucherMapper.existsUsedAtShop(review.getUserId(), review.getShopId())
+                    || voucherOrderMapper.existsVerifiedPurchase(review.getUserId(), review.getShopId());
         } catch (RuntimeException exception) {
             log.warn("[商户点评] 消费认证过渡查询失败，点评ID={}", review.getId(), exception);
         }

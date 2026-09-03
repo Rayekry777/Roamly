@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 可用城市字典实体。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_city")
+@TableName("city")
 public class City implements Serializable {
     private static final long serialVersionUID = 1L;
 

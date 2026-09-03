@@ -16,26 +16,26 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
                     + "+ FLOOR(UNIX_TIMESTAMP(p.create_time) / 3600))";
 
     /** 在动态仍正常可见时增加点赞冗余计数。 */
-    @Update("UPDATE tb_post SET liked_count = liked_count + 1 WHERE id = #{postId} AND status = 0")
+    @Update("UPDATE post SET liked_count = liked_count + 1 WHERE id = #{postId} AND status = 0")
     int incrementLikedCount(@Param("postId") Long postId);
 
     /** 在动态仍正常可见时减少点赞冗余计数并保持非负。 */
     @Update(
-            "UPDATE tb_post SET liked_count = GREATEST(liked_count - 1, 0) "
+            "UPDATE post SET liked_count = GREATEST(liked_count - 1, 0) "
                     + "WHERE id = #{postId} AND status = 0")
     int decrementLikedCount(@Param("postId") Long postId);
 
     /** 新增正常评论时增加动态评论冗余计数。 */
-    @Update("UPDATE tb_post SET comment_count = comment_count + 1 WHERE id = #{postId} AND status = 0")
+    @Update("UPDATE post SET comment_count = comment_count + 1 WHERE id = #{postId} AND status = 0")
     int incrementCommentCount(@Param("postId") Long postId);
 
     /** 删除或隐藏评论时减少动态评论冗余计数。 */
-    @Update("UPDATE tb_post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId} AND status = 0")
+    @Update("UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId} AND status = 0")
     int decrementCommentCount(@Param("postId") Long postId);
 
     /** 按固定热度分值查询指定城市的推荐动态。 */
     @Select(
-            "SELECT p.* FROM tb_post p "
+            "SELECT p.* FROM post p "
                     + "WHERE p.status = 0 AND p.city_code = #{cityCode} "
                     + "AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " <= #{cursor}) "
                     + "ORDER BY " + HOT_SCORE_SQL + " DESC, p.create_time DESC, p.id DESC "
@@ -48,9 +48,9 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
 
     /** 按发布时间查询当前用户所关注作者的动态。 */
     @Select(
-            "SELECT p.* FROM tb_post p "
+            "SELECT p.* FROM post p "
                     + "WHERE p.status = 0 "
-                    + "AND EXISTS (SELECT 1 FROM tb_follow f "
+                    + "AND EXISTS (SELECT 1 FROM follow f "
                     + "WHERE f.user_id = #{userId} AND f.follow_user_id = p.user_id) "
                     + "AND (#{cursorTime} IS NULL OR p.create_time <= #{cursorTime}) "
                     + "ORDER BY p.create_time DESC, p.id DESC "
@@ -63,7 +63,7 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
 
     /** 按发布时间查询分区动态，可选城市隔离。 */
     @Select(
-            "<script>SELECT p.* FROM tb_post p "
+            "<script>SELECT p.* FROM post p "
                     + "WHERE p.status = 0 AND p.section_id = #{sectionId} "
                     + "<if test='cityCode != null'>AND p.city_code = #{cityCode} </if>"
                     + "AND (#{cursorTime} IS NULL OR p.create_time &lt;= #{cursorTime}) "
@@ -78,7 +78,7 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
 
     /** 按固定热度分值查询分区动态，可选城市隔离。 */
     @Select(
-            "<script>SELECT p.* FROM tb_post p "
+            "<script>SELECT p.* FROM post p "
                     + "WHERE p.status = 0 AND p.section_id = #{sectionId} "
                     + "<if test='cityCode != null'>AND p.city_code = #{cityCode} </if>"
                     + "AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " &lt;= #{cursor}) "

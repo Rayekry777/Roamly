@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 用户关注官方分区的关系实体。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_section_follow")
+@TableName("section_follow")
 public class SectionFollow implements Serializable {
     private static final long serialVersionUID = 1L;
 

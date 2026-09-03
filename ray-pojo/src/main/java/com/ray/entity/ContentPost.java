@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 普通动态与探店动态共用的持久化实体。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_post")
+@TableName("post")
 public class ContentPost implements Serializable {
     private static final long serialVersionUID = 1L;
 

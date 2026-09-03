@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 平台维护的官方内容分区实体。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_content_section")
+@TableName("content_section")
 public class ContentSection implements Serializable {
     private static final long serialVersionUID = 1L;
 

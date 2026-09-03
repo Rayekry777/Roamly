@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 /** 用户对动态的点赞事实。 */
 @Data
 @Accessors(chain = true)
-@TableName("tb_post_like")
+@TableName("post_like")
 public class PostLike implements Serializable {
     private static final long serialVersionUID = 1L;
 
