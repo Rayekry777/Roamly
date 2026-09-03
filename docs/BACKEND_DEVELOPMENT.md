@@ -2,7 +2,7 @@
 
 ```yaml
 version: 3
-updatedAt: 2026-09-02
+updatedAt: 2026-09-03
 scope: Roamly 分区社区、Threads 式评论、本地生活点评与团购交易
 reviewStatus: draft
 implementationStatus: 未实现
@@ -28,6 +28,7 @@ implementationStatus: 未实现
 - [阶段 6：推荐、关注与分区信息流实现记录](./stages/STAGE_06_POST_FEEDS.md)
 - [阶段 7：Threads 式评论、删除语义与排序契约](./stages/STAGE_07_POST_COMMENTS_SCHEMA.md)
 - [阶段 8：Threads 式评论后端实现记录](./stages/STAGE_08_POST_COMMENTS_IMPLEMENTATION.md)
+- [阶段 9：商户点评后端实现记录](./stages/STAGE_09_SHOP_REVIEW_IMPLEMENTATION.md)
 
 ## 2. 当前系统基线
 
@@ -298,10 +299,10 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | GET | `/v1/shops` | 公开 | 筛选与分页 | `Result<PageResult<ShopCardVO>>` | 目标扩展 |
 | GET | `/v1/shops/{shopId}` | 可选 | 经纬度可选 | `Result<ShopDetailVO>` | 目标扩展 |
 | GET | `/v1/shops/{shopId}/posts` | 可选 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 未实现 |
-| GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 未实现 |
-| POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateDTO` | 201 `Result<ShopReviewVO>` | 未实现 |
-| PUT | `/v1/shops/{shopId}/reviews/me` | 登录 | `ShopReviewUpdateDTO` | `Result<ShopReviewVO>` | 未实现 |
-| DELETE | `/v1/shops/{shopId}/reviews/me` | 登录 | 无 | 204 | 未实现 |
+| GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 开发中 |
+| POST | `/v1/shops/{shopId}/reviews` | 登录 | `ShopReviewCreateDTO` | 201 `Result<ShopReviewVO>` | 开发中 |
+| PUT | `/v1/shops/{shopId}/reviews/me` | 登录 | `ShopReviewUpdateDTO` | `Result<ShopReviewVO>` | 开发中 |
+| DELETE | `/v1/shops/{shopId}/reviews/me` | 登录 | 无 | 204 | 开发中 |
 
 商户列表参数：
 
@@ -389,8 +390,8 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | `post_like` | 动态点赞事实 | 用户/动态级 | 已实现 |
 | `post_comment` | 根评论和追加回复 | 动态级 | 已实现 |
 | `post_comment_like` | 评论点赞事实 | 用户/评论级 | 已实现 |
-| `shop_review` | 商户点评 | 商户/用户级 | 未实现 |
-| `shop_review_media` | 点评媒体及顺序 | 点评级 | 未实现 |
+| `shop_review` | 商户点评 | 商户/用户级 | 开发中 |
+| `shop_review_media` | 点评媒体及顺序 | 点评级 | 开发中 |
 | `voucher_product` | 团购商品 | 商户级 | 未实现 |
 | `user_voucher` | 用户券实例 | 用户级 | 未实现 |
 
@@ -610,7 +611,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 6 | 冻结并实现推荐、关注、分区信息流 | 游标、去重、城市隔离、热门摘要通过 | 开发中 |
 | 7 | 冻结评论模型、删除语义和排序 | OpenAPI、SQL、热门规则评审完成 | 已实现 |
 | 8 | 实现评论后端与 Threads 式界面 | 评论、回复、定位、缓存和计数通过 | 开发中 |
-| 9 | 冻结并实现商户点评 | 评分、媒体、唯一点评和消费标识通过 | 未实现 |
+| 9 | 冻结并实现商户点评 | 评分、媒体、唯一点评和消费标识通过 | 开发中 |
 | 10 | 冻结并实现团购商品、订单和券包 | 库存、限购、订单、发券幂等通过 | 未实现 |
 | 11 | 停用旧接口、切换 Redis、从快照移除旧表 | 全量核对和客户端切换完成 | 未实现 |
 | 12 | 搜索、通知、举报、审核、支付与核销 | 另行设计和评审 | 未实现 |
@@ -673,6 +674,7 @@ Sa-Token 使用框架自身命名空间，不与业务 Redis Key 混用。
 | 2026-09-02 | 阶段 6 Post 信息流实现 | 推荐、关注和分区最新/热门接口、同值偏移游标、城市隔离、数据库关注事实查询及 OpenAPI 已实现；51 项默认测试和 5 项真实 OpenAPI/Sa-Token 测试通过。运行数据库尚未按快照重建，热门评论尚未实现，阶段保持开发中 |
 | 2026-09-02 | 阶段 7 评论数据契约 | 冻结 7 个评论接口、DTO/VO、两张评论表、根/回复关系、删除占位、计数、热门公式、缓存和旧评论转换；SQL 快照增至 19 张表。51 项默认测试、5 项真实 OpenAPI/Sa-Token 测试、三模块编译、Markdown 链接和差异格式检查通过；HTTP 与小程序实现进入阶段 8，未执行数据库初始化 |
 | 2026-09-03 | 阶段 8 评论全栈契约对齐 | 新增评论 DTO/VO、PostComment/PostCommentLike Entity、Mapper、Service、Controller、缓存失效和首页热门评论批量组装；小程序 HTTP 响应与页面模型通过 Service 分层适配，`deleted/postAuthor/deletable/previewReplies` 已按正式契约消费。后端 57 项默认测试、5 项真实 OpenAPI/Sa-Token 测试及三模块编译通过；小程序 `npm run verify` 通过 32 个测试文件、114 项测试。运行数据库和真机验收未完成，阶段保持开发中 |
+| 2026-09-03 | 阶段 9 商户点评后端实现 | 冻结点评 DTO/VO、operationId、评分排序、唯一点评、消费认证过渡查询和媒体事务；新增点评表、媒体关系、Controller/Service/Mapper、OpenAPI Schema 与匿名读取路由；后端 `mvn test` 通过 62 项（10 项外部环境测试跳过），`mvn -DskipTests compile` 通过。运行数据库重建、真实端点和小程序真机验收未完成，阶段保持开发中 |
 
 ## 13. 当前风险与明确非目标
 

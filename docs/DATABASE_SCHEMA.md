@@ -2,13 +2,13 @@
 
 当前结构来源：`ray-server/src/main/resources/schema-init.sql`；开发数据来源：`ray-server/src/main/resources/seed-dev.sql`。两者由 `ray-server/src/main/resources/application-dev.yml` 按“先结构、后数据”的顺序初始化。
 
-结构版本：开发初始化快照（截至 2026-09-02，阶段 7）
-业务表数量：19 张
+结构版本：开发初始化快照（截至 2026-09-03，阶段 9）
+业务表数量：21 张
 数据库：MySQL / InnoDB / utf8mb4
 
 表命名约定：业务表直接使用关键业务名，采用小写下划线命名（例如 `user`、`content_section`、`post_comment`），不添加 `tb` 或其他统一前缀。后续新增表沿用该规则；本文及 SQL 中的表名以当前开发库重建后的名称为准。
 
-数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照；当前测试数据库尚未按该快照重建。
+数据库不做版本管理：结构直接维护在 `schema-init.sql`，开发数据直接维护在 `seed-dev.sql`。2026-09-02 阶段 1 新增城市、官方分区、分区关注和媒体资产，阶段 3 新增统一动态、动态媒体和动态点赞，阶段 6 为用户关注关系补充索引，阶段 7 新增动态评论和评论点赞快照，阶段 9 新增商户点评及点评媒体；当前测试数据库尚未按该快照重建。
 
 ## 表目录索引
 
@@ -33,6 +33,8 @@
 | 17 | `post_like` | 动态点赞事实 | [查看字段](#post_like-动态点赞事实) |
 | 18 | `post_comment` | 动态根评论与追加回复 | [查看字段](#post_comment-动态评论与追加回复) |
 | 19 | `post_comment_like` | 动态评论点赞事实 | [查看字段](#post_comment_like-动态评论点赞事实) |
+| 20 | `shop_review` | 商户独立点评 | [查看字段](#shop_review-商户独立点评) |
+| 21 | `shop_review_media` | 商户点评媒体关系 | [查看字段](#shop_review_media-商户点评媒体关系) |
 
 ## 表索引总览
 
@@ -74,6 +76,13 @@
 | `post_comment_like` | `PRIMARY` | 主键（BTREE） | `id` | 评论点赞记录唯一标识 |
 | `post_comment_like` | `uk_comment_like_comment_user` | 唯一索引（BTREE） | `comment_id, user_id` | 保证评论点赞幂等 |
 | `post_comment_like` | `idx_comment_like_user_time` | 普通索引（BTREE） | `user_id, create_time, id` | 用户评论点赞时间序查询 |
+| `shop_review` | `PRIMARY` | 主键（BTREE） | `id` | 点评唯一标识 |
+| `shop_review` | `uk_review_shop_user` | 唯一索引（BTREE） | `shop_id, user_id` | 保证每个用户对商户仅有一条点评 |
+| `shop_review` | `idx_review_shop_status_time` | 普通索引（BTREE） | `shop_id, status, create_time, id` | 商户点评时间分页 |
+| `shop_review` | `idx_review_shop_status_score` | 普通索引（BTREE） | `shop_id, status, score` | 商户评分聚合与高分排序 |
+| `shop_review_media` | `PRIMARY` | 主键（BTREE） | `id` | 点评媒体关系唯一标识 |
+| `shop_review_media` | `uk_review_media_sort` | 唯一索引（BTREE） | `review_id, sort` | 保证点评内媒体顺序唯一 |
+| `shop_review_media` | `uk_review_media_asset` | 唯一索引（BTREE） | `media_asset_id` | 防止媒体资产重复绑定 |
 | `section_follow` | `PRIMARY` | 主键（BTREE） | `id` | 分区关注记录唯一标识 |
 | `section_follow` | `uk_section_follow_user_section` | 唯一索引（BTREE） | `user_id, section_id` | 防止重复关注分区 |
 | `section_follow` | `idx_section_follow_section_time` | 普通索引（BTREE） | `section_id, create_time, id` | 分区关注者时间序查询 |
@@ -103,6 +112,8 @@
 | `post_like` | 动态点赞事实 | 用户/动态级 | `id` | 用户与动态组合唯一；计数以事实关系为依据校正 |
 | `post_comment` | 动态评论与追加回复 | 动态级 | `id` | 根评论、直接目标和被回复用户均为逻辑关联；删除根评论可保留占位 |
 | `post_comment_like` | 动态评论点赞事实 | 用户/评论级 | `id` | 用户与评论组合唯一；点赞计数以事实关系校正 |
+| `shop_review` | 商户独立点评 | 商户/用户级 | `id` | `shop_id`、`user_id` 为逻辑关联；组合唯一 |
+| `shop_review_media` | 商户点评媒体关系 | 点评级 | `id` | 点评内顺序唯一，媒体资产全局唯一 |
 | `shop_type` | 商户分类 | 平台级 | `id` | 无实际外键 |
 | `shop` | 商户信息与地理坐标 | 平台级 | `id` | `type_id` 逻辑关联 `shop_type.id`；有普通索引 |
 | `blog` | 探店笔记 | 平台级（按用户） | `id` | `shop_id`、`user_id` 分别逻辑关联商户和用户 |
@@ -393,6 +404,33 @@
 | `create_time` | `timestamp` | 否 | `CURRENT_TIMESTAMP` | 点赞时间 |
 
 `comment_id + user_id` 使用唯一索引保证点赞幂等；该表是评论点赞事实真源，`post_comment.liked_count` 可由其重建或校正。
+
+### `shop_review` 商户独立点评
+
+| 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
+|---|---|---|---|---|
+| `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
+| `shop_id` | `bigint UNSIGNED` | 否 | 无 | 商户 ID；逻辑关联 `shop.id` |
+| `user_id` | `bigint UNSIGNED` | 否 | 无 | 点评用户 ID；逻辑关联 `user.id` |
+| `verified_user_voucher_id` | `bigint UNSIGNED` | 是 | `NULL` | 已核销用户券 ID；仅服务端写入 |
+| `score` | `tinyint UNSIGNED` | 否 | 无 | 1～5 分 |
+| `content` | `varchar(2000)` | 否 | 无 | 点评正文 |
+| `status` | `tinyint UNSIGNED` | 否 | `0` | 0 正常，1 审核隐藏，2 已删除 |
+| `create_time`、`update_time` | `timestamp` | 否 | 当前时间 | 审计时间 |
+
+唯一索引 `uk_review_shop_user(shop_id,user_id)` 保证一个用户对一个商户只保留一条点评；列表和高分排序分别使用 `idx_review_shop_status_time`、`idx_review_shop_status_score`。
+
+### `shop_review_media` 商户点评媒体关系
+
+| 字段 | 类型 | 可空 | 默认值 | 约束/说明 |
+|---|---|---|---|---|
+| `id` | `bigint UNSIGNED` | 否 | 自增 | 主键 |
+| `review_id` | `bigint UNSIGNED` | 否 | 无 | 点评 ID；逻辑关联 `shop_review.id` |
+| `media_asset_id` | `bigint UNSIGNED` | 否 | 无 | 媒体资产 ID；逻辑关联 `media_asset.id` |
+| `sort` | `tinyint UNSIGNED` | 否 | 无 | 点评内顺序，从 0 开始 |
+| `create_time` | `timestamp` | 否 | 当前时间 | 创建时间 |
+
+`review_id + sort` 和 `media_asset_id` 分别使用唯一索引，最多绑定 9 张当前用户拥有的临时媒体；媒体所有权、临时状态和删除清理由应用事务保证。
 
 ## 关系、初始化与演进说明
 

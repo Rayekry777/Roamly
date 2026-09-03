@@ -129,6 +129,16 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
     /** 加锁校验媒体存在性、所有权、临时状态和有效期。 */
     @Override
     public List<MediaAsset> lockTemporaryPostImages(Long ownerUserId, List<Long> mediaIds) {
+        return lockTemporaryImages(ownerUserId, mediaIds);
+    }
+
+    /** 锁定点评图片，复用统一的媒体所有权与生命周期校验。 */
+    @Override
+    public List<MediaAsset> lockTemporaryShopReviewImages(Long ownerUserId, List<Long> mediaIds) {
+        return lockTemporaryImages(ownerUserId, mediaIds);
+    }
+
+    private List<MediaAsset> lockTemporaryImages(Long ownerUserId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return List.of();
         List<Long> lockOrder = mediaIds.stream().sorted().toList();
         List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
@@ -162,6 +172,17 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
     /** 使用状态条件更新防止媒体在未锁定情况下被重复占用。 */
     @Override
     public void bindPostImages(Long ownerUserId, Long postId, List<Long> mediaIds) {
+        bindImages(ownerUserId, MediaAssetBoundType.POST, postId, mediaIds);
+    }
+
+    /** 原子绑定商户点评图片，防止同一临时媒体被并发占用。 */
+    @Override
+    public void bindShopReviewImages(Long ownerUserId, Long reviewId, List<Long> mediaIds) {
+        bindImages(ownerUserId, MediaAssetBoundType.SHOP_REVIEW, reviewId, mediaIds);
+    }
+
+    private void bindImages(
+            Long ownerUserId, MediaAssetBoundType boundType, Long boundId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return;
         int affected = baseMapper.update(
                 null,
@@ -173,8 +194,8 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
                         .isNull("bound_id")
                         .gt("expire_time", LocalDateTime.now())
                         .set("status", MediaAssetStatus.BOUND.code())
-                        .set("bound_type", MediaAssetBoundType.POST.code())
-                        .set("bound_id", postId)
+                        .set("bound_type", boundType.code())
+                        .set("bound_id", boundId)
                         .set("expire_time", null));
         if (affected != mediaIds.size()) {
             throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产状态已变化，请重新上传");
@@ -184,6 +205,16 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
     /** 保留原绑定审计信息，将物理删除放到数据库事务提交之后。 */
     @Override
     public void deletePostImages(Long postId, List<Long> mediaIds) {
+        deleteImages(MediaAssetBoundType.POST, postId, mediaIds);
+    }
+
+    /** 标记删除点评图片，并在事务提交后清理物理文件。 */
+    @Override
+    public void deleteShopReviewImages(Long reviewId, List<Long> mediaIds) {
+        deleteImages(MediaAssetBoundType.SHOP_REVIEW, reviewId, mediaIds);
+    }
+
+    private void deleteImages(MediaAssetBoundType boundType, Long boundId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return;
         List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
                 .in("id", mediaIds)
@@ -194,8 +225,8 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         }
         for (MediaAsset asset : assets) {
             if (!Integer.valueOf(MediaAssetStatus.BOUND.code()).equals(asset.getStatus())
-                    || !Integer.valueOf(MediaAssetBoundType.POST.code()).equals(asset.getBoundType())
-                    || !postId.equals(asset.getBoundId())) {
+                    || !Integer.valueOf(boundType.code()).equals(asset.getBoundType())
+                    || !boundId.equals(asset.getBoundId())) {
                 throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产不属于当前动态");
             }
         }
@@ -204,8 +235,8 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
                 new UpdateWrapper<MediaAsset>()
                         .in("id", mediaIds)
                         .eq("status", MediaAssetStatus.BOUND.code())
-                        .eq("bound_type", MediaAssetBoundType.POST.code())
-                        .eq("bound_id", postId)
+                        .eq("bound_type", boundType.code())
+                        .eq("bound_id", boundId)
                         .set("status", MediaAssetStatus.DELETED.code())
                         .set("expire_time", LocalDateTime.now()));
         if (affected != mediaIds.size()) {

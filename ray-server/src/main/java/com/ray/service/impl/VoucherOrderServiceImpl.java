@@ -43,7 +43,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT = new DefaultRedisScript<>();
 
     static {
-        SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
+        SECKILL_SCRIPT.setLocation(new ClassPathResource("lua-dev/seckill.lua"));
         SECKILL_SCRIPT.setResultType(Long.class);
     }
 

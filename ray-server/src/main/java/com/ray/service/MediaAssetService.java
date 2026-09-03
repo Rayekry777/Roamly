@@ -20,9 +20,18 @@ public interface MediaAssetService extends IService<MediaAsset> {
     /** 按固定顺序锁定并校验当前用户准备绑定到动态的临时图片。 */
     List<MediaAsset> lockTemporaryPostImages(Long ownerUserId, List<Long> mediaIds);
 
+    /** 按固定顺序锁定并校验当前用户准备绑定到商户点评的临时图片。 */
+    List<MediaAsset> lockTemporaryShopReviewImages(Long ownerUserId, List<Long> mediaIds);
+
     /** 将已锁定的临时图片原子绑定到指定动态。 */
     void bindPostImages(Long ownerUserId, Long postId, List<Long> mediaIds);
 
+    /** 将已锁定的临时图片原子绑定到指定商户点评。 */
+    void bindShopReviewImages(Long ownerUserId, Long reviewId, List<Long> mediaIds);
+
     /** 将从动态移除的图片标记删除，并在事务提交后清理物理文件。 */
     void deletePostImages(Long postId, List<Long> mediaIds);
+
+    /** 将从商户点评移除的图片标记删除，并在事务提交后清理物理文件。 */
+    void deleteShopReviewImages(Long reviewId, List<Long> mediaIds);
 }

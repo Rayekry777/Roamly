@@ -245,6 +245,36 @@ CREATE TABLE `shop_type`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
+DROP TABLE IF EXISTS `shop_review_media`;
+DROP TABLE IF EXISTS `shop_review`;
+CREATE TABLE `shop_review` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `shop_id` bigint UNSIGNED NOT NULL COMMENT '商户ID，逻辑关联shop.id',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '点评用户ID，逻辑关联user.id',
+  `verified_user_voucher_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '已核销用户券ID，消费认证由服务端维护',
+  `score` tinyint UNSIGNED NOT NULL COMMENT '评分，1到5分',
+  `content` varchar(2000) NOT NULL COMMENT '点评正文',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态：0正常，1审核隐藏，2已删除',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_review_shop_user` (`shop_id`, `user_id`) USING BTREE,
+  INDEX `idx_review_shop_status_time` (`shop_id`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_review_shop_status_score` (`shop_id`, `status`, `score`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '商户独立点评' ROW_FORMAT = Dynamic;
+
+CREATE TABLE `shop_review_media` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `review_id` bigint UNSIGNED NOT NULL COMMENT '点评ID，逻辑关联shop_review.id',
+  `media_asset_id` bigint UNSIGNED NOT NULL COMMENT '媒体资产ID，逻辑关联media_asset.id',
+  `sort` tinyint UNSIGNED NOT NULL COMMENT '点评内展示顺序，从0开始',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_review_media_sort` (`review_id`, `sort`) USING BTREE,
+  UNIQUE INDEX `uk_review_media_asset` (`media_asset_id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '商户点评媒体关系' ROW_FORMAT = Dynamic;
+
+
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',

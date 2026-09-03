@@ -15,7 +15,9 @@ import com.ray.vo.CommentVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
+import com.ray.vo.ReviewMediaVO;
 import com.ray.vo.ShopSummaryVO;
+import com.ray.vo.ShopReviewVO;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
@@ -55,6 +57,7 @@ public class OpenApiConfig {
         registerSchema(components, "PageResult", PageResult.class);
         registerSchema(components, "CursorPageResult", CursorPageResult.class);
         registerPostSchemas(components);
+        registerReviewSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -73,6 +76,7 @@ public class OpenApiConfig {
             registerSchema(openApi.getComponents(), "PageResult", PageResult.class);
             registerSchema(openApi.getComponents(), "CursorPageResult", CursorPageResult.class);
             registerPostSchemas(openApi.getComponents());
+            registerReviewSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -83,6 +87,7 @@ public class OpenApiConfig {
                 if (mayReturnNotFound(method, path)) addError(operation.getResponses(), "404", "资源不存在");
                 if (mayReturnForbidden(method, path)) addError(operation.getResponses(), "403", "无权操作该资源");
                 if (mayReturnCommentConflict(method, path)) addError(operation.getResponses(), "409", "评论状态冲突");
+                if (mayReturnReviewConflict(method, path)) addError(operation.getResponses(), "409", "点评状态冲突或重复点评");
                 if (method == HttpMethod.POST && path.matches("/v1/seckill-vouchers/\\{[^/]+}/orders")) {
                     addError(operation.getResponses(), "409", "库存不足或重复下单");
                 }
@@ -126,6 +131,13 @@ public class OpenApiConfig {
         registerSchema(components, "CommentCreateDTO", CommentCreateDTO.class);
     }
 
+    private void registerReviewSchemas(Components components) {
+        registerSchema(components, "ShopReviewCreateDTO", com.ray.dto.ShopReviewCreateDTO.class);
+        registerSchema(components, "ShopReviewUpdateDTO", com.ray.dto.ShopReviewUpdateDTO.class);
+        registerSchema(components, "ReviewMediaVO", ReviewMediaVO.class);
+        registerSchema(components, "ShopReviewVO", ShopReviewVO.class);
+    }
+
     private void addError(ApiResponses responses, String status, String description) {
         responses.addApiResponse(
                 status,
@@ -161,6 +173,8 @@ public class OpenApiConfig {
         if (path.equals("/v1/posts/{postId}/comments")) return true;
         if (path.equals("/v1/comments/{commentId}/replies")) return true;
         if (path.equals("/v1/comments/{commentId}") || path.equals("/v1/comments/{commentId}/like")) return true;
+        if (path.equals("/v1/shops/{shopId}/reviews")) return method == HttpMethod.GET || method == HttpMethod.POST;
+        if (path.equals("/v1/shops/{shopId}/reviews/me")) return method == HttpMethod.PUT || method == HttpMethod.DELETE;
         if (path.equals("/v1/users/{userId}/posts")) return method == HttpMethod.GET;
         return path.matches("/v1/blogs/\\{blogId}(/like|/likes)?")
                 && (method == HttpMethod.GET || method == HttpMethod.PUT || method == HttpMethod.DELETE);
@@ -178,6 +192,12 @@ public class OpenApiConfig {
         return path.matches("/v1/posts/\\{postId}/comments") && method == HttpMethod.POST
                 || path.matches("/v1/comments/\\{commentId}(/replies|/like)?")
                         && (method == HttpMethod.POST || method == HttpMethod.PUT || method == HttpMethod.DELETE);
+    }
+
+    private boolean mayReturnReviewConflict(HttpMethod method, String path) {
+        return path.equals("/v1/shops/{shopId}/reviews") && method == HttpMethod.POST
+                || path.equals("/v1/shops/{shopId}/reviews/me")
+                        && (method == HttpMethod.PUT || method == HttpMethod.DELETE);
     }
 
     private boolean isOptionalAuthentication(String path) {

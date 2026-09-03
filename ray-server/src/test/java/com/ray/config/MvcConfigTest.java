@@ -15,6 +15,7 @@ class MvcConfigTest {
         assertTrue(MvcConfig.isPublic("GET", "/v1/users/1/profile"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/users/not-a-number"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops/1/vouchers"));
+        assertTrue(MvcConfig.isPublic("GET", "/v1/shops/1/reviews"));
         assertFalse(MvcConfig.isPublic("POST", "/v1/shops"));
         assertFalse(MvcConfig.isPublic("PUT", "/v1/shops/1"));
         assertFalse(MvcConfig.isPublic("GET", "/v1/users/me"));
