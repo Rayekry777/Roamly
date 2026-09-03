@@ -12,8 +12,9 @@ public interface ShopService extends IService<Shop> {
     /** 查询指定商户并应用缓存策略。 */
     ShopVO getShop(Long id);
 
-    /** 按分类、名称和可选坐标分页查询商户。 */
-    PageResult<ShopVO> listShops(Long typeId, String name, int page, int size, Double longitude, Double latitude);
+    /** 按城市、分类、关键词和排序方式分页查询启用商户。 */
+    PageResult<ShopVO> listShops(
+            String cityCode, Long typeId, String keyword, String sort, int page, int size, Double longitude, Double latitude);
 
     /** 新增商户并返回数据库标识。 */
     Long createShop(CreateShopDTO request);

@@ -2,45 +2,42 @@ package com.ray.service.impl;
 
 import static com.ray.constant.RedisConstants.CACHE_SHOP_KEY;
 import static com.ray.constant.RedisConstants.CACHE_SHOP_TTL;
-import static com.ray.constant.RedisConstants.SHOP_GEO_KEY;
 
-import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.dto.CreateShopDTO;
 import com.ray.dto.UpdateShopDTO;
+import com.ray.entity.City;
 import com.ray.entity.Shop;
+import com.ray.enums.EnableStatus;
+import com.ray.enums.ShopSort;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.result.PageResult;
+import com.ray.service.CityService;
 import com.ray.service.ShopService;
 import com.ray.utils.cache.CacheClient;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.converter.ViewMapper;
 import com.ray.vo.ShopVO;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import org.springframework.data.geo.Distance;
-import org.springframework.data.geo.GeoResult;
-import org.springframework.data.geo.GeoResults;
-import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 /** 商户查询、地理排序与缓存一致性实现。 */
 @Service
 public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements ShopService {
     private final StringRedisTemplate redis;
     private final CacheClient cacheClient;
+    private final CityService cityService;
 
-    public ShopServiceImpl(StringRedisTemplate redis, CacheClient cacheClient) {
+    public ShopServiceImpl(StringRedisTemplate redis, CacheClient cacheClient, CityService cityService) {
         this.redis = redis;
         this.cacheClient = cacheClient;
+        this.cityService = cityService;
     }
 
     /** 按 ID 查询商户并处理缓存穿透。 */
@@ -52,21 +49,28 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         return ViewMapper.toShop(shop);
     }
 
-    /** 按名称、分类和可选坐标查询商户。 */
+    /** 按城市、分类、关键词、坐标和排序方式查询启用商户。 */
     @Override
     public PageResult<ShopVO> listShops(
-            Long typeId, String name, int page, int size, Double longitude, Double latitude) {
+            String cityCode, Long typeId, String keyword, String sort, int page, int size, Double longitude, Double latitude) {
+        String normalizedCityCode = requireEnabledCity(cityCode);
+        ShopSort shopSort = parseSort(sort);
         if ((longitude == null) != (latitude == null)) {
             throw BusinessException.badRequest("INCOMPLETE_COORDINATES", "longitude 和 latitude 必须同时提供");
         }
-        if (typeId != null && longitude != null && latitude != null && StrUtil.isBlank(name)) {
-            return listByLocation(typeId, page, size, longitude, latitude);
+        if (longitude != null && (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90)) {
+            throw BusinessException.badRequest("INVALID_COORDINATES", "经纬度超出有效范围");
         }
-        Page<Shop> result = query().eq(typeId != null, "type_id", typeId)
-                .like(StrUtil.isNotBlank(name), "name", name)
-                .page(new Page<>(page, size));
+        if (shopSort == ShopSort.DISTANCE && longitude == null) {
+            throw BusinessException.badRequest("DISTANCE_REQUIRES_COORDINATES", "DISTANCE 排序必须同时提供 longitude 和 latitude");
+        }
+        String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        int offset = Math.multiplyExact(page - 1, size);
+        List<Shop> shops = baseMapper.selectEnabledPage(
+                normalizedCityCode, typeId, normalizedKeyword, shopSort.name(), longitude, latitude, offset, size);
+        long total = baseMapper.countEnabledByFilter(normalizedCityCode, typeId, normalizedKeyword);
         return new PageResult<>(
-                result.getRecords().stream().map(ViewMapper::toShop).toList(), page, size, result.getTotal());
+                shops.stream().map(ViewMapper::toShop).toList(), page, size, total);
     }
 
     /** 新增商户。 */
@@ -112,32 +116,25 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         redis.delete(CACHE_SHOP_KEY + id);
     }
 
-    private PageResult<ShopVO> listByLocation(Long typeId, int page, int size, double longitude, double latitude) {
-        int from = (page - 1) * size;
-        int end = page * size;
-        GeoResults<RedisGeoCommands.GeoLocation<String>> results = redis.opsForGeo()
-                .search(
-                        SHOP_GEO_KEY + typeId,
-                        GeoReference.fromCoordinate(longitude, latitude),
-                        new Distance(5000),
-                        RedisGeoCommands.GeoSearchCommandArgs.newGeoSearchArgs()
-                                .includeDistance()
-                                .limit(end));
-        if (results == null || results.getContent().size() <= from) return new PageResult<>(List.of(), page, size, 0);
-        List<GeoResult<RedisGeoCommands.GeoLocation<String>>> slice =
-                results.getContent().stream().skip(from).limit(size).toList();
-        List<Long> ids = new ArrayList<>(slice.size());
-        Map<String, Distance> distances = new HashMap<>();
-        slice.forEach(item -> {
-            ids.add(Long.valueOf(item.getContent().getName()));
-            distances.put(item.getContent().getName(), item.getDistance());
-        });
-        String order = StrUtil.join(",", ids);
-        List<Shop> shops =
-                query().in("id", ids).last("ORDER BY FIELD(id," + order + ")").list();
-        shops.forEach(
-                shop -> shop.setDistance(distances.get(shop.getId().toString()).getValue()));
-        long total = query().eq("type_id", typeId).count();
-        return new PageResult<>(shops.stream().map(ViewMapper::toShop).toList(), page, size, total);
+    private String requireEnabledCity(String cityCode) {
+        String normalizedCityCode = StringUtils.hasText(cityCode) ? cityCode.trim() : null;
+        boolean enabled = normalizedCityCode != null
+                && cityService.lambdaQuery()
+                        .eq(City::getCode, normalizedCityCode)
+                        .eq(City::getStatus, EnableStatus.ENABLED.code())
+                        .exists();
+        if (!enabled) throw BusinessException.notFound("CITY_NOT_FOUND", "城市不存在或暂未开放");
+        return normalizedCityCode;
+    }
+
+    private ShopSort parseSort(String sort) {
+        if (!StringUtils.hasText(sort)) {
+            throw BusinessException.badRequest("INVALID_SHOP_SORT", "商户排序方式无效");
+        }
+        try {
+            return ShopSort.valueOf(sort.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw BusinessException.badRequest("INVALID_SHOP_SORT", "商户排序方式仅支持 DISTANCE、SCORE、POPULAR");
+        }
     }
 }

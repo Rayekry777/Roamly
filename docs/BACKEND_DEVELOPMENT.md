@@ -30,6 +30,7 @@ implementationStatus: 未实现
 - [阶段 8：Threads 式评论后端实现记录](./stages/STAGE_08_POST_COMMENTS_IMPLEMENTATION.md)
 - [阶段 9：商户点评后端实现记录](./stages/STAGE_09_SHOP_REVIEW_IMPLEMENTATION.md)
 - [阶段 10：团购商品、订单与券包实现记录](./stages/STAGE_10_VOUCHER_ORDER_WALLET_IMPLEMENTATION.md)
+- [阶段 11：商户列表筛选与排序契约](./stages/STAGE_11_SHOP_LIST_CONTRACT_IMPLEMENTATION.md)
 
 ## 2. 当前系统基线
 
@@ -297,7 +298,7 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 | 方法 | 路径 | 鉴权 | 请求/查询 | 响应 | 状态 |
 |---|---|---|---|---|---|
 | GET | `/v1/shop-types` | 公开 | 无 | `Result<List<ShopTypeVO>>` | 已实现 |
-| GET | `/v1/shops` | 公开 | 筛选与分页 | `Result<PageResult<ShopCardVO>>` | 目标扩展 |
+| GET | `/v1/shops` | 公开 | `cityCode,typeId,keyword,sort,page,size,longitude,latitude` | `Result<PageResult<ShopVO>>` | 开发中 |
 | GET | `/v1/shops/{shopId}` | 可选 | 经纬度可选 | `Result<ShopDetailVO>` | 目标扩展 |
 | GET | `/v1/shops/{shopId}/posts` | 公开 | `cursor,offset,size` | `Result<CursorPageResult<PostCardVO>>` | 开发中 |
 | GET | `/v1/shops/{shopId}/reviews` | 可选 | `page,size,sort` | `Result<PageResult<ShopReviewVO>>` | 开发中 |
@@ -310,7 +311,11 @@ CursorPageResult<T>   { items, nextCursor, nextOffset, hasMore }
 - `cityCode` 必填。
 - `typeId`、`keyword`、`longitude`、`latitude` 可选。
 - `sort` 允许 `DISTANCE`、`SCORE`、`POPULAR`。
-- 只有经纬度同时合法时才计算距离和允许 `DISTANCE` 排序。
+- `page` 从 1 开始，`size` 默认 10、最大 100。
+- `DISTANCE` 必须同时提交经度和纬度；坐标必须分别位于 `[-180,180]`、`[-90,90]`。
+- 提交完整坐标时响应会提供米为单位的 `distance`；`SCORE` 按评分降序，`POPULAR` 按销量、点评数降序。
+- 查询只返回目标城市中 `status=1` 的商户；城市不存在或未启用返回 `CITY_NOT_FOUND`。
+- 实现与未完成的真实数据库、OpenAPI 端点验证记录见阶段 11。
 
 点评请求：
 
