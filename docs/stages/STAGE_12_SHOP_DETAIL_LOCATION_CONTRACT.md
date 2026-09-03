@@ -24,7 +24,7 @@
 | `longitude` | number | 必须与 `latitude` 一起提交，范围 -180～180 |
 | `latitude` | number | 必须与 `longitude` 一起提交，范围 -90～90 |
 
-`ShopVO` 是稳定基础资料模型：ID、名称、分类、图片、商圈、地址、商户坐标、人均、销量、点评数、放大 10 倍的评分、营业时间与可空 `distance`。请求提供完整坐标时，`distance` 为米；未提供时为 `null`。
+`ShopVO` 是稳定基础资料模型：ID、名称、分类、图片、商圈、地址、商户坐标、人均（元）、销量、点评数、放大 10 倍的评分、营业时间与可空 `distance`。字段含义、示例和范围已在 `ShopVO` 的 OpenAPI Schema 中逐项声明。请求提供完整坐标时，`distance` 为米；未提供时为 `null`。
 
 ## 2. 页面资源边界
 
