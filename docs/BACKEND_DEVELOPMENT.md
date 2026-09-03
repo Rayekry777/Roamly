@@ -32,6 +32,7 @@ implementationStatus: 未实现
 - [阶段 10：团购商品、订单与券包实现记录](./stages/STAGE_10_VOUCHER_ORDER_WALLET_IMPLEMENTATION.md)
 - [阶段 11：商户列表筛选与排序契约](./stages/STAGE_11_SHOP_LIST_CONTRACT_IMPLEMENTATION.md)
 - [阶段 12：商户详情与位置距离契约](./stages/STAGE_12_SHOP_DETAIL_LOCATION_CONTRACT.md)
+- [阶段 13：运行时 OpenAPI 契约验收完善](./stages/STAGE_13_OPENAPI_RUNTIME_CONTRACT.md)
 
 ## 2. 当前系统基线
 

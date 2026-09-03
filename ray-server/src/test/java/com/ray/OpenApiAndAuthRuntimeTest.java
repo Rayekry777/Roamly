@@ -100,6 +100,11 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1posts~1{postId}~1comments/post/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1comments~1{commentId}/delete/responses/403").isObject());
         assertTrue(document.at("/paths/~1v1~1comments~1{commentId}~1like/put/security").isArray());
+        assertTrue(document.at("/paths/~1v1~1shops~1{shopId}/posts/get/responses/404").isObject());
+        assertTrue(document.at("/paths/~1v1~1shops~1{shopId}/reviews/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1voucher-products~1{productId}/orders/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1users~1me~1orders~1{orderId}/delete/responses/409").isObject());
+        assertParameterType(document, "/v1/shops/{shopId}", "get", "longitude", "number");
         java.util.List<String> schemaNames = new ArrayList<>();
         document.at("/components/schemas").properties().forEach(entry -> schemaNames.add(entry.getKey()));
         assertTrue(schemaNames.contains("Result"));
@@ -111,6 +116,11 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("CommentCreateDTO"));
         assertTrue(schemaNames.contains("CommentVO"));
         assertTrue(schemaNames.contains("CommentThreadVO"));
+        assertTrue(schemaNames.contains("ShopReviewCreateDTO"));
+        assertTrue(schemaNames.contains("ShopReviewVO"));
+        assertTrue(schemaNames.contains("VoucherProductVO"));
+        assertTrue(schemaNames.contains("VoucherOrderCreateDTO"));
+        assertTrue(schemaNames.contains("UserVoucherVO"));
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -171,6 +181,11 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/shops",
                 "GET /v1/shops/{shopId}",
                 "PUT /v1/shops/{shopId}",
+                "GET /v1/shops/{shopId}/posts",
+                "GET /v1/shops/{shopId}/reviews",
+                "POST /v1/shops/{shopId}/reviews",
+                "PUT /v1/shops/{shopId}/reviews/me",
+                "DELETE /v1/shops/{shopId}/reviews/me",
                 "GET /v1/shop-types",
                 "GET /v1/blogs",
                 "POST /v1/blogs",
@@ -185,6 +200,14 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/seckill-vouchers",
                 "GET /v1/shops/{shopId}/vouchers",
                 "POST /v1/seckill-vouchers/{voucherId}/orders",
+                "GET /v1/shops/{shopId}/voucher-products",
+                "GET /v1/voucher-products/{productId}",
+                "POST /v1/voucher-products/{productId}/orders",
+                "GET /v1/users/me/orders",
+                "GET /v1/users/me/orders/{orderId}",
+                "DELETE /v1/users/me/orders/{orderId}",
+                "GET /v1/users/me/vouchers",
+                "GET /v1/users/me/vouchers/{userVoucherId}",
                 "POST /v1/blog-images",
                 "DELETE /v1/blog-images");
     }
@@ -305,6 +328,16 @@ class OpenApiAndAuthRuntimeTest {
                 .properties()
                 .forEach(property -> actualProperties.add(property.getKey()));
         assertEquals(expectedProperties, actualProperties, schemaName + " 字段必须保持稳定");
+    }
+
+    private void assertParameterType(
+            JsonNode document, String path, String method, String parameterName, String expectedType) {
+        JsonNode parameters = document.path("paths").path(path).path(method).path("parameters");
+        JsonNode parameter = java.util.stream.StreamSupport.stream(parameters.spliterator(), false)
+                .filter(item -> parameterName.equals(item.path("name").asText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("缺少参数: " + parameterName));
+        assertEquals(expectedType, parameter.path("schema").path("type").asText());
     }
 
     private void assertRefsResolve(JsonNode root, JsonNode node, java.util.List<String> schemaNames) {
