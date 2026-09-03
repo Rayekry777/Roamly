@@ -16,7 +16,6 @@ import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopReviewMapper;
 import com.ray.mapper.ShopReviewMediaMapper;
-import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.UserVoucherMapper;
 import com.ray.result.PageResult;
 import com.ray.service.CurrentUserProvider;
@@ -50,7 +49,6 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
     private final MediaAssetService mediaAssetService;
     private final CurrentUserProvider currentUserProvider;
     private final UserService userService;
-    private final VoucherOrderMapper voucherOrderMapper;
     private final UserVoucherMapper userVoucherMapper;
 
     public ShopReviewServiceImpl(
@@ -59,14 +57,12 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
             MediaAssetService mediaAssetService,
             CurrentUserProvider currentUserProvider,
             UserService userService,
-            VoucherOrderMapper voucherOrderMapper,
             UserVoucherMapper userVoucherMapper) {
         this.shopMapper = shopMapper;
         this.mediaRelationMapper = mediaRelationMapper;
         this.mediaAssetService = mediaAssetService;
         this.currentUserProvider = currentUserProvider;
         this.userService = userService;
-        this.voucherOrderMapper = voucherOrderMapper;
         this.userVoucherMapper = userVoucherMapper;
     }
 
@@ -245,8 +241,7 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
     private ShopReviewVO toView(ShopReview review, UserVO author, List<ReviewMediaVO> media, Long currentUserId) {
         boolean verified = false;
         try {
-            verified = userVoucherMapper.existsUsedAtShop(review.getUserId(), review.getShopId())
-                    || voucherOrderMapper.existsVerifiedPurchase(review.getUserId(), review.getShopId());
+            verified = userVoucherMapper.existsUsedAtShop(review.getUserId(), review.getShopId());
         } catch (RuntimeException exception) {
             log.warn("[商户点评] 消费认证过渡查询失败，点评ID={}", review.getId(), exception);
         }

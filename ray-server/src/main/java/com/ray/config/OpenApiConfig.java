@@ -96,9 +96,6 @@ public class OpenApiConfig {
                 if (mayReturnForbidden(method, path)) addError(operation.getResponses(), "403", "无权操作该资源");
                 if (mayReturnCommentConflict(method, path)) addError(operation.getResponses(), "409", "评论状态冲突");
                 if (mayReturnReviewConflict(method, path)) addError(operation.getResponses(), "409", "点评状态冲突或重复点评");
-                if (method == HttpMethod.POST && path.matches("/v1/seckill-vouchers/\\{[^/]+}/orders")) {
-                    addError(operation.getResponses(), "409", "库存不足或重复下单");
-                }
                 if (path.matches("/v1/voucher-products/\\{[^/]+}/orders") && method == HttpMethod.POST) {
                     addError(operation.getResponses(), "409", "库存不足、超过限购或订单状态冲突");
                 }
@@ -116,8 +113,7 @@ public class OpenApiConfig {
                 if (method == HttpMethod.DELETE && path.equals("/v1/media/images/{mediaId}")) {
                     addError(operation.getResponses(), "409", "媒体已经绑定业务");
                 }
-                if (method == HttpMethod.POST
-                        && (path.equals("/v1/blog-images") || path.equals("/v1/media/images"))) {
+                if (method == HttpMethod.POST && path.equals("/v1/media/images")) {
                     addError(operation.getResponses(), "413", "文件过大");
                 }
             }));
@@ -204,8 +200,7 @@ public class OpenApiConfig {
         if (path.equals("/v1/users/me/orders/{orderId}") || path.equals("/v1/users/me/vouchers/{userVoucherId}"))
             return true;
         if (path.equals("/v1/users/{userId}/posts")) return method == HttpMethod.GET;
-        return path.matches("/v1/blogs/\\{blogId}(/like|/likes)?")
-                && (method == HttpMethod.GET || method == HttpMethod.PUT || method == HttpMethod.DELETE);
+        return false;
     }
 
     private boolean mayReturnForbidden(HttpMethod method, String path) {

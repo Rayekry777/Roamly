@@ -82,10 +82,6 @@ class OpenApiAndAuthRuntimeTest {
                 "#/components/schemas/ErrorResult",
                 document.at("/paths/~1v1~1users~1me/get/responses/401/content/application~1json/schema/$ref")
                         .asText());
-        assertTrue(document.at("/paths/~1v1~1seckill-vouchers~1{voucherId}~1orders/post/responses/409")
-                .isObject());
-        assertTrue(
-                document.at("/paths/~1v1~1blog-images/post/responses/413").isObject());
         assertTrue(
                 document.at("/paths/~1v1~1media~1images/post/responses/413").isObject());
         assertTrue(
@@ -187,19 +183,7 @@ class OpenApiAndAuthRuntimeTest {
                 "PUT /v1/shops/{shopId}/reviews/me",
                 "DELETE /v1/shops/{shopId}/reviews/me",
                 "GET /v1/shop-types",
-                "GET /v1/blogs",
-                "POST /v1/blogs",
-                "GET /v1/blogs/{blogId}",
-                "GET /v1/blogs/{blogId}/likes",
-                "PUT /v1/blogs/{blogId}/like",
-                "DELETE /v1/blogs/{blogId}/like",
-                "GET /v1/users/me/blogs",
-                "GET /v1/users/{userId}/blogs",
                 "GET /v1/feeds/following",
-                "POST /v1/vouchers",
-                "POST /v1/seckill-vouchers",
-                "GET /v1/shops/{shopId}/vouchers",
-                "POST /v1/seckill-vouchers/{voucherId}/orders",
                 "GET /v1/shops/{shopId}/voucher-products",
                 "GET /v1/voucher-products/{productId}",
                 "POST /v1/voucher-products/{productId}/orders",
@@ -207,9 +191,7 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/orders/{orderId}",
                 "DELETE /v1/users/me/orders/{orderId}",
                 "GET /v1/users/me/vouchers",
-                "GET /v1/users/me/vouchers/{userVoucherId}",
-                "POST /v1/blog-images",
-                "DELETE /v1/blog-images");
+                "GET /v1/users/me/vouchers/{userVoucherId}");
     }
 
     @Test
@@ -298,13 +280,13 @@ class OpenApiAndAuthRuntimeTest {
                 "VALIDATION_FAILED",
                 objectMapper.readTree(sectionFeed.getBody()).path("code").asText());
 
-        ResponseEntity<String> page = http.getForEntity("/v1/blogs?page=0&size=101", String.class);
+        ResponseEntity<String> page = http.getForEntity("/v1/shops?cityCode=330100&page=0&size=101", String.class);
         assertEquals(HttpStatus.BAD_REQUEST, page.getStatusCode());
         assertEquals(
                 "VALIDATION_FAILED",
                 objectMapper.readTree(page.getBody()).path("code").asText());
 
-        ResponseEntity<String> type = http.getForEntity("/v1/blogs?page=abc", String.class);
+        ResponseEntity<String> type = http.getForEntity("/v1/shops?cityCode=330100&page=abc", String.class);
         assertEquals(HttpStatus.BAD_REQUEST, type.getStatusCode());
         assertEquals(
                 "INVALID_PARAMETER",

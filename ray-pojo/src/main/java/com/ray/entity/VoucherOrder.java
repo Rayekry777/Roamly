@@ -28,11 +28,6 @@ public class VoucherOrder implements Serializable {
      */
     private Long userId;
 
-    /**
-     * 购买的代金券id
-     */
-    private Long voucherId;
-
     /** 新团购商品 ID。 */
     private Long productId;
 

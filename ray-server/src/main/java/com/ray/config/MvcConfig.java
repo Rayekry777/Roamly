@@ -52,12 +52,8 @@ public class MvcConfig implements WebMvcConfigurer {
         if (!"GET".equals(method)) return false;
         if (path.equals("/v1/cities")
                 || path.equals("/v1/shops")
-                || path.matches("/v1/shops/[^/]+")
-                || path.matches("/v1/shops/[^/]+/vouchers")) return true;
-        if (path.equals("/v1/shop-types")
-                || path.equals("/v1/blogs")
-                || path.matches("/v1/blogs/[^/]+")
-                || path.matches("/v1/blogs/[^/]+/likes")) return true;
+                || path.matches("/v1/shops/[^/]+")) return true;
+        if (path.equals("/v1/shop-types")) return true;
         if (path.matches("/v1/posts/[^/]+/comments")
                 || path.matches("/v1/comments/[^/]+/replies")) return true;
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/reviews")) return true;
@@ -65,8 +61,7 @@ public class MvcConfig implements WebMvcConfigurer {
                 || path.matches("/v1/voucher-products/[^/]+"))) return true;
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/posts")) return true;
         return path.matches("/v1/users/(?!me$)[^/]+")
-                || path.matches("/v1/users/(?!me/)[^/]+/profile")
-                || path.matches("/v1/users/(?!me/)[^/]+/blogs");
+                || path.matches("/v1/users/(?!me/)[^/]+/profile");
     }
 
     static boolean isOptionalAuthentication(String method, String path) {

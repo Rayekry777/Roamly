@@ -15,7 +15,6 @@ import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopReviewMapper;
 import com.ray.mapper.ShopReviewMediaMapper;
-import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.UserVoucherMapper;
 import com.ray.service.impl.ShopReviewServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,6 @@ class ShopReviewServiceImplTest {
                 mock(MediaAssetService.class),
                 currentUserProvider,
                 mock(UserService.class),
-                mock(VoucherOrderMapper.class),
                 mock(UserVoucherMapper.class));
         ReflectionTestUtils.setField(service, "baseMapper", reviewMapper);
         when(currentUserProvider.requireUserId()).thenReturn(7L);
