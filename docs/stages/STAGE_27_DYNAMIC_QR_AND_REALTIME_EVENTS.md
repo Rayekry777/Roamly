@@ -1,7 +1,7 @@
 # 阶段 27：动态二维码与实时资源事件
 
 ```yaml
-designVersion: 2
+designVersion: 3
 designStatus: 已冻结
 implementationStatus: 已实现
 dependsOn: 阶段 26 已实现
@@ -17,6 +17,13 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 - 动态券令牌使用随机值并绑定消费者、券和用途，Redis 60 秒过期且单次消费；二维码内容不携带裸券号。
 - 管理端 SSE 先通过 `ADMIN`（管理端）会话申请 30 秒票据，连接建立后只发送资源定位事件；断线由客户端回退查询。
 - 商户 WebSocket 保留 `/v1/merchant/ws` 协议边界，本轮以同源轮询/SSE 兼容通道提供 Demo 能力，不改变核销事实。
+
+## 设计复核（v3）
+
+- 商户端使用原生 WebSocket `wss://<host>/v1/merchant/ws`，握手只接受 `Authorization: Bearer <merchant-token>`，服务端从独立 `MERCHANT`（商户端）登录域解析账号和所属门店；非活动账号、无门店账号和跨域 Token 拒绝握手。
+- 连接注册到门店级会话集合，Redis Pub/Sub 频道 `roamly:realtime-events` 负责实例间转发；事件发送失败只影响实时性，不回滚已提交的业务事务。
+- 管理 SSE 票据绑定签发管理员 ID，30 秒有效且连接成功时原子消费；SSE 订阅登记管理员固定权限，事件按 `requiredPermission`（所需权限）过滤，长效 Bearer Token 不出现在 URL。
+- WebSocket 与 SSE 事件统一为 `eventId/type/resourceId/shopId/requiredPermission/occurredAt`，客户端只回查资源；连接建立发送 `CONNECTED`，心跳请求返回 `PONG`，断线由客户端回退查询。
 
 ## 进入条件与涉及端
 

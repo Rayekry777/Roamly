@@ -14,11 +14,13 @@ import com.ray.mapper.VoucherProductMapper;
 import com.ray.service.CurrentUserProvider;
 import com.ray.service.VoucherPaymentService;
 import com.ray.service.VoucherSettlementService;
+import com.ray.realtime.RealtimeEventPublisher;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.generator.RedisIdWorker;
 import com.ray.vo.VoucherPaymentVO;
 import com.ray.vo.FundLedgerEntryVO;
 import java.time.LocalDateTime;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
     private final RedisIdWorker idWorker;
     private final PaymentProperties properties;
     private final com.ray.service.FinanceService financeService;
+    private RealtimeEventPublisher realtimeEvents;
 
     public VoucherPaymentServiceImpl(VoucherOrderMapper orderMapper, PaymentTransactionMapper transactionMapper,
             VoucherProductMapper productMapper, VoucherSettlementService settlementService,
@@ -47,6 +50,11 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         this.idWorker = idWorker;
         this.properties = properties;
         this.financeService = financeService;
+    }
+
+    @Autowired(required = false)
+    void setRealtimeEvents(RealtimeEventPublisher realtimeEvents) {
+        this.realtimeEvents = realtimeEvents;
     }
 
     @Transactional
@@ -93,6 +101,7 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         settlementService.confirmPaid(orderId, now);
         financeService.append(new FundLedgerEntryVO(null, order.getShopId().toString(), order.getId().toString(), null,
                 "ORDER-" + order.getId(), "PAYMENT_FROZEN", "CREDIT", order.getPayAmount(), 500, now));
+        if (realtimeEvents != null) realtimeEvents.publish("PAYMENT_UPDATED", orderId.toString(), order.getShopId());
         return toVO(tx, orderMapper.selectById(orderId));
     }
 

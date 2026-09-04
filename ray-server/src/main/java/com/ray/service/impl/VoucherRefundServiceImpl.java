@@ -17,6 +17,7 @@ import com.ray.mapper.UserVoucherMapper;
 import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.VoucherProductMapper;
 import com.ray.mapper.VoucherRefundMapper;
+import com.ray.realtime.RealtimeEventPublisher;
 import com.ray.result.PageResult;
 import com.ray.service.AdminAuthService;
 import com.ray.service.CurrentUserProvider;
@@ -26,6 +27,7 @@ import com.ray.utils.generator.RedisIdWorker;
 import com.ray.vo.VoucherRefundVO;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,12 +41,15 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
     private final CurrentUserProvider userProvider;
     private final AdminAuthService adminAuth;
     private final RedisIdWorker idWorker;
+    private RealtimeEventPublisher realtimeEvents;
     public VoucherRefundServiceImpl(VoucherRefundMapper refundMapper, UserVoucherMapper voucherMapper,
             VoucherOrderMapper orderMapper, VoucherProductMapper productMapper, CurrentUserProvider userProvider,
             AdminAuthService adminAuth, RedisIdWorker idWorker) {
         this.refundMapper = refundMapper; this.voucherMapper = voucherMapper; this.orderMapper = orderMapper;
         this.productMapper = productMapper; this.userProvider = userProvider; this.adminAuth = adminAuth; this.idWorker = idWorker;
     }
+    @Autowired(required = false)
+    void setRealtimeEvents(RealtimeEventPublisher realtimeEvents) { this.realtimeEvents = realtimeEvents; }
     @Override @Transactional
     public VoucherRefundVO request(Long voucherId, VoucherRefundRequest request, String key) {
         Long userId = userProvider.requireUserId();
@@ -73,6 +78,7 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         voucherMapper.update(null, new UpdateWrapper<UserVoucher>().eq("id", voucherId).eq("status", UserVoucherStatus.UNUSED.name()).set("status", UserVoucherStatus.REFUNDED.name()).set("refund_time", LocalDateTime.now()));
         long refunded = refundMapper.selectCount(new QueryWrapper<VoucherRefund>().eq("order_id", order.getId()).eq("status", VoucherRefundStatus.SUCCEEDED.name()));
         if (refunded >= quantity) orderMapper.update(null, new UpdateWrapper<VoucherOrder>().eq("id", order.getId()).set("status", VoucherOrderStatus.REFUNDED.name()).set("refund_time", LocalDateTime.now()));
+        if (realtimeEvents != null) realtimeEvents.publish("REFUND_UPDATED", voucherId.toString(), order.getShopId());
         return toVO(refund);
     }
     @Override public PageResult<VoucherRefundVO> list(String status, int page, int size, boolean admin) {
@@ -95,7 +101,9 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         VoucherRefund r = refundMapper.selectById(id); if (r == null) throw BusinessException.notFound("REFUND_NOT_FOUND", "退款记录不存在");
         if (!VoucherRefundStatus.REQUESTED.name().equals(r.getStatus()) && !VoucherRefundStatus.FAILED.name().equals(r.getStatus())) return toVO(r);
         r.setStatus((approve ? VoucherRefundStatus.SUCCEEDED : VoucherRefundStatus.REJECTED).name()).setReason(reason).setProcessedTime(LocalDateTime.now());
-        refundMapper.updateById(r); return toVO(r);
+        refundMapper.updateById(r);
+        if (realtimeEvents != null) realtimeEvents.publish("REFUND_UPDATED", id.toString(), null);
+        return toVO(r);
     }
     private VoucherRefundVO toVO(VoucherRefund r) { return new VoucherRefundVO(IdUtils.format(r.getId()), IdUtils.format(r.getVoucherId()), IdUtils.format(r.getOrderId()), r.getAmount(), r.getStatus(), r.getReason(), r.getRequestedTime(), r.getProcessedTime()); }
 }

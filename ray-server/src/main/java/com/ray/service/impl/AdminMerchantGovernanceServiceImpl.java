@@ -36,6 +36,7 @@ import com.ray.mapper.MerchantAccountMapper;
 import com.ray.mapper.MerchantApplicationMapper;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopTypeMapper;
+import com.ray.realtime.RealtimeEventPublisher;
 import com.ray.result.PageResult;
 import com.ray.service.AdminAuditService;
 import com.ray.service.AdminAuthService;
@@ -67,6 +68,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,6 +95,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     private final BusinessMediaService businessMediaService;
     private final ShopCacheService shopCacheService;
     private final ObjectMapper objectMapper;
+    private RealtimeEventPublisher realtimeEvents;
 
     public AdminMerchantGovernanceServiceImpl(
             MerchantApplicationMapper applicationMapper,
@@ -119,6 +122,11 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         this.businessMediaService = businessMediaService;
         this.shopCacheService = shopCacheService;
         this.objectMapper = objectMapper;
+    }
+
+    @Autowired(required = false)
+    void setRealtimeEvents(RealtimeEventPublisher realtimeEvents) {
+        this.realtimeEvents = realtimeEvents;
     }
 
     /** 分页查询申请并只暴露脱敏联系方式。 */
@@ -245,6 +253,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 id,
                 shop.getId(),
                 actorId);
+        if (realtimeEvents != null) realtimeEvents.publish("MERCHANT_REVIEWED", id.toString(), shop.getId());
         return toReviewResult(approved);
     }
 
@@ -302,6 +311,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         invalidateMerchantSessionsAfterCommit(List.of(application.getMerchantAccountId()));
         MerchantApplication rejected = requireApplication(id);
         log.info("[商户审核] 申请审核驳回，applicationId={}，adminId={}", id, actorId);
+        if (realtimeEvents != null) realtimeEvents.publish("MERCHANT_REVIEWED", id.toString(), null);
         return toReviewResult(rejected);
     }
 
@@ -432,6 +442,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 command,
                 affected,
                 actorId);
+        if (realtimeEvents != null) realtimeEvents.publish("MERCHANT_REVIEWED", id.toString(), id);
         return toGovernanceResult(governed, reason, affected);
     }
 
