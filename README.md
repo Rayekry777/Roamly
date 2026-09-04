@@ -1,6 +1,6 @@
 # Roamly 后端
 
-Roamly 是基于 Java 21 和 Spring Boot 3.5.11 的本地生活点评与团购后端。当前版本采用 Maven 三模块结构；Controller 使用 `/v1` 版本路由，生产环境由 Nginx 提供对外 `/api` 前缀。Redis 同时承载 Sa-Token、Spring Cache 与业务数据结构，Redisson 用于团购下单并发协调。
+Roamly 是基于 Java 21 和 Spring Boot 3.5.15 的本地生活点评与团购后端。当前版本采用 Maven 三模块结构；Controller 使用 `/v1` 版本路由，生产环境由 Nginx 提供对外 `/api` 前缀。Redis 同时承载 Sa-Token、Spring Cache 与业务数据结构，Redisson 用于团购下单并发协调。
 
 ## 模块导航
 
