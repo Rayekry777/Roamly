@@ -22,6 +22,10 @@ public class UserVoucher implements Serializable {
     private Long productId;
     private Long shopId;
     private String voucherCode;
+    private String voucherCodeHmac;
+    private String voucherCodeLast4;
+    private Integer totalUseCount;
+    private Integer remainingUseCount;
     private String status;
     private LocalDateTime validBeginTime;
     private LocalDateTime expireTime;

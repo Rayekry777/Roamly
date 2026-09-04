@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Update;
 
 /** 用户券数据访问接口。 */
 public interface UserVoucherMapper extends BaseMapper<UserVoucher> {
+    @org.apache.ibatis.annotations.Select("SELECT * FROM user_voucher WHERE voucher_code_hmac=#{hmac} LIMIT 1")
+    UserVoucher findByCodeHmac(@Param("hmac") String hmac);
     /** 将当前用户已过期但尚未使用的券刷新为 EXPIRED。 */
     @Update("UPDATE user_voucher SET status = 'EXPIRED' WHERE user_id = #{userId} AND status = 'UNUSED' "
             + "AND expire_time IS NOT NULL AND expire_time <= NOW()")

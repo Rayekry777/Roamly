@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 /** 支付成功后的订单确认和用户券发放实现。 */
 @Service
 public class VoucherSettlementServiceImpl implements VoucherSettlementService {
-    private static final char[] VOUCHER_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ".toCharArray();
     private static final SecureRandom RANDOM = new SecureRandom();
     private final VoucherOrderMapper orderMapper;
     private final VoucherProductMapper productMapper;
@@ -90,9 +89,13 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
         for (int sequence = (int) existingCount + 1; sequence <= quantity; sequence++) {
             boolean issued = false;
             for (int attempt = 0; attempt < 3 && !issued; attempt++) {
+                String code = nextVoucherCode();
+                int useCount = product.getTotalUseCount() == null || product.getTotalUseCount() < 1 ? 1 : product.getTotalUseCount();
                 UserVoucher voucher = new UserVoucher().setUserId(order.getUserId()).setOrderId(order.getId())
                         .setSequenceNo(sequence).setProductId(order.getProductId()).setShopId(order.getShopId())
-                        .setVoucherCode(nextVoucherCode()).setStatus(UserVoucherStatus.UNUSED.name())
+                        .setVoucherCode(code).setVoucherCodeHmac(cn.hutool.crypto.digest.DigestUtil.sha256Hex(code))
+                        .setVoucherCodeLast4(code.substring(8)).setTotalUseCount(useCount).setRemainingUseCount(useCount)
+                        .setStatus(UserVoucherStatus.UNUSED.name())
                         .setValidBeginTime(validFrom).setExpireTime(expireTime);
                 try {
                     issued = userVoucherMapper.insert(voucher) == 1;
@@ -108,8 +111,8 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
     }
 
     private String nextVoucherCode() {
-        char[] code = new char[20];
-        for (int index = 0; index < code.length; index++) code[index] = VOUCHER_CODE_ALPHABET[RANDOM.nextInt(VOUCHER_CODE_ALPHABET.length)];
-        return new String(code);
+        StringBuilder code = new StringBuilder(12);
+        for (int index = 0; index < 12; index++) code.append(RANDOM.nextInt(10));
+        return code.toString();
     }
 }

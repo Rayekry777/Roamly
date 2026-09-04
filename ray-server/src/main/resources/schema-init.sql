@@ -576,6 +576,10 @@ CREATE TABLE `user_voucher` (
   `product_id` bigint UNSIGNED NOT NULL,
   `shop_id` bigint UNSIGNED NOT NULL,
   `voucher_code` varchar(64) NOT NULL,
+  `voucher_code_hmac` char(64) NULL,
+  `voucher_code_last4` char(4) NULL,
+  `total_use_count` int UNSIGNED NOT NULL DEFAULT 1,
+  `remaining_use_count` int UNSIGNED NOT NULL DEFAULT 1,
   `status` varchar(16) NOT NULL DEFAULT 'UNUSED',
   `valid_begin_time` timestamp NULL,
   `expire_time` timestamp NULL,
@@ -585,9 +589,32 @@ CREATE TABLE `user_voucher` (
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_user_voucher_code` (`voucher_code`),
+  UNIQUE INDEX `uk_user_voucher_code_hmac` (`voucher_code_hmac`),
   UNIQUE INDEX `uk_user_voucher_order` (`order_id`,`sequence_no`),
   INDEX `idx_user_voucher_user_status_expire` (`user_id`,`status`,`expire_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户券实例';
+
+CREATE TABLE `voucher_redemption` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '核销记录ID',
+  `voucher_id` bigint UNSIGNED NOT NULL,
+  `shop_id` bigint UNSIGNED NOT NULL,
+  `merchant_account_id` bigint UNSIGNED NOT NULL,
+  `use_count` int UNSIGNED NOT NULL DEFAULT 1,
+  `consumption_amount` bigint UNSIGNED NULL,
+  `discount_amount` bigint UNSIGNED NULL,
+  `status` varchar(16) NOT NULL COMMENT 'SUCCEEDED已核销、REVERSED已撤销',
+  `idempotency_key` varchar(128) NOT NULL,
+  `reversal_reason` varchar(255) NULL,
+  `reversed_by_account_id` bigint UNSIGNED NULL,
+  `redeemed_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `reversed_time` timestamp NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_voucher_redemption_shop_key` (`shop_id`,`idempotency_key`),
+  INDEX `idx_voucher_redemption_voucher_time` (`voucher_id`,`redeemed_time`),
+  INDEX `idx_voucher_redemption_shop_time` (`shop_id`,`redeemed_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商户核销与撤销记录';
 
 
 SET FOREIGN_KEY_CHECKS = 1;
