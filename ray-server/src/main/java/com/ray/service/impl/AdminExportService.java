@@ -69,7 +69,13 @@ public class AdminExportService {
         return xlsx(output);
     }
 
-    private <T> List<T> rows(BaseMapper<T> mapper) { return mapper.selectList(new QueryWrapper<T>().last("LIMIT 10000")); }
+    private <T> List<T> rows(BaseMapper<T> mapper) {
+        List<T> records = mapper.selectList(new QueryWrapper<T>().last("LIMIT 10001"));
+        if (records.size() > 10_000) {
+            throw BusinessException.badRequest("EXPORT_TOO_LARGE", "导出数据超过单次 10000 行限制");
+        }
+        return records;
+    }
     private Object read(Object value, String name) {
         if (value == null) return null;
         try { Field field = value.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(value); }
