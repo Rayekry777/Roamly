@@ -17,6 +17,7 @@ import com.ray.service.VoucherSettlementService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.generator.RedisIdWorker;
 import com.ray.vo.VoucherPaymentVO;
+import com.ray.vo.FundLedgerEntryVO;
 import java.time.LocalDateTime;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -32,10 +33,12 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
     private final CurrentUserProvider currentUserProvider;
     private final RedisIdWorker idWorker;
     private final PaymentProperties properties;
+    private final com.ray.service.FinanceService financeService;
 
     public VoucherPaymentServiceImpl(VoucherOrderMapper orderMapper, PaymentTransactionMapper transactionMapper,
             VoucherProductMapper productMapper, VoucherSettlementService settlementService,
-            CurrentUserProvider currentUserProvider, RedisIdWorker idWorker, PaymentProperties properties) {
+            CurrentUserProvider currentUserProvider, RedisIdWorker idWorker, PaymentProperties properties,
+            com.ray.service.FinanceService financeService) {
         this.orderMapper = orderMapper;
         this.transactionMapper = transactionMapper;
         this.productMapper = productMapper;
@@ -43,6 +46,7 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         this.currentUserProvider = currentUserProvider;
         this.idWorker = idWorker;
         this.properties = properties;
+        this.financeService = financeService;
     }
 
     @Transactional
@@ -87,6 +91,8 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
             if (retry != null) return toVO(retry, order);
         }
         settlementService.confirmPaid(orderId, now);
+        financeService.append(new FundLedgerEntryVO(null, order.getShopId().toString(), order.getId().toString(), null,
+                "ORDER-" + order.getId(), "PAYMENT_FROZEN", "CREDIT", order.getPayAmount(), 500, now));
         return toVO(tx, orderMapper.selectById(orderId));
     }
 

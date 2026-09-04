@@ -1,0 +1,1 @@
+package com.ray.vo;import java.time.LocalDateTime;public record FundLedgerEntryVO(String id,String shopId,String orderId,String voucherId,String businessEventId,String entryType,String accountSide,Long amount,Integer commissionRateBps,LocalDateTime occurredTime){}

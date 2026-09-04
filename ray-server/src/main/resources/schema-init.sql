@@ -616,5 +616,32 @@ CREATE TABLE `voucher_redemption` (
   INDEX `idx_voucher_redemption_shop_time` (`shop_id`,`redeemed_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商户核销与撤销记录';
 
+CREATE TABLE `commission_rule` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '佣金规则ID',
+  `shop_id` bigint UNSIGNED NULL COMMENT '空值表示平台默认规则',
+  `rate_bps` int UNSIGNED NOT NULL COMMENT '佣金费率，基点0至10000',
+  `effective_from` timestamp NOT NULL,
+  `effective_to` timestamp NULL,
+  `version` int UNSIGNED NOT NULL DEFAULT 0,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), INDEX `idx_commission_rule_scope_time` (`shop_id`,`effective_from`,`effective_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台与门店佣金规则';
+
+CREATE TABLE `fund_ledger_entry` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '账本分录ID',
+  `shop_id` bigint UNSIGNED NULL,
+  `order_id` bigint NULL,
+  `voucher_id` bigint UNSIGNED NULL,
+  `business_event_id` varchar(128) NOT NULL,
+  `entry_type` varchar(32) NOT NULL COMMENT 'PAYMENT_FROZEN支付冻结、REDEMPTION_RECOGNIZED核销确认、COMMISSION_RECOGNIZED佣金确认、REFUND_REVERSED退款冲回、REDEMPTION_REVERSED核销撤销',
+  `account_side` varchar(16) NOT NULL COMMENT 'CREDIT贷方、DEBIT借方',
+  `amount` bigint NOT NULL COMMENT '金额，单位分，可为负数',
+  `commission_rate_bps` int UNSIGNED NULL,
+  `occurred_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE INDEX `uk_fund_ledger_event_side` (`business_event_id`,`entry_type`,`account_side`), INDEX `idx_fund_ledger_shop_time` (`shop_id`,`occurred_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='不可变资金账本分录';
+
 
 SET FOREIGN_KEY_CHECKS = 1;
