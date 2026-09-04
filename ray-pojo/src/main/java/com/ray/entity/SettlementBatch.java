@@ -1,0 +1,2 @@
+package com.ray.entity;import com.baomidou.mybatisplus.annotation.*;import java.time.*;import lombok.Data;import lombok.experimental.Accessors;
+@Data @Accessors(chain=true) @TableName("settlement_batch") public class SettlementBatch {@TableId(value="id",type=IdType.INPUT)private Long id;private Long shopId;private LocalDate settlementDate;private String status;private Long totalAmount;private String failureReason;private Integer version;private LocalDateTime processedTime;private LocalDateTime createTime;private LocalDateTime updateTime;}

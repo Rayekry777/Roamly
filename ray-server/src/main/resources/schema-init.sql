@@ -643,5 +643,27 @@ CREATE TABLE `fund_ledger_entry` (
   PRIMARY KEY (`id`), UNIQUE INDEX `uk_fund_ledger_event_side` (`business_event_id`,`entry_type`,`account_side`), INDEX `idx_fund_ledger_shop_time` (`shop_id`,`occurred_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='不可变资金账本分录';
 
+CREATE TABLE `settlement_batch` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '结算批次ID',
+  `shop_id` bigint UNSIGNED NOT NULL,
+  `settlement_date` date NOT NULL,
+  `status` varchar(16) NOT NULL COMMENT 'PROCESSING处理中、SUCCEEDED结算成功、FAILED结算失败',
+  `total_amount` bigint NOT NULL DEFAULT 0,
+  `failure_reason` varchar(255) NULL,
+  `version` int UNSIGNED NOT NULL DEFAULT 0,
+  `processed_time` timestamp NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), UNIQUE INDEX `uk_settlement_batch_shop_date` (`shop_id`,`settlement_date`), INDEX `idx_settlement_batch_status_date` (`status`,`settlement_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='T+1结算批次';
+
+CREATE TABLE `settlement_item` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '结算明细ID',
+  `batch_id` bigint UNSIGNED NOT NULL,
+  `ledger_entry_id` bigint UNSIGNED NOT NULL,
+  `amount` bigint NOT NULL,
+  PRIMARY KEY (`id`), UNIQUE INDEX `uk_settlement_item_batch_ledger` (`batch_id`,`ledger_entry_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='结算批次明细';
+
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,0 +1,1 @@
+package com.ray.vo;import java.time.*;public record SettlementBatchVO(String id,String shopId,LocalDate settlementDate,String status,Long totalAmount,String failureReason,LocalDateTime processedTime){}

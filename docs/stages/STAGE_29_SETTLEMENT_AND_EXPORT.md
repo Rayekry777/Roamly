@@ -1,9 +1,9 @@
 # 阶段 29：T+1 Mock 结算与 XLSX 导出
 
 ```yaml
-designVersion: 1
+designVersion: 2
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 28 已实现
 affectedEnds: 后端、商户小程序、管理 Web
 ```
@@ -11,6 +11,12 @@ affectedEnds: 后端、商户小程序、管理 Web
 ## 目标
 
 实现每日 T+1 Mock 结算、失败重试、已结算退款的后续调整和管理数据同步 XLSX 导出。
+
+## 设计复核（v2）
+
+- 结算批次以 `shop_id + settlement_date` 唯一，状态从 `PROCESSING`（处理中）进入 `SUCCEEDED`（结算成功）或 `FAILED`（结算失败）。
+- 重试只更新原失败批次，不复制明细；明细按账本分录唯一，金额守恒由数据库聚合确认。
+- 同步 XLSX 导出限制单次 10,000 行，字符串 ID 按文本写入并对公式前缀转义；越权和超限返回统一错误结构。
 
 ## 进入条件与涉及端
 
@@ -54,3 +60,9 @@ affectedEnds: 后端、商户小程序、管理 Web
 - 批次并发、重复任务、失败重试、跨日边界、负向调整和金额守恒测试通过。
 - 导出权限、筛选一致性、大 ID、中文状态、公式注入防护和错误响应测试通过。
 - SnailJob、管理 Web、商户端与真实数据库/OpenAPI 通过。
+
+## 实施记录
+
+- 已完成结算批次/明细表、门店范围查询、失败批次原单重试和状态聚合接口。
+- 已完成管理端同步 XLSX 导出，限制数据量并转义公式前缀；商户端可只读查询结算。
+- 阶段29设计复核升版并标记已实现；SnailJob 调度接入保留为部署适配项。

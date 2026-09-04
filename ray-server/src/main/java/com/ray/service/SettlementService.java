@@ -1,0 +1,1 @@
+package com.ray.service;import com.ray.result.PageResult;import com.ray.vo.SettlementBatchVO;public interface SettlementService {PageResult<SettlementBatchVO> list(int page,int size,boolean admin);SettlementBatchVO get(Long id,boolean admin);SettlementBatchVO retry(Long id,String key);byte[] export(String resource,boolean admin);}
