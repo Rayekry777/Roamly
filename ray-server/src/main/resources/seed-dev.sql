@@ -2,6 +2,12 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 此文件仅用于可重建的开发数据库，所有样例直接使用当前领域模型。
+-- Demo 管理员：admin / Roamly123，首次登录后必须修改密码。
+INSERT INTO `admin_user`
+  (`id`, `username`, `password_hash`, `display_name`, `role`, `status`, `force_password_change`, `version`)
+VALUES
+  (1, 'admin', '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO', 'Roamly 管理员', 'PLATFORM_ADMIN', 'ACTIVE', 1, 0);
+
 INSERT INTO `city` (`id`, `code`, `name`, `status`, `sort`)
 VALUES (1, '330100', '杭州', 1, 1);
 

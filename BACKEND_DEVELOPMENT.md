@@ -1,116 +1,150 @@
-# Roamly 后端开发与全栈设计契约
+# Roamly 后端开发契约
 
 ```yaml
-version: 4
+version: 8
 updatedAt: 2026-09-04
-scope: Roamly Demo 城市、社区、本地生活与团购交易
+scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
-implementationStatus: 已实现（Demo 范围）
-deviceAcceptanceStatus: 未确认
+designStatus: 已冻结
+demoImplementationStatus: 已实现
+extensionImplementationStatus: 开发中
+deviceAcceptanceStatus: 不适用
 ```
 
-## 文档定位
+## 契约职责
 
-本文档是后端范围、架构、接口状态、数据边界和验收记录的唯一维护入口。数据库事实以根目录 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) 为准，HTTP 事实以运行时 `/v3/api-docs` 为准，小程序事实以 [MINIAPP_DEVELOPMENT.md](../Roamly-miniapp/docs/MINIAPP_DEVELOPMENT.md) 为准。
+本文只管理 Roamly 后端。数据库结构以 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) 为真源，HTTP 线协议以运行时 `/v3/api-docs` 为真源，若依后端能力取舍以 [若依扩展技术决策](./docs/architecture/RUOYI_EXTENSION_COMPATIBILITY.md) 为准，阶段顺序以 [四端交付路线图](./docs/roadmap/FOUR_END_DELIVERY_ROADMAP.md) 为准。
 
-阶段记录位于 [docs/stages](./docs/stages)。阶段状态均按 Demo 范围闭环为“已实现”；Android/iOS 真机验收单独记为“未确认”，不影响 Demo 阶段状态。
+本文不定义消费者、商户或管理员页面，不描述前端布局、视觉和组件。客户端契约只能消费本文和 OpenAPI 已公开的事实，不能反向改变服务端状态机、金额或权限语义。
+
+冲突裁决固定为：运行时 OpenAPI 管 HTTP 线协议，数据库契约管持久化事实，本文管后端行为与基础设施，四端路线图只管实施顺序。
+
+## 设计门禁
+
+- 阶段编码前必须存在已冻结的详细阶段设计，覆盖接口、数据、权限、事务、失败模式和测试。
+- 接口、字段、枚举、表、索引、权限、资金规则或基础设施模式变化时，先解冻并升级对应契约，再修改源码。
+- 状态只使用“未确认、未实现、开发中、已实现、已废弃”。存在类、接口或依赖不等于已实现。
+- 本项目允许直接重构旧字段和 Demo 数据，不建设双写或历史兼容层；数据库完整覆盖仅限明确授权的 Demo 开发库。
 
 ## 工程基线
 
-- Java 21、Spring Boot 3.5.11、MyBatis-Plus 3.5.12、Sa-Token 1.46.0、Knife4j 5.2.1、Springdoc 2.8.9、MySQL、Redis。
-- Maven 模块为 `ray-common`、`ray-pojo`、`ray-server`，依赖方向为 `ray-server -> ray-common + ray-pojo`。
-- Java 内部业务 ID 使用 `Long`，HTTP、OpenAPI 和小程序统一使用字符串 ID。
-- 统一响应为 `Result`、`PageResult`、`CursorPageResult`；错误响应为 `ErrorResult`。
-- 私有接口使用 `Authorization: Bearer <token>`；公开接口允许匿名，但携带非法 Token 时返回 401。
-- Knife4j 入口为 `/doc.html`，OpenAPI 为 `/v3/api-docs`，Swagger UI 禁用。
+- 当前运行基线为 Java 21、Spring Boot 3.5.11、Springdoc 2.8.9、MyBatis-Plus 3.5.12、Hutool 5.8.42、Redisson 3.52.0、Sa-Token 1.46.0、Knife4j 5.2.1、MySQL 与 Redis。
+- 阶段 16 将兼容基线对齐到 Spring Boot 3.5.15、Springdoc 2.8.17、MyBatis-Plus 3.5.16 和 Hutool 5.8.43；Java 21、Sa-Token、Jackson、Knife4j 和 Redisson 保持现有选择，升级后必须通过依赖树与真实运行时验证。
+- Maven 模块当前为 `ray-common`、`ray-pojo`、`ray-server`，依赖方向为 `ray-server -> ray-common + ray-pojo`。
+- `ray-common` 只保存稳定结果、错误码、权限码和通用类型；`ray-pojo` 保存 DTO、VO、实体和枚举；第三方 SDK 类型不得进入公共 DTO。
+- 后续可选适配器使用 `ray-integration-*` 边界，SnailJob 执行器使用独立 `ray-job` 边界；未启用模块不得进入默认运行时依赖树。
 
 ## 已实现范围
 
-| 领域 | 已实现能力 | 状态 |
+| 领域 | 后端能力 | 状态 |
 |---|---|---|
-| 认证 | 模拟短信验证码、登录、当前 Token 注销、多端独立会话 | 已实现 |
-| 城市与分区 | 城市、官方分区、分区详情、用户分区关注 | 已实现 |
-| 媒体 | 图片校验、临时存储、归属校验、动态/点评事务绑定、过期清理 | 已实现 |
-| 社区动态 | 普通动态、探店动态、修改、删除、点赞、作者列表 | 已实现 |
-| 信息流 | 推荐流、关注流、分区最新/热门流、商户关联动态 | 已实现 |
-| 评论 | 根评论、追加回复、分页、点赞、删除占位、热门摘要 | 已实现 |
-| 本地生活 | 商户分类、城市/分类/关键词筛选、评分/热度/距离排序、商户详情 | 已实现 |
-| 点评 | 列表、创建、修改、删除、唯一点评、媒体、评分聚合 | 已实现 |
-| 团购 | 商品列表/详情、下单、取消返库、订单详情、支付确认幂等发券 | 已实现 |
-| 券包 | 用户隔离列表/详情、未使用券、过期刷新 | 已实现 |
-| 旧链路 | Blog、旧上传、旧优惠券、旧秒杀 API/代码/表退役 | 已废弃 |
+| 消费者认证 | 模拟短信、登录、当前会话注销、多端独立会话 | 已实现 |
+| 城市与分区 | 城市、官方分区、详情、用户关注 | 已实现 |
+| 媒体 | 图片校验、临时本地存储、绑定、过期清理 | 已实现 |
+| 社区 | 动态、媒体、点赞、评论、回复、关注和三类信息流 | 已实现 |
+| 本地生活 | 商户分类、筛选、距离、详情、点评和评分聚合 | 已实现 |
+| 团购 Demo | 商品、并发下单、取消返库、Mock 支付确认、单份发券 | 已实现 |
+| 券包 Demo | 用户隔离查询、详情和过期刷新 | 已实现 |
+| 管理基础 | 管理员认证、账号生命周期与操作审计源码 | 开发中 |
+| 旧链路 | Blog、旧上传、旧优惠券、旧秒杀接口与表 | 已废弃 |
 
-商户写管理不属于用户端产品契约。无角色授权的 `POST /v1/shops`、`PUT /v1/shops/{shopId}` 已删除；商户后台与角色权限仍是非目标。
+## 认证与授权
 
-## 短信配置
+- 登录域固定为 `CONSUMER`（消费者端）、`MERCHANT`（商户端）、`ADMIN`（管理端），使用独立 Sa-Token 逻辑、Redis 键空间和路由拦截，Token 不得跨域复用。
+- 管理员角色固定为 `PLATFORM_ADMIN`（平台超级管理员）、`MERCHANT_REVIEWER`（商户审核员）、`FINANCE`（财务管理员）。
+- 商户角色固定为 `OWNER`（店主）、`MANAGER`（店长）、`VERIFIER`（核销员）；门店归属是业务数据范围，不映射为若依租户。
+- 权限码由后端代码维护；客户端隐藏入口不能替代服务端逐接口授权。
+- 管理员密码使用 BCrypt，新建和重置后必须改密；连续 5 次失败锁定 15 分钟，禁止停用自己及最后一个有效平台超级管理员。
 
-唯一配置入口为 `ray.auth.sms`：
+固定管理员权限码目录如下；角色与权限的映射由后端代码维护，客户端只消费当前身份返回的权限集合：
 
-| Profile | mode | 行为 |
-|---|---|---|
-| `dev` | `MOCK` | 使用 `SMS_MOCK_CODE`，缺省为 `123456`，响应 204，不记录验证码明文 |
-| `test` | `MOCK` | 使用 `SMS_MOCK_CODE`，缺省为 `123456`，Redis DB 15 |
-| `prod` | `DISABLED` | 发送接口返回 503 `SMS_SERVICE_UNAVAILABLE` |
+| 权限码 | 中文释义 |
+|---|---|
+| `admin:dashboard:read` | 运营摘要查看 |
+| `admin:user:manage` | 管理员账号管理 |
+| `admin:merchant-application:review` | 商户申请审核 |
+| `admin:shop:govern` | 门店治理 |
+| `admin:voucher:review` | 团购券审核 |
+| `admin:trade:read` | 订单、支付与核销查看 |
+| `admin:refund:manage` | 退款处理 |
+| `admin:commission:manage` | 佣金规则与资金账本管理 |
+| `admin:settlement:manage` | 结算处理与失败重试 |
+| `admin:audit:read` | 操作审计查看 |
 
-真实短信供应商是生产扩展项。生产环境不得通过默认值启用模拟验证码。
+## HTTP 线协议
 
-## HTTP 契约
+- 路径统一位于 `/v1`，私有接口使用 `Authorization: Bearer <token>`，业务 ID 在 HTTP 与 OpenAPI 中均为字符串。
+- 成功使用 `Result`、`PageResult` 或 `CursorPageResult`；失败使用 `ErrorResult`、真实 HTTP 状态和稳定字符串业务码。
+- 高风险命令要求 `Idempotency-Key` 请求头，覆盖审核、下单、支付、退款、核销、撤销和结算重试；幂等窗口不能替代数据库正确性。
+- 当前源码预期 65 个唯一 `operationId`：消费者域 54 个，管理员认证和账号管理 11 个。后续操作数以阶段实际 OpenAPI 为准，不在设计阶段伪造完成数。
+- Knife4j 为 `/doc.html`，OpenAPI 为 `/v3/api-docs`，Swagger UI 禁用；全局声明 400、500，私有接口声明 401，并按行为声明 403、404、409、413、429、503。
 
-运行时 OpenAPI 共 54 个唯一 `operationId`，覆盖以下路径族：
+## 服务端状态机
 
-- `/v1/auth/**`、`/v1/cities`、`/v1/sections/**`
-- `/v1/media/images/**`、`/v1/posts/**`、`/v1/comments/**`、`/v1/feeds/**`
-- `/v1/users/**`、`/v1/shop-types`、`/v1/shops/**`
-- `/v1/voucher-products/**`、`/v1/users/me/orders/**`、`/v1/users/me/vouchers/**`
+- 管理员账号：`ACTIVE`（已启用）、`DISABLED`（已停用）。
+- 商户账号展示：`NOT_APPLIED`（未入驻）、`PENDING`（审核中）、`ACTIVE`（已激活）、`REJECTED`（审核未通过）、`DISABLED`（已停用）。
+- 商户申请：`DRAFT`（草稿）、`PENDING`（审核中）、`APPROVED`（审核通过）、`REJECTED`（审核未通过）。
+- 门店经营：`PENDING`（待激活）、`ACTIVE`（营业中）、`SUSPENDED`（已停用）、`CLOSED`（已关闭）。
+- 券型：`PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券）、`MULTI_USE`（次卡）。
+- 券审核：`DRAFT`（草稿）、`PENDING`（审核中）、`APPROVED`（审核通过）、`REJECTED`（审核未通过）。
+- 券销售：`SCHEDULED`（待开售）、`ON_SALE`（销售中）、`OFF_SALE`（已下架）、`SOLD_OUT`（已售罄）、`ENDED`（已结束）。
+- 订单：`PENDING_PAYMENT`（待支付）、`PAID`（已支付）、`CANCELED`（已取消）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
+- 支付：`PENDING`（待支付）、`SUCCEEDED`（支付成功）、`FAILED`（支付失败）、`CLOSED`（已关闭）、`PARTIALLY_REFUNDED`（部分退款）、`REFUNDED`（已退款）。
+- 用户券：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
+- 退款：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）。
 
-团购商品详情返回 `VoucherProductDetailVO(product, shop)`；订单详情返回 `VoucherOrderDetailVO(order, product, shop)`。订单状态固定为 `PENDING_PAYMENT | PAID | CANCELED | REFUNDING | REFUNDED`。
+## 事务与一致性
 
-全局 OpenAPI 声明 400 与 500，受保护接口声明 401，业务路由按真实行为补充 403、404、409、413，短信发送补充 503。所有 `$ref` 必须指向已注册 Schema。
+- 审核、停用和恢复使用期望状态与版本条件更新；审计只在事务结果确定后记录，不得在外层回滚时提前留下成功记录。
+- 最后一个有效平台超级管理员保护必须使用数据库串行化手段，不能只做无锁计数后更新。
+- 下单锁按用户和商品隔离；库存使用条件扣减，15 分钟关单只返还一次，支付和关单竞态由数据库状态取得唯一执行权。
+- 支付成功按订单唯一事实增加销量并按数量逐份发券；重复请求、回调或任务重放不得重复扣库存、发券、退款、核销或记账。
+- 券码仅通过 HMAC 索引定位；动态二维码不包含裸券 ID 或手输编号，核销预览不改变状态。
+- 资金使用整数分和基点；账本只追加，核销确认收入，已结算退款进入后续负向调整，不覆盖历史批次。
 
-## 数据与一致性
+## 基础设施模式
 
-- 当前开发库使用 19 张表的可重建快照，结构和数据真源分别为 `schema-init.sql`、`seed-dev.sql`。
-- 快照不使用 Flyway/Liquibase，不保留旧表、旧字段兼容或转换脚本。
-- 关系表是点赞/关注事实；Post、评论、商户评分和销量字段是可由事实重算的聚合值。
-- 下单条件扣减库存，取消只允许待支付订单并返库；支付确认按订单唯一约束幂等发券并累计销量。
-- 用户订单和券包查询始终附带当前用户条件；券包查询前刷新已过期未使用券。
-- `schema-init.sql` 含 `DROP TABLE`，仅允许在明确授权的 Demo 开发库执行，禁止用于生产数据库。
+- 短信模式为 `MOCK`（模拟）、`DISABLED`（禁用），生产扩展增加 `SMS4J`（真实供应商）；prod 无供应商时返回 `SMS_SERVICE_UNAVAILABLE`（短信服务不可用）。
+- 支付模式为 `MOCK`（模拟）、`DISABLED`（禁用），预留 `WECHAT`（微信支付）；prod 未配置真实支付时返回 `PAYMENT_SERVICE_UNAVAILABLE`（支付服务不可用）。
+- 存储通过自有端口隔离，dev/test 默认 `LOCAL`（本地存储），prod 使用 `S3`（S3 兼容对象存储）且无安全默认凭据。
+- Lock4j 统一分布式锁注解和异常映射，底层使用 Redisson；数据库条件更新与唯一约束仍是最终事实。
+- SnailJob 负责关单、券过期、定时上下架、媒体清理、退款重试和 T+1 结算；查询与支付保留惰性关单。
+- 管理 SSE 和商户 WebSocket 只发送资源失效事件，客户端收到后回查权威接口；Redis 负责多实例会话分发。
+- Fesod 提供受权限控制的同步 XLSX 导出；Spring Boot Admin、SkyWalking 与 WarmFlow 保持后续扩展。
 
-## 阶段状态
+## 后端阶段
 
-| 阶段 | 范围 | 状态 |
+| 阶段 | 后端交付 | 状态 |
 |---:|---|---|
-| 1-2 | 城市、分区、关注、临时媒体 | 已实现 |
-| 3-4 | 统一动态、媒体绑定、点赞 | 已实现 |
-| 5 | 小程序导航、首页、发布器 | 已实现 |
-| 6 | 推荐、关注、分区信息流 | 已实现 |
-| 7-8 | 评论契约与全栈实现 | 已实现 |
-| 9 | 商户点评 | 已实现 |
-| 10 | 团购订单与券包 | 已实现 |
-| 11 | 商户筛选与排序 | 已实现 |
-| 12 | 商户详情与位置距离 | 已实现 |
-| 13 | 运行时 OpenAPI | 已实现 |
-| 14 | Demo 直接重构与旧链路退役 | 已实现 |
+| 1-14 | 消费者 Demo 与旧链路退役 | 已实现 |
+| 15 | 契约拆分、版本和适配器边界 | 未实现 |
+| 16 | 依赖对齐、管理员认证/账号、限流、脱敏和事务审计 | 开发中 |
+| 17 | 商户认证与账号状态 | 未实现 |
+| 18 | 经营媒体、存储端口和入驻 | 未实现 |
+| 19 | 商户审核与门店治理 | 未实现 |
+| 20-21 | 四类券、商户提交、平台审核和消费者可见性 | 未实现 |
+| 22-24 | 计价下单、关单、Mock 支付、多份发券和退款 | 未实现 |
+| 25-27 | 员工、核销、动态二维码和实时事件 | 未实现 |
+| 28-29 | 佣金账本、结算和导出 | 未实现 |
+| 30 | 全量运行时与数据验收 | 未实现 |
 
-## 明确非目标
+## 验收
 
-以下能力保持“未实现”，不纳入本轮闭环：搜索、通知、举报、审核、真实支付回调、退款、核销、商户后台、角色权限、生产短信供应商、多实例文件存储与多实例 Redis Stream 消费治理。
-
-## 验收标准
-
-- 默认 `mvn test` 不重建数据库；数据库闭环仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行，并使用 Redis DB 15。
-- 真实数据库测试重建授权开发库，覆盖 19 表/索引/旧表退役、聚合一致性、认证、分区关注、动态、评论、三类信息流、点评、库存返还、支付幂等、券过期和用户隔离。
-- `RUN_INTEGRATION_TESTS=true` 验证真实 Knife4j、OpenAPI、Bearer、错误响应、全部 `$ref` 和 54 个操作。
-- 小程序执行 `npm run build:npm` 与 `npm run verify`，覆盖包装详情、`CANCELED`、字符串大 ID 和页面契约。
-- 不执行 `package`、`install`、`deploy`，不自动提交或推送。
+- 默认 `mvn test` 不重建数据库；真实数据库测试仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行并使用 Redis DB 15。
+- HTTP 运行时测试验证三类 Token、Knife4j、OpenAPI、安全声明、全部 `$ref`、错误响应和唯一 `operationId`。
+- 依赖升级或可选模块启用必须执行依赖树、编译、最小运行时和关闭模块后的默认启动验证。
+- 数据库测试结束后恢复纯种子数据并清空测试 Redis；不执行 `package`、`install`、`deploy`。
 
 ## 验证记录
 
 | 日期 | 范围 | 结果 |
 |---|---|---|
-| 2026-09-04 | 小程序契约 | `npm run build:npm` 成功构建 2 个依赖；`npm run verify`：33 个测试文件、120 项测试通过 |
-| 2026-09-04 | 后端默认测试 | `mvn test`：83 项测试中 69 项通过、14 项按外部环境条件跳过，0 失败、0 错误 |
-| 2026-09-04 | 数据库闭环 | `DatabaseBusinessClosureIntegrationTest`：3 项通过；授权开发库重建为 19 张业务表，无旧表，结束后恢复纯种子数据并清空 Redis DB 15 |
-| 2026-09-04 | 运行时 HTTP/OpenAPI | `OpenApiAndAuthRuntimeTest`：6 项通过；`/doc.html` 200、Swagger UI 404、`/v3/api-docs` 含 54 个唯一操作，模拟短信/登录/当前用户/注销链路通过，商户写路由不存在 |
-| 2026-09-04 | 编译与依赖 | `mvn -DskipTests compile` 与依赖树检查通过；实际解析 Spring Boot 3.5.11、Spring 6.2.16、MyBatis-Plus 3.5.12、Springdoc 2.8.9、Knife4j 5.2.1、Sa-Token 1.46.0、Redisson 3.52.0 |
-| 2026-09-04 | 真机验收 | Android/iOS 未确认 |
+| 2026-09-04 | 消费者小程序契约 | 33 个测试文件、120 项通过 |
+| 2026-09-04 | 后端默认测试 | 95 项中 81 项通过、14 项按条件跳过，0 失败 |
+| 2026-09-04 | 数据库 Demo | 原 19 表闭环通过；当前 21 表源码快照待管理基础复验 |
+| 2026-09-04 | 运行时 HTTP/OpenAPI | 消费者域 54 个操作通过；管理扩展 65 个操作待复验 |
+| 2026-09-04 | 阶段 16 定向测试 | 管理权限、认证和账号 Service 共 8 项通过；全量与真实运行时未确认 |
+
+## 非目标
+
+当前 Demo 不包含真实微信支付/退款/分账、生产短信、动态 RBAC、多租户、部门岗位、通用字典、代码生成、社交登录、动态数据源、WarmFlow、Spring Boot Admin 和 SkyWalking。未实现能力不得因文档或依赖存在而标记完成。

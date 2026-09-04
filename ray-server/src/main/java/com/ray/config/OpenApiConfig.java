@@ -102,6 +102,17 @@ public class OpenApiConfig {
                 }
                 if (path.matches("/v1/users/me/orders/\\{[^/]+}")
                         && method == HttpMethod.DELETE) addError(operation.getResponses(), "409", "订单状态不允许取消");
+                if (path.startsWith("/v1/admin/") && !path.equals("/v1/admin/auth/login")) {
+                    addError(operation.getResponses(), "403", "管理员权限不足或必须先修改密码");
+                }
+                if (path.equals("/v1/admin/auth/login")) {
+                    addError(operation.getResponses(), "401", "用户名、密码或账号状态无效");
+                    addError(operation.getResponses(), "429", "管理员登录失败次数过多");
+                }
+                if (path.matches("/v1/admin/users/\\{[^/]+}(/activation|/disablement|/password-reset)?")) {
+                    addError(operation.getResponses(), "404", "管理员账号不存在");
+                    addError(operation.getResponses(), "409", "管理员状态冲突或最后平台管理员保护");
+                }
                 if ((method == HttpMethod.POST && path.equals("/v1/posts"))
                         || (method == HttpMethod.PUT && path.equals("/v1/posts/{postId}"))) {
                     addError(operation.getResponses(), "409", "媒体已绑定或动态状态冲突");

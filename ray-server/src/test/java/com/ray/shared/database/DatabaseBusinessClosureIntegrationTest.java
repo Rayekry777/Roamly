@@ -63,11 +63,11 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasNineteenCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasTwentyOneCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(19, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(21, tableNames.size(), "当前表=" + tableNames);
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -76,6 +76,10 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("section_follow", "uk_section_follow_user_section"));
         assertEquals(1, indexCount("shop_review", "uk_review_shop_user"));
         assertEquals(1, indexCount("user_voucher", "uk_user_voucher_order"));
+        assertEquals(1, indexCount("admin_user", "uk_admin_user_username"));
+        assertEquals(1, indexCount("operation_audit_log", "idx_audit_actor_time"));
+        assertEquals(1, count("select count(*) from admin_user where username='admin' "
+                + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=1"));
 
         assertEquals(0, count("select count(*) from post p where p.liked_count <> "
                 + "(select count(*) from post_like pl where pl.post_id=p.id)"));

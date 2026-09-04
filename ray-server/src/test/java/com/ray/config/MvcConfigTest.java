@@ -12,6 +12,10 @@ class MvcConfigTest {
         assertTrue(MvcConfig.isPublic("GET", "/v1/cities"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops/1"));
         assertTrue(MvcConfig.isPublic("POST", "/v1/auth/sessions"));
+        assertTrue(MvcConfig.isPublic("POST", "/v1/admin/auth/login"));
+        assertFalse(MvcConfig.isPublic("GET", "/v1/admin/auth/me"));
+        assertTrue(MvcConfig.isAdminPublic("POST", "/v1/admin/auth/login"));
+        assertFalse(MvcConfig.isAdminPublic("GET", "/v1/admin/auth/login"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/users/1/profile"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/users/not-a-number"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops/1/reviews"));

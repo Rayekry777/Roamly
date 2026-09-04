@@ -1,6 +1,44 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS `operation_audit_log`;
+DROP TABLE IF EXISTS `admin_user`;
+
+CREATE TABLE `admin_user` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '管理员ID',
+  `username` varchar(32) NOT NULL COMMENT '不可变登录名，统一小写',
+  `password_hash` varchar(100) NOT NULL COMMENT 'BCrypt密码摘要',
+  `display_name` varchar(64) NOT NULL COMMENT '管理员显示名',
+  `role` varchar(32) NOT NULL COMMENT '固定角色：PLATFORM_ADMIN平台超级管理员、MERCHANT_REVIEWER商户审核员、FINANCE财务管理员',
+  `status` varchar(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '账号状态：ACTIVE已启用、DISABLED已停用',
+  `force_password_change` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '是否必须修改初始或重置密码：0否、1是',
+  `last_login_time` timestamp NULL DEFAULT NULL COMMENT '最近登录时间',
+  `created_by` bigint UNSIGNED NULL DEFAULT NULL COMMENT '创建管理员ID，逻辑关联admin_user.id',
+  `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_admin_user_username` (`username`),
+  INDEX `idx_admin_user_role_status` (`role`, `status`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='平台管理员账号';
+
+CREATE TABLE `operation_audit_log` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '审计记录ID',
+  `actor_type` varchar(16) NOT NULL COMMENT '操作者类型：ADMIN管理员、MERCHANT商户、SYSTEM系统',
+  `actor_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '操作者ID',
+  `action` varchar(64) NOT NULL COMMENT '稳定操作编码',
+  `object_type` varchar(32) NOT NULL COMMENT '操作对象类型',
+  `object_id` varchar(64) NULL DEFAULT NULL COMMENT '操作对象业务ID或脱敏摘要',
+  `result` varchar(16) NOT NULL COMMENT '结果：SUCCEEDED成功、FAILED失败',
+  `reason` varchar(500) NULL DEFAULT NULL COMMENT '安全的结果说明，不包含密码或Token',
+  `trace_id` varchar(64) NULL DEFAULT NULL COMMENT '请求追踪ID',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  INDEX `idx_audit_actor_time` (`actor_type`, `actor_id`, `create_time`, `id`),
+  INDEX `idx_audit_object_time` (`object_type`, `object_id`, `create_time`, `id`),
+  INDEX `idx_audit_action_time` (`action`, `create_time`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='敏感操作审计日志';
+
 DROP TABLE IF EXISTS `city`;
 CREATE TABLE `city` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',

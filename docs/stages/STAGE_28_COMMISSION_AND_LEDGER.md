@@ -1,0 +1,56 @@
+# 阶段 28：佣金规则与不可变资金账本
+
+```yaml
+designVersion: 1
+designStatus: 已冻结
+implementationStatus: 未实现
+dependsOn: 阶段 27 已实现
+affectedEnds: 后端、商户小程序、管理 Web
+```
+
+## 目标
+
+实现平台佣金、订单费率快照、核销收入确认、退款/撤销冲回、不可变账本和两端金额摘要。
+
+## 进入条件与涉及端
+
+- 进入条件为阶段 27 已实现，支付、退款、核销、撤销和实时刷新均有可重放且可追溯的业务事件。
+- 涉及后端、商户小程序和管理 Web；消费者端不展示平台佣金或内部账本。
+
+## 状态机、数据与权限
+
+- 资金事实依次表现为 `PAYMENT_FROZEN`（支付资金冻结）、`REDEMPTION_RECOGNIZED`（核销收入确认）、`COMMISSION_RECOGNIZED`（平台佣金确认）及对应冲回事件，不允许覆盖历史分录。
+- 新增 `commission_rule` 与 `fund_ledger_entry`，支付快照保存适用费率；字段、账户方向和唯一约束以数据库契约为准。
+- `PLATFORM_ADMIN`（平台超级管理员）与 `FINANCE`（财务管理员）可管理费率并查看账本；商户仅查看所属门店的聚合投影。
+
+## 后端
+
+- 新增 `commission_rule` 与 `fund_ledger_entry`；平台默认费率 500 基点，门店覆盖费率范围 0 至 10000 基点且生效区间不可重叠。
+- 支付时固化费率并记 `PAYMENT_FROZEN`（支付资金冻结）；核销记 `REDEMPTION_RECOGNIZED`（核销收入确认）和 `COMMISSION_RECOGNIZED`（平台佣金确认）。
+- 退款和撤销追加 `REFUND_REVERSED`（退款冲回）或 `REDEMPTION_REVERSED`（核销撤销），不得更新或删除历史分录。
+- 金额使用整数分，佣金向下取整；次卡按次数确认，最后一次承担分差，全部确认总额等于券实付。
+- `business_event_id,entry_type,account_side` 唯一，任务或请求重放不得重复记账。
+
+## 接口
+
+- 管理端 `GET/PUT /v1/admin/commission-rules`、`GET /v1/admin/ledger-entries`。
+- 商户端 `GET /v1/merchant/finance/summary`。
+- 费率修改要求 `Idempotency-Key` 和版本；只有 `PLATFORM_ADMIN`（平台超级管理员）与 `FINANCE`（财务管理员）可操作。
+
+## 客户端
+
+- 管理 Web 展示默认/门店费率、生效区间、账本方向、业务事件和金额摘要；冲突区间明确定位。
+- 商户端只读展示冻结、待结算、平台佣金、净额和调整，不显示平台账户内部字段。
+- 两端不得用订单列表自行重算财务汇总。
+
+## 失败处理
+
+- 费率区间重叠、版本冲突或越界返回 409 或 400，不修改既有生效规则。
+- 重复业务事件由数据库唯一约束返回同一记账事实；账本写入失败使对应资金事务整体失败或进入明确重试状态。
+- 跨门店和跨角色查看返回 403/404，商户端不得收到平台账户内部字段。
+
+## 验收
+
+- 默认/覆盖费率、区间重叠、快照、整数舍入、次卡分摊、重复事件、退款和撤销测试通过。
+- 账本只追加约束、金额守恒、权限和审计数据库测试通过。
+- 管理 Web 与商户端金额显示及真实 OpenAPI 通过。

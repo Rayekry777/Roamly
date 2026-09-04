@@ -1,6 +1,6 @@
 # Roamly 后端
 
-Roamly 是基于 Java 21 和 Spring Boot 3.5.11 的本地生活点评与团购后端。当前版本采用 Maven 三模块结构；Controller 使用 `/v1` 版本路由，生产环境由 Nginx 提供对外 `/api` 前缀。
+Roamly 是基于 Java 21 和 Spring Boot 3.5.11 的本地生活点评与团购后端。当前版本采用 Maven 三模块结构；Controller 使用 `/v1` 版本路由，生产环境由 Nginx 提供对外 `/api` 前缀。Redis 同时承载 Sa-Token、Spring Cache 与业务数据结构，Redisson 用于团购下单并发协调。
 
 ## 模块导航
 
@@ -51,4 +51,14 @@ mvn -DskipTests compile
 mvn -pl ray-server -am dependency:tree
 ```
 
-本轮不执行 `package`、`install`、部署或 Docker 产物生成。详细设计与状态见 [后端开发与全栈设计契约](BACKEND_DEVELOPMENT.md)，当前数据库结构见 [数据库结构文档](DATABASE_SCHEMA.md)。
+本轮不执行 `package`、`install`、部署或 Docker 产物生成。详细设计与状态见 [后端开发契约](BACKEND_DEVELOPMENT.md)，当前数据库结构见 [数据库结构文档](DATABASE_SCHEMA.md)。
+
+## 冻结扩展设计
+
+阶段 15 至 30 已按单一业务闭环重新拆分。四份开发契约各自只管理本端行为；[四端交付路线图](docs/roadmap/FOUR_END_DELIVERY_ROADMAP.md) 只管理顺序、依赖和跨端完成判定。
+
+- 管理 Web：[Roamly-admin-web](../Roamly-admin-web/README.md)
+- 商户小程序：[Roamly-merchant-miniapp](../Roamly-merchant-miniapp/README.md)
+- 消费者小程序：[Roamly-miniapp](../Roamly-miniapp/README.md)
+- 若依后端取舍：[扩展技术决策](docs/architecture/RUOYI_EXTENSION_COMPATIBILITY.md)
+- 阶段设计：[阶段 15 至 30](docs/stages/STAGE_15_FOUR_END_CONTRACT_AND_FOUNDATION.md)

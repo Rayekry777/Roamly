@@ -99,7 +99,10 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(54, operationIds.size());
+        assertEquals(65, operationIds.size());
+        assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
+        assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1users/get/responses/403").isObject());
         assertTrue(document.at("/paths/~1v1~1auth~1sessions/post/security").isArray());
         assertEquals(
                 0, document.at("/paths/~1v1~1auth~1sessions/post/security").size());
@@ -170,6 +173,17 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/auth/sms-codes",
                 "POST /v1/auth/sessions",
                 "DELETE /v1/auth/session",
+                "POST /v1/admin/auth/login",
+                "GET /v1/admin/auth/me",
+                "PUT /v1/admin/auth/password",
+                "POST /v1/admin/auth/logout",
+                "GET /v1/admin/users",
+                "POST /v1/admin/users",
+                "GET /v1/admin/users/{adminUserId}",
+                "PUT /v1/admin/users/{adminUserId}",
+                "POST /v1/admin/users/{adminUserId}/activation",
+                "POST /v1/admin/users/{adminUserId}/disablement",
+                "POST /v1/admin/users/{adminUserId}/password-reset",
                 "GET /v1/cities",
                 "GET /v1/sections",
                 "GET /v1/sections/{sectionId}",
