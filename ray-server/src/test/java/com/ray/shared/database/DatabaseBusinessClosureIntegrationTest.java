@@ -245,6 +245,10 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(HttpStatus.FORBIDDEN, exchange(
                         "/v1/merchant/voucher-products", HttpMethod.GET, null, verifierToken)
                 .getStatusCode());
+        ResponseEntity<String> verifierOrders = exchange(
+                "/v1/merchant/orders", HttpMethod.GET, null, verifierToken);
+        assertEquals(HttpStatus.FORBIDDEN, verifierOrders.getStatusCode());
+        assertEquals("MERCHANT_FORBIDDEN", objectMapper.readTree(verifierOrders.getBody()).path("code").asText());
         assertEquals(5, count("select count(*) from operation_audit_log where actor_type='MERCHANT' "
                 + "and object_type='VOUCHER_PRODUCT' and action like 'MERCHANT_VOUCHER_%'"));
 
@@ -833,7 +837,11 @@ class DatabaseBusinessClosureIntegrationTest {
     @Test
     @Order(10)
     void adminReadModelsExposeOrdersAndAuditFacts() throws Exception {
-        String token = loginAdmin("admin", "AdminPass9");
+        String platformUsername = jdbc.queryForObject(
+                "select username from admin_user where role='PLATFORM_ADMIN' and status='ACTIVE' limit 1",
+                String.class);
+        String platformPassword = "admin".equals(platformUsername) ? "AdminPass9" : "Platform9";
+        String token = loginAdmin(platformUsername, platformPassword);
         ResponseEntity<String> orders = exchange("/v1/admin/orders?status=PAID&page=1&size=20", HttpMethod.GET, null, token);
         assertEquals(HttpStatus.OK, orders.getStatusCode());
         assertTrue(data(orders).path("items").isArray());
