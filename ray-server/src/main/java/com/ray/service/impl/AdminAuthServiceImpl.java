@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +55,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     public AdminAuthTokenVO login(AdminLoginDTO request, String clientAddress) {
         String username = normalizeUsername(request.username());
         String failureKey = failureKey(username, clientAddress);
-        Long failures = parseFailures(redis.opsForValue().get(failureKey), failureKey);
+        Long failures = readFailures(failureKey);
         if (failures >= MAX_LOGIN_FAILURES) {
             auditService.record(null, "ADMIN_LOGIN", "ADMIN_USER", identityDigest(username), "FAILED", "登录尝试过于频繁");
             throw new BusinessException(429, "ADMIN_ACCOUNT_LOCKED", "登录失败次数过多，请15分钟后重试");
@@ -66,7 +67,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (admin == null
                 || !passwordMatches
                 || !AdminStatus.ACTIVE.name().equals(admin.getStatus())) {
-            registerFailure(failureKey);
+            Long currentFailures = registerFailure(failureKey);
             auditService.record(
                     admin == null ? null : admin.getId(),
                     "ADMIN_LOGIN",
@@ -74,10 +75,13 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                     admin == null ? identityDigest(username) : admin.getId().toString(),
                     "FAILED",
                     "用户名、密码或账号状态无效");
+            if (currentFailures >= MAX_LOGIN_FAILURES) {
+                throw new BusinessException(429, "ADMIN_ACCOUNT_LOCKED", "登录失败次数过多，请15分钟后重试");
+            }
             throw new BusinessException(401, "AUTHENTICATION_FAILED", "用户名或密码错误");
         }
 
-        redis.delete(failureKey);
+        clearFailures(failureKey);
         adminStpLogic.login(admin.getId());
         mapper.update(
                 null,
@@ -127,6 +131,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Transactional
     public void changePassword(AdminPasswordChangeDTO request) {
         AdminUser admin = requireCurrentEntity();
+        auditService.record(admin.getId(), "ADMIN_PASSWORD_CHANGE", "ADMIN_USER", admin.getId().toString(), "SUCCEEDED", null);
         if (!BCrypt.checkpw(request.currentPassword(), admin.getPasswordHash())) {
             throw BusinessException.badRequest("CURRENT_PASSWORD_INVALID", "当前密码错误");
         }
@@ -144,7 +149,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (affected != 1) {
             throw BusinessException.conflict("ADMIN_USER_STATUS_CONFLICT", "管理员账号已被其他操作修改");
         }
-        auditService.record(admin.getId(), "ADMIN_PASSWORD_CHANGE", "ADMIN_USER", admin.getId().toString(), "SUCCEEDED", null);
         invalidateAllSessions(admin.getId());
     }
 
@@ -191,10 +195,31 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         return admin;
     }
 
-    private void registerFailure(String key) {
-        Long failures = redis.opsForValue().increment(key);
-        if (failures != null && failures == 1L) {
-            redis.expire(key, FAILURE_WINDOW_MINUTES, TimeUnit.MINUTES);
+    private Long registerFailure(String key) {
+        try {
+            Long failures = redis.opsForValue().increment(key);
+            if (failures != null && failures == 1L) {
+                redis.expire(key, FAILURE_WINDOW_MINUTES, TimeUnit.MINUTES);
+            }
+            return failures == null ? 1L : failures;
+        } catch (DataAccessException exception) {
+            throw authDependencyUnavailable(exception);
+        }
+    }
+
+    private Long readFailures(String key) {
+        try {
+            return parseFailures(redis.opsForValue().get(key), key);
+        } catch (DataAccessException exception) {
+            throw authDependencyUnavailable(exception);
+        }
+    }
+
+    private void clearFailures(String key) {
+        try {
+            redis.delete(key);
+        } catch (DataAccessException exception) {
+            throw authDependencyUnavailable(exception);
         }
     }
 
@@ -206,6 +231,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             redis.delete(key);
             return 0L;
         }
+    }
+
+    private BusinessException authDependencyUnavailable(DataAccessException exception) {
+        return new BusinessException(503, "ADMIN_AUTH_SERVICE_UNAVAILABLE", "管理员认证服务暂不可用", exception);
     }
 
     private String failureKey(String username, String clientAddress) {

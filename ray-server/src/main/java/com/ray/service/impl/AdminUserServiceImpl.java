@@ -2,6 +2,7 @@ package com.ray.service.impl;
 
 import static com.ray.constant.AdminPermissions.ADMIN_USER_MANAGE;
 
+import cn.hutool.crypto.digest.DigestUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -21,6 +22,7 @@ import com.ray.service.AdminUserService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.AdminUserVO;
 import java.util.Locale;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -64,6 +66,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         Long actorId = authService.currentAdminId();
         String username = request.username().trim().toLowerCase(Locale.ROOT);
         if (mapper.selectCount(Wrappers.<AdminUser>lambdaQuery().eq(AdminUser::getUsername, username)) > 0) {
+            auditCreateConflict(actorId, username);
             throw BusinessException.conflict("ADMIN_USERNAME_ALREADY_EXISTS", "管理员用户名已存在");
         }
         AdminUser admin = new AdminUser()
@@ -75,8 +78,13 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .setForcePasswordChange(true)
                 .setCreatedBy(actorId)
                 .setVersion(0);
-        if (mapper.insert(admin) != 1) {
-            throw new BusinessException(500, "ADMIN_USER_CREATE_FAILED", "管理员账号创建失败");
+        try {
+            if (mapper.insert(admin) != 1) {
+                throw new BusinessException(500, "ADMIN_USER_CREATE_FAILED", "管理员账号创建失败");
+            }
+        } catch (DuplicateKeyException exception) {
+            auditCreateConflict(actorId, username);
+            throw BusinessException.conflict("ADMIN_USERNAME_ALREADY_EXISTS", "管理员用户名已存在");
         }
         auditService.record(actorId, "ADMIN_USER_CREATE", "ADMIN_USER", admin.getId().toString(), "SUCCEEDED", null);
         return toView(mapper.selectById(admin.getId()));
@@ -96,6 +104,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         requireManagePermission();
         Long actorId = authService.currentAdminId();
         Long targetId = parseId(adminUserId);
+        auditService.record(actorId, "ADMIN_USER_UPDATE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
         AdminUser target = requireAdmin(targetId);
         if (AdminRole.PLATFORM_ADMIN.name().equals(target.getRole())
                 && request.role() != AdminRole.PLATFORM_ADMIN) {
@@ -111,7 +120,6 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .set(AdminUser::getVersion, request.version() + 1));
         requireUpdated(affected);
         if (!target.getRole().equals(request.role().name())) authService.invalidateAllSessions(targetId);
-        auditService.record(actorId, "ADMIN_USER_UPDATE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
         return toView(requireAdmin(targetId));
     }
 
@@ -122,6 +130,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         requireManagePermission();
         Long actorId = authService.currentAdminId();
         Long targetId = parseId(adminUserId);
+        auditService.record(actorId, "ADMIN_USER_ACTIVATE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
         requireAdmin(targetId);
         int affected = mapper.update(
                 null,
@@ -132,7 +141,6 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .set(AdminUser::getStatus, AdminStatus.ACTIVE.name())
                         .set(AdminUser::getVersion, request.version() + 1));
         requireUpdated(affected);
-        auditService.record(actorId, "ADMIN_USER_ACTIVATE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
     }
 
     /** 停用非当前且非最后平台超级管理员账号。 */
@@ -142,6 +150,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         requireManagePermission();
         Long actorId = authService.currentAdminId();
         Long targetId = parseId(adminUserId);
+        auditService.record(actorId, "ADMIN_USER_DISABLE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
         if (actorId.equals(targetId)) {
             throw BusinessException.conflict("ADMIN_SELF_DISABLE_FORBIDDEN", "不能停用当前登录账号");
         }
@@ -157,7 +166,6 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .set(AdminUser::getVersion, request.version() + 1));
         requireUpdated(affected);
         authService.invalidateAllSessions(targetId);
-        auditService.record(actorId, "ADMIN_USER_DISABLE", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
     }
 
     /** 重置密码并要求目标管理员首次改密。 */
@@ -167,6 +175,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         requireManagePermission();
         Long actorId = authService.currentAdminId();
         Long targetId = parseId(adminUserId);
+        auditService.record(actorId, "ADMIN_PASSWORD_RESET", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
         requireAdmin(targetId);
         int affected = mapper.update(
                 null,
@@ -178,11 +187,20 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .set(AdminUser::getVersion, request.version() + 1));
         requireUpdated(affected);
         authService.invalidateAllSessions(targetId);
-        auditService.record(actorId, "ADMIN_PASSWORD_RESET", "ADMIN_USER", targetId.toString(), "SUCCEEDED", null);
     }
 
     private void requireManagePermission() {
         authService.requirePermission(ADMIN_USER_MANAGE);
+    }
+
+    private void auditCreateConflict(Long actorId, String username) {
+        auditService.record(
+                actorId,
+                "ADMIN_USER_CREATE",
+                "ADMIN_USER",
+                DigestUtil.sha256Hex(username).substring(0, 32),
+                "FAILED",
+                "用户名冲突");
     }
 
     private Long parseId(String id) {
@@ -198,10 +216,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private void protectLastPlatformAdmin(AdminUser target) {
         if (!AdminRole.PLATFORM_ADMIN.name().equals(target.getRole())
                 || !AdminStatus.ACTIVE.name().equals(target.getStatus())) return;
-        long activePlatformAdmins = mapper.selectCount(Wrappers.<AdminUser>lambdaQuery()
-                .eq(AdminUser::getRole, AdminRole.PLATFORM_ADMIN.name())
-                .eq(AdminUser::getStatus, AdminStatus.ACTIVE.name()));
-        if (activePlatformAdmins <= 1) {
+        if (mapper.selectActivePlatformAdminIdsForUpdate().size() <= 1) {
             throw BusinessException.conflict("LAST_PLATFORM_ADMIN_REQUIRED", "必须保留至少一个有效的平台超级管理员");
         }
     }

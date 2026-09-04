@@ -108,6 +108,7 @@ public class OpenApiConfig {
                 if (path.equals("/v1/admin/auth/login")) {
                     addError(operation.getResponses(), "401", "用户名、密码或账号状态无效");
                     addError(operation.getResponses(), "429", "管理员登录失败次数过多");
+                    addError(operation.getResponses(), "503", "管理员认证依赖服务暂不可用");
                 }
                 if (path.matches("/v1/admin/users/\\{[^/]+}(/activation|/disablement|/password-reset)?")) {
                     addError(operation.getResponses(), "404", "管理员账号不存在");

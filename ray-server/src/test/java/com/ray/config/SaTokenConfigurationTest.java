@@ -1,5 +1,6 @@
 package com.ray.config;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -7,6 +8,15 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class SaTokenConfigurationTest {
+    @Test
+    void threeLoginDomainsUseIndependentTypes() {
+        AdminSaTokenConfiguration configuration = new AdminSaTokenConfiguration();
+
+        assertEquals("login", configuration.consumerStpLogic().getLoginType());
+        assertEquals("admin", configuration.adminStpLogic().getLoginType());
+        assertEquals("merchant", configuration.merchantStpLogic().getLoginType());
+    }
+
     @Test
     void sessionPolicyAndBearerHeaderAreDeclared() throws Exception {
         String yaml = Files.readString(Path.of("src/main/resources/application.yml"));

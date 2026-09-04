@@ -20,9 +20,11 @@ import com.ray.mapper.AdminUserMapper;
 import com.ray.service.AdminAuditService;
 import com.ray.service.AdminAuthService;
 import com.ray.vo.AdminUserVO;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 class AdminUserServiceImplTest {
     private AdminUserMapper mapper;
@@ -61,6 +63,27 @@ class AdminUserServiceImplTest {
     }
 
     @Test
+    void concurrentUsernameConflictReturnsStableBusinessError() {
+        when(mapper.selectCount(any())).thenReturn(0L);
+        when(mapper.insert(any(AdminUser.class))).thenThrow(new DuplicateKeyException("duplicate username"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.create(new AdminUserCreateDTO(
+                        "reviewer.one", "审核同学", AdminRole.MERCHANT_REVIEWER, "Password8")));
+
+        assertEquals(409, exception.status());
+        assertEquals("ADMIN_USERNAME_ALREADY_EXISTS", exception.code());
+        verify(auditService).record(
+                1L,
+                "ADMIN_USER_CREATE",
+                "ADMIN_USER",
+                "b534938603b932efa19082f816c20930",
+                "FAILED",
+                "用户名冲突");
+    }
+
+    @Test
     void cannotDisableCurrentAccount() {
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> service.disable("1", new AdminUserVersionDTO(0)));
@@ -73,7 +96,7 @@ class AdminUserServiceImplTest {
     void cannotDisableLastActivePlatformAdmin() {
         when(authService.currentAdminId()).thenReturn(2L);
         when(mapper.selectById(1L)).thenReturn(createdAdmin());
-        when(mapper.selectCount(any())).thenReturn(1L);
+        when(mapper.selectActivePlatformAdminIdsForUpdate()).thenReturn(List.of(1L));
 
         BusinessException exception = assertThrows(
                 BusinessException.class, () -> service.disable("1", new AdminUserVersionDTO(0)));

@@ -10,6 +10,7 @@ import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
 import cn.dev33.satoken.dao.SaTokenDaoForRedisTemplate;
 import cn.dev33.satoken.stp.StpUtil;
+import cn.dev33.satoken.stp.StpLogic;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.config.SmsProperties;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.cache.CacheManager;
@@ -68,9 +70,19 @@ class OpenApiAndAuthRuntimeTest {
     @Autowired
     private StringRedisTemplate redis;
 
+    @Autowired
+    @Qualifier("adminStpLogic")
+    private StpLogic adminStpLogic;
+
+    @Autowired
+    @Qualifier("merchantStpLogic")
+    private StpLogic merchantStpLogic;
+
     @AfterEach
     void cleanTestLogin() {
         StpUtil.logout(loginId);
+        adminStpLogic.logout(loginId);
+        merchantStpLogic.logout(loginId);
     }
 
     @Test
@@ -102,6 +114,7 @@ class OpenApiAndAuthRuntimeTest {
         assertEquals(65, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1users/get/responses/403").isObject());
         assertTrue(document.at("/paths/~1v1~1auth~1sessions/post/security").isArray());
         assertEquals(
@@ -290,6 +303,25 @@ class OpenApiAndAuthRuntimeTest {
                 exchange("/v1/auth/session", "Bearer " + second, HttpMethod.DELETE)
                         .getStatusCode());
         assertTrue(SaManager.getSaTokenDao() instanceof SaTokenDaoForRedisTemplate);
+    }
+
+    @Test
+    void consumerAdminAndMerchantLoginDomainsDoNotShareTokens() {
+        String consumerToken = StpUtil.getStpLogic().createLoginSession(loginId);
+        String adminToken = adminStpLogic.createLoginSession(loginId);
+        String merchantToken = merchantStpLogic.createLoginSession(loginId);
+
+        assertNotEquals(consumerToken, adminToken);
+        assertNotEquals(adminToken, merchantToken);
+        assertEquals(null, adminStpLogic.getLoginIdByToken(consumerToken));
+        assertEquals(null, merchantStpLogic.getLoginIdByToken(adminToken));
+        assertEquals(null, StpUtil.getStpLogic().getLoginIdByToken(merchantToken));
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", "Bearer " + consumerToken, HttpMethod.GET).getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/users/me", "Bearer " + adminToken, HttpMethod.GET).getStatusCode());
     }
 
     @Test

@@ -5,7 +5,7 @@ updatedAt: 2026-09-04
 schemaMode: Demo 可重建快照
 businessTableCount: 21
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 待重新验证
+runtimeVerification: 已验证（21 张当前业务表）
 targetBusinessTableCount: 33
 targetDesignVersion: 3
 targetDesignStatus: 已冻结
@@ -14,7 +14,7 @@ targetImplementationStatus: 未实现
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 21 表：原 19 表已完成真实重建验证，`admin_user` 与 `operation_audit_log` 已进入开发中并等待本轮真实重建验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
+当前源码快照为 21 表：原 19 表与阶段 16 的 `admin_user`、`operation_audit_log` 已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
 
 ## 规则
 
@@ -142,9 +142,9 @@ targetImplementationStatus: 未实现
 
 `DatabaseBusinessClosureIntegrationTest` 仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行。它在开始前重建当前快照，使用 Redis DB 15，完成真实 HTTP/Service/SQL 场景后再次重建种子并清空测试 Redis，确保日常开发环境回到纯种子状态。
 
-2026-09-04 已在 `.env` 当前指向且获授权的开发库完成原 19 表 Demo 验收：
+2026-09-04 已在 `.env` 当前指向且获授权的开发库完成 21 表 Demo 验收：
 
-- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认原 19 张业务表、关键唯一索引、旧表退役和种子一致性。
-- `DatabaseBusinessClosureIntegrationTest` 3 项全部通过，覆盖媒体绑定、动态、信息流、评论、点评聚合、订单扣减/返库、支付确认幂等发券、券过期刷新及用户隔离。
+- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 21 张业务表、关键唯一索引、旧表退役和种子一致性。
+- `DatabaseBusinessClosureIntegrationTest` 4 项全部通过，覆盖管理员登录/改密/创建/重置/启停/并发保护/审计，以及媒体、社区、点评、订单、发券、过期刷新和用户隔离。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 当前源码已加入 `admin_user` 与 `operation_audit_log`，形成 21 表快照，但尚未重新执行真实数据库重建和管理账号场景，因此 `runtimeVerification` 保持“待重新验证”。
+- 目标 33 表仍只完成冻结设计，阶段 17 至 29 的新增表不得提前标记为已实现。

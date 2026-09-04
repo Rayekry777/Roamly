@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 1
 designStatus: 已冻结
-implementationStatus: 开发中
+implementationStatus: 已实现
 dependsOn: 阶段 15 已实现
 affectedEnds: 后端、管理 Web
 ```
@@ -56,3 +56,11 @@ affectedEnds: 后端、管理 Web
 - 数据库覆盖账号创建、启停、重置、并发保护与审计落库，业务表仍为当前 21 张。
 - 真实 `/v3/api-docs`、Knife4j、管理员 HTTP 和管理 Web Vitest/Playwright 通过。
 - 全量 Maven 测试、编译和依赖树通过后才能标记“已实现”。
+
+## 实现记录
+
+- 后端完成三域 Sa-Token 装配、管理员登录限流、强制改密、账号生命周期、并发最后平台管理员保护和事务完成后审计。
+- 真实 MySQL 8.0 与 Redis DB 15 上完成 21 表重建和 4 项数据库场景，结束后已恢复纯种子状态。
+- 真实 HTTP/OpenAPI 8 项通过，确认 65 个唯一 `operationId`、全部 `$ref`、Knife4j、Swagger UI 禁用和三域 Token 隔离。
+- 后端默认测试 111 项中 95 项通过、16 项条件跳过；编译与关键依赖树通过。
+- 管理 Web 的 Vitest 4 个文件 16 项通过；Playwright 7 项通过、1 项按项目跳过；1440x900、1280x720、390x844 截图无页面溢出或遮挡。

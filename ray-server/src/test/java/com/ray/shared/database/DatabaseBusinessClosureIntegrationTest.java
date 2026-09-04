@@ -10,7 +10,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.service.VoucherSettlementService;
 import com.ray.shared.config.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -98,6 +101,122 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(2)
+    void realAdminFlowClosesPasswordAccountSessionProtectionAndAudit() throws Exception {
+        String consumerToken = login("13686869696");
+        String initialAdminToken = loginAdmin("admin", "Roamly123");
+
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", HttpMethod.GET, null, consumerToken).getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/users/me", HttpMethod.GET, null, initialAdminToken).getStatusCode());
+        ResponseEntity<String> forced = exchange(
+                "/v1/admin/users", HttpMethod.GET, null, initialAdminToken);
+        assertEquals(HttpStatus.FORBIDDEN, forced.getStatusCode());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", objectMapper.readTree(forced.getBody()).path("code").asText());
+
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/auth/password",
+                        HttpMethod.PUT,
+                        Map.of("currentPassword", "Roamly123", "newPassword", "AdminPass9"),
+                        initialAdminToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", HttpMethod.GET, null, initialAdminToken).getStatusCode());
+
+        String adminToken = loginAdmin("admin", "AdminPass9");
+        ResponseEntity<String> lastPlatformAdmin = exchange(
+                "/v1/admin/users/1",
+                HttpMethod.PUT,
+                Map.of("displayName", "Roamly 管理员", "role", "FINANCE", "version", 1),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, lastPlatformAdmin.getStatusCode());
+        assertEquals("LAST_PLATFORM_ADMIN_REQUIRED", objectMapper.readTree(lastPlatformAdmin.getBody()).path("code").asText());
+
+        ResponseEntity<String> created = exchange(
+                "/v1/admin/users",
+                HttpMethod.POST,
+                Map.of(
+                        "username", "reviewer.one",
+                        "displayName", "审核同学",
+                        "role", "MERCHANT_REVIEWER",
+                        "initialPassword", "Reviewer8"),
+                adminToken);
+        assertEquals(HttpStatus.CREATED, created.getStatusCode());
+        String reviewerId = data(created).path("id").asText();
+        String reviewerToken = loginAdmin("reviewer.one", "Reviewer8");
+
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/users/" + reviewerId + "/password-reset",
+                        HttpMethod.POST,
+                        Map.of("newPassword", "Reviewer9", "version", 0),
+                        adminToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", HttpMethod.GET, null, reviewerToken).getStatusCode());
+        reviewerToken = loginAdmin("reviewer.one", "Reviewer9");
+
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/users/" + reviewerId + "/disablement",
+                        HttpMethod.POST,
+                        Map.of("version", 1),
+                        adminToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", HttpMethod.GET, null, reviewerToken).getStatusCode());
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/users/" + reviewerId + "/activation",
+                        HttpMethod.POST,
+                        Map.of("version", 2),
+                        adminToken)
+                .getStatusCode());
+
+        assertEquals(1, count("select count(*) from admin_user where username='reviewer.one' "
+                + "and role='MERCHANT_REVIEWER' and status='ACTIVE' and force_password_change=1 and version=3"));
+        assertTrue(count("select count(*) from operation_audit_log where actor_type='ADMIN' "
+                + "and action in ('ADMIN_PASSWORD_CHANGE','ADMIN_USER_CREATE','ADMIN_PASSWORD_RESET',"
+                + "'ADMIN_USER_DISABLE','ADMIN_USER_ACTIVATE') and result='SUCCEEDED'") >= 5);
+        assertEquals(0, count("select count(*) from operation_audit_log where reason like '%Password%' "
+                + "or reason like '%Reviewer%' or reason like '%admin-token%'"));
+
+        ResponseEntity<String> secondPlatform = exchange(
+                "/v1/admin/users",
+                HttpMethod.POST,
+                Map.of(
+                        "username", "platform.two",
+                        "displayName", "平台管理员二号",
+                        "role", "PLATFORM_ADMIN",
+                        "initialPassword", "Platform8"),
+                adminToken);
+        assertEquals(HttpStatus.CREATED, secondPlatform.getStatusCode());
+        String secondPlatformId = data(secondPlatform).path("id").asText();
+        String secondPlatformToken = loginAdmin("platform.two", "Platform8");
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/auth/password",
+                        HttpMethod.PUT,
+                        Map.of("currentPassword", "Platform8", "newPassword", "Platform9"),
+                        secondPlatformToken)
+                .getStatusCode());
+        secondPlatformToken = loginAdmin("platform.two", "Platform9");
+
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            String finalSecondPlatformToken = secondPlatformToken;
+            var first = executor.submit(() -> concurrentRoleChange("1", 1, adminToken, ready, start));
+            var second = executor.submit(() ->
+                    concurrentRoleChange(secondPlatformId, 1, finalSecondPlatformToken, ready, start));
+            ready.await();
+            start.countDown();
+            List<HttpStatus> statuses = List.of(first.get(), second.get());
+            assertEquals(1, statuses.stream().filter(HttpStatus.OK::equals).count());
+            assertEquals(1, statuses.stream().filter(HttpStatus.CONFLICT::equals).count());
+        }
+        assertEquals(1, count("select count(*) from admin_user where role='PLATFORM_ADMIN' and status='ACTIVE'"));
+        logout(consumerToken);
+    }
+
+    @Test
+    @Order(3)
     void realHttpClosesAuthSectionPostCommentAndThreeFeedFlows() throws Exception {
         String authorToken = login("13686869696");
         String readerToken = login("13838411438");
@@ -161,7 +280,7 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void realTradeFlowClosesShopReviewStockSettlementWalletExpiryAndIsolation() throws Exception {
         String firstToken = login("13686869696");
         String buyerToken = login("13456789011");
@@ -242,6 +361,31 @@ class DatabaseBusinessClosureIntegrationTest {
         String token = data(session).path("accessToken").asText();
         assertFalse(token.isBlank());
         return token;
+    }
+
+    private String loginAdmin(String username, String password) throws Exception {
+        ResponseEntity<String> response = exchange(
+                "/v1/admin/auth/login", HttpMethod.POST, Map.of("username", username, "password", password), null);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        String token = data(response).path("token").asText();
+        assertFalse(token.isBlank());
+        return token;
+    }
+
+    private HttpStatus concurrentRoleChange(
+            String adminId,
+            int version,
+            String token,
+            CountDownLatch ready,
+            CountDownLatch start) throws Exception {
+        ready.countDown();
+        start.await();
+        return (HttpStatus) exchange(
+                        "/v1/admin/users/" + adminId,
+                        HttpMethod.PUT,
+                        Map.of("displayName", "并发管理员 " + adminId, "role", "FINANCE", "version", version),
+                        token)
+                .getStatusCode();
     }
 
     private void logout(String token) {
