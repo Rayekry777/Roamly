@@ -1,7 +1,7 @@
 # 阶段 18：经营媒体、对象存储与商户入驻
 
 ```yaml
-designVersion: 1
+designVersion: 2
 designStatus: 已冻结
 implementationStatus: 未实现
 dependsOn: 阶段 17 已实现
@@ -23,6 +23,8 @@ affectedEnds: 后端、商户小程序
 - 新增 `merchant_application` 与 `business_media_asset`，对象存储只保存二进制，数据库只保存受控对象键和元数据；字段与约束以数据库契约为准。
 - 仅当前未激活店主账号可编辑自己的申请与媒体；员工、其他商户和管理员接口不能复用该写路径。
 
+复核后冻结的迁移为：不存在申请时通过保存创建 `DRAFT`（草稿）；草稿保存保持 `DRAFT`；`REJECTED`（审核未通过）首次保存恢复为 `DRAFT` 并把商户账号恢复为 `NOT_APPLIED`（未入驻）；提交将申请和账号同时迁移为 `PENDING`（审核中）。审核中的相同幂等键重复提交返回同一结果，不同幂等键或任何编辑返回 409。
+
 ## 后端
 
 - 新增 `merchant_application` 与 `business_media_asset`；申请归当前商户账号隔离，媒体校验上传者、MIME、大小、尺寸、数量和绑定状态。
@@ -32,14 +34,21 @@ affectedEnds: 后端、商户小程序
 
 ## 接口
 
-- `POST /v1/merchant/business-media/images` 上传临时经营图片。
+- `POST /v1/merchant/business-media/images` 上传临时经营图片，multipart 字段为 `file` 与 `purpose`；`purpose` 只允许 `LICENSE`（营业执照）和 `GALLERY`（经营图片）。
+- `DELETE /v1/merchant/business-media/images/{mediaId}` 删除本人未绑定临时图片；`GET /v1/merchant/business-media/images/{mediaId}/content` 携带商户 Token 读取本人图片。
 - `GET /v1/merchant/application`、`PUT /v1/merchant/application`。
 - `POST /v1/merchant/application/submission` 要求 `Idempotency-Key`。
+- `GET /v1/merchant/reference/cities`、`GET /v1/merchant/reference/shop-types` 提供商户端专用只读字典。
 - 存储不可用返回 503，媒体不合规返回 400，版本或状态冲突返回 409。
+
+`PUT` 请求携带非负 `version` 和草稿完整快照；首次保存必须为 0。申请响应返回字符串 ID、状态及中文文案、全部草稿字段、有序媒体摘要、版本、提交时间和驳回原因。未创建申请时 `GET` 返回 `code=OK` 且 `data=null`。
+
+七日营业时间使用 `MONDAY`（星期一）至 `SUNDAY`（星期日）且不得重复；营业日包含一至三个互不重叠的 `HH:mm` 时段，休息日不含时段。完整字段、索引和媒体约束只在数据库契约与后端契约定义，本阶段文档不另建字段真源。
 
 ## 商户小程序
 
-- 完成分步入驻表单、地图选点、图片上传/重试、草稿恢复、完整预览和提交确认。
+- 新增 `/pages/onboarding/index` 四步表单：主体与联系人、门店与地图、营业时间与图片、Mock 结算；新增 `/pages/onboarding/preview` 完整预览与提交确认。
+- 完成商户专用类目/城市字典、地图选点、单张执照与最多九张经营图上传/单项重试/删除、草稿恢复、版本冲突刷新和完整预览。
 - 审核中只读显示资料与提交时间；驳回后显示原因并允许修改。
 - 结算和证件字段只在必要页面显示，离开页面不泄露到日志或埋点。
 
@@ -54,3 +63,9 @@ affectedEnds: 后端、商户小程序
 - 本地与 S3 适配器契约测试、媒体归属、跨账号隔离、重复提交和状态冲突通过。
 - 存储失败不产生已绑定孤儿记录，过期媒体可安全清理。
 - 商户自动化和开发者工具完整提交流程通过后标记“已实现”。
+
+## v2 复核记录
+
+- v1 已覆盖目标、参与端与基础状态，但缺少字段所有权、商户专用字典、私有媒体读取、草稿并发和页面步骤，不能直接进入编码。
+- v2 已将上述内容分别冻结到后端、数据库和商户端契约；阶段文档只维护依赖、跨端事务和验收，不复制字段定义。
+- 设计保持“已冻结”、实现保持“未实现”；实现开始后才切换为“开发中”。

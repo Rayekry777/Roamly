@@ -7,7 +7,7 @@ businessTableCount: 22
 database: MySQL / InnoDB / utf8mb4
 runtimeVerification: 已验证（22 张当前业务表）
 targetBusinessTableCount: 33
-targetDesignVersion: 3
+targetDesignVersion: 4
 targetDesignStatus: 已冻结
 targetImplementationStatus: 未实现
 ```
@@ -101,6 +101,23 @@ targetImplementationStatus: 未实现
 | `settlement_batch` | 29 | T+1 结算批次 | 结算日和门店唯一 |
 | `settlement_item` | 29 | 结算批次与账本明细关系 | 批次和分录唯一 |
 | `operation_audit_log` | 16-29 | 管理、商户和资金操作审计 | 操作者、对象、动作和时间索引 |
+
+### 阶段 18 字段冻结
+
+`merchant_application` 字段固定为：
+
+- `id`、唯一 `merchant_account_id`、`status`、`shop_name`、`license_number`、`legal_representative`、`contact_name`、`contact_phone`、`shop_type_id`、`city_code`、`district`、`address`、`longitude`、`latitude`。
+- `business_hours_json` 保存七日结构化营业时段；`license_media_id` 保存单张营业执照；`gallery_media_ids_json` 保存零至九张有序经营图片 ID。
+- Mock 结算仅保存 `settlement_account_name`、`settlement_bank_name` 与四位 `settlement_account_suffix`，不保存真实完整银行卡号。
+- `rejection_reason`、`submission_idempotency_key`、`submitted_at`、`reviewed_at`、`reviewer_admin_id`、`approved_shop_id`、`version`、`create_time`、`update_time`。
+- 唯一索引为 `uk_merchant_application_account(merchant_account_id)`；审核队列索引为 `idx_merchant_application_status_submitted(status,submitted_at,id)`；状态只允许 `DRAFT`（草稿）、`PENDING`（审核中）、`APPROVED`（审核通过）、`REJECTED`（审核未通过）。
+
+`business_media_asset` 字段固定为：
+
+- `id`、`uploader_merchant_account_id`、`purpose`、`status`、`bucket_name`、唯一 `object_key`、`original_filename`、`mime_type`、`byte_size`、`width`、`height`。
+- 绑定事实为 `owner_type`、`owner_id`、`sort_order`、`bound_at`；生命周期为 `expires_at`、`deleted_at`、`create_time`、`update_time`。
+- 上传者清理索引为 `idx_business_media_uploader_status_expiry(uploader_merchant_account_id,status,expires_at,id)`；业务读取索引为 `idx_business_media_owner(owner_type,owner_id,purpose,sort_order,id)`。
+- `purpose` 允许 `LICENSE`（营业执照）、`GALLERY`（经营图片）、`VOUCHER_COVER`（券封面）、`VOUCHER_DETAIL`（券详情图）；阶段 18 只开放前两种。`status` 允许 `TEMPORARY`（临时）、`BOUND`（已绑定）、`DELETED`（已删除）；临时记录不得带业务归属，已绑定记录必须同时具备归属类型与 ID。
 
 ### 目标重构表
 

@@ -1,7 +1,7 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 8
+version: 9
 updatedAt: 2026-09-04
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
@@ -111,6 +111,19 @@ deviceAcceptanceStatus: 不适用
 - SnailJob 负责关单、券过期、定时上下架、媒体清理、退款重试和 T+1 结算；查询与支付保留惰性关单。
 - 管理 SSE 和商户 WebSocket 只发送资源失效事件，客户端收到后回查权威接口；Redis 负责多实例会话分发。
 - Fesod 提供受权限控制的同步 XLSX 导出；Spring Boot Admin、SkyWalking 与 WarmFlow 保持后续扩展。
+
+## 阶段 18 服务端冻结设计
+
+- 商户入驻只接受 `OWNER`（店主）角色；`NOT_APPLIED`（未入驻）与 `REJECTED`（审核未通过）可写，`PENDING`（审核中）只读，`ACTIVE`（已激活）不重复创建申请。
+- `GET /v1/merchant/application` 在尚无草稿时返回成功且 `data=null`；`PUT /v1/merchant/application` 以 `version` 做乐观锁保存完整草稿快照；`POST /v1/merchant/application/submission` 使用 8 至 128 位 `Idempotency-Key` 提交。
+- 草稿字段固定为门店名称、统一社会信用代码、法定代表人、联系人、联系电话、门店类目、城市、区县、详细地址、经纬度、七日营业时段、营业执照媒体、最多九张经营图片及 Mock 结算户名/银行/账号后四位。草稿允许字段缺省，提交时统一校验完整性。
+- 营业时间使用七个唯一 `dayOfWeek`，取值为 `MONDAY`（星期一）至 `SUNDAY`（星期日）；营业日包含一至三个不重叠的 `HH:mm` 时段，休息日时段必须为空。
+- 经营媒体接口为上传 `POST /v1/merchant/business-media/images`、临时删除 `DELETE /v1/merchant/business-media/images/{mediaId}` 与鉴权读取 `GET /v1/merchant/business-media/images/{mediaId}/content`。上传表单包含 `file` 和 `purpose`，阶段 18 只接受 `LICENSE`（营业执照）与 `GALLERY`（经营图片）。
+- 单图只接受 JPEG、PNG、WebP，最大 10 MB，宽高均为 320 至 8192 像素；对象键由服务端生成。数据库只保存 bucket、object key 与元数据，读取接口返回私有缓存响应，不暴露永久公网 URL。
+- `GET /v1/merchant/reference/cities` 与 `GET /v1/merchant/reference/shop-types` 为商户端提供只读字典，商户小程序不得复用消费者 `/v1/cities` 或 `/v1/shop-types`。
+- 上传先写对象存储再建临时记录，建档失败补偿删除对象；草稿保存只引用并续期临时媒体；提交事务按 ID 加锁并原子绑定媒体、迁移申请与商户账号状态。事务失败不得留下已绑定媒体。
+- 存储端口使用 `LOCAL`（本地存储）与 `S3`（S3 兼容对象存储）两种模式；S3 采用冻结的 AWS SDK S3 2.28.22，生产缺少 endpoint、region、bucket 或凭据时启动失败，不回退本地目录。
+- 阶段 18 新增错误码：`MERCHANT_APPLICATION_NOT_EDITABLE`（申请不可编辑）、`MERCHANT_APPLICATION_INCOMPLETE`（申请资料不完整）、`MERCHANT_APPLICATION_VERSION_CONFLICT`（申请版本冲突）、`MERCHANT_APPLICATION_STATE_CONFLICT`（申请状态冲突）、`MERCHANT_APPLICATION_IDEMPOTENCY_CONFLICT`（提交幂等键冲突）、`BUSINESS_MEDIA_NOT_FOUND`（经营媒体不存在）、`BUSINESS_MEDIA_NOT_OWNED`（经营媒体不属于当前商户）、`BUSINESS_MEDIA_INVALID_TYPE`（经营媒体类型不支持）、`BUSINESS_MEDIA_INVALID_DIMENSIONS`（经营媒体尺寸不合规）、`BUSINESS_MEDIA_EXPIRED`（临时经营媒体已过期）、`BUSINESS_MEDIA_ALREADY_BOUND`（经营媒体已绑定）、`OBJECT_STORAGE_UNAVAILABLE`（对象存储不可用）。
 
 ## 后端阶段
 
