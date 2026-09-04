@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.ray.entity.City;
 import com.ray.entity.Shop;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.service.ShopCacheService;
@@ -74,7 +75,7 @@ class ShopServiceImplTest {
     /** 详情坐标与商户坐标重合时应返回零距离。 */
     @Test
     void calculatesDetailDistanceForCompleteCoordinates() {
-        Shop shop = new Shop().setId(4L).setStatus(1).setX(120.1).setY(30.2);
+        Shop shop = new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()).setX(120.1).setY(30.2);
         when(shopCacheService.findById(4L)).thenReturn(shop);
 
         ShopVO result = shopService.getShop(4L, 120.1, 30.2);
@@ -85,7 +86,7 @@ class ShopServiceImplTest {
     /** 商户事实缓存不包含请求坐标，每次请求都重新计算距离。 */
     @Test
     void recalculatesDistanceForDifferentCoordinates() {
-        Shop shop = new Shop().setId(4L).setStatus(1).setX(120.1).setY(30.2);
+        Shop shop = new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()).setX(120.1).setY(30.2);
         when(shopCacheService.findById(4L)).thenReturn(shop);
 
         ShopVO first = shopService.getShop(4L, 120.1, 30.2);

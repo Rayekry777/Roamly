@@ -7,8 +7,10 @@ import com.ray.config.SmsProperties;
 import com.ray.dto.LoginDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.Shop;
+import com.ray.enums.MerchantAccountDisabledSource;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.MerchantRole;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MerchantAccountMapper;
 import com.ray.mapper.ShopMapper;
@@ -19,6 +21,7 @@ import com.ray.vo.CurrentMerchantVO;
 import com.ray.vo.MerchantShopSummaryVO;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -143,7 +146,21 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         if (status == MerchantAccountStatus.DISABLED) {
             merchantStpLogic.logout();
+            if (MerchantAccountDisabledSource.SHOP_SUSPENSION.name().equals(account.getDisabledSource())) {
+                throw BusinessException.forbidden("MERCHANT_SHOP_SUSPENDED", "所属门店已停用");
+            }
             throw BusinessException.forbidden("MERCHANT_ACCOUNT_DISABLED", "商户账号已停用");
+        }
+        if (status == MerchantAccountStatus.ACTIVE && account.getShopId() != null) {
+            Shop shop = shopMapper.selectById(account.getShopId());
+            if (shop == null) {
+                merchantStpLogic.logout();
+                throw BusinessException.conflict("MERCHANT_SHOP_NOT_FOUND", "商户账号绑定的门店不存在");
+            }
+            if (!ShopStatus.ACTIVE.name().equals(shop.getStatus())) {
+                merchantStpLogic.logout();
+                throw BusinessException.forbidden("MERCHANT_SHOP_SUSPENDED", "所属门店当前不可经营");
+            }
         }
         if (status != MerchantAccountStatus.ACTIVE
                 && !path.startsWith("/v1/merchant/application")
@@ -164,6 +181,15 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
             throw new BusinessException(401, "UNAUTHORIZED", "登录已失效，请重新登录");
         }
         return account;
+    }
+
+    /** 批量注销审核或治理影响账号的全部商户端会话。 */
+    @Override
+    public void invalidateAllSessions(Collection<Long> merchantAccountIds) {
+        merchantAccountIds.stream().distinct().forEach(merchantStpLogic::logout);
+        if (!merchantAccountIds.isEmpty()) {
+            log.info("[商户会话] 已注销状态变更账号会话，数量={}", merchantAccountIds.stream().distinct().count());
+        }
     }
 
     private MerchantAccount findByPhone(String phone) {

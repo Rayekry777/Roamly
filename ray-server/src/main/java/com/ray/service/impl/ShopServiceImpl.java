@@ -5,6 +5,7 @@ import com.ray.entity.City;
 import com.ray.entity.Shop;
 import com.ray.enums.EnableStatus;
 import com.ray.enums.ShopSort;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.result.PageResult;
@@ -34,7 +35,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
     public ShopVO getShop(Long id, Double longitude, Double latitude) {
         validateCoordinates(longitude, latitude);
         Shop shop = shopCacheService.findById(id);
-        if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus())) {
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus())) {
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
         }
         ShopVO view = ViewMapper.toShop(shop);

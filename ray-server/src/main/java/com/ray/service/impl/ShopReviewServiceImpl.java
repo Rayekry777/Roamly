@@ -12,6 +12,7 @@ import com.ray.entity.ShopReviewMedia;
 import com.ray.enums.MediaAssetStatus;
 import com.ray.enums.ReviewSort;
 import com.ray.enums.ReviewStatus;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopReviewMapper;
@@ -178,7 +179,7 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
 
     private Shop requireShop(Long shopId) {
         Shop shop = shopMapper.selectById(shopId);
-        if (shop == null || !Integer.valueOf(1).equals(shop.getStatus())) {
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus())) {
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
         }
         return shop;

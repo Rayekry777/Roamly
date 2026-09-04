@@ -4,6 +4,7 @@ import com.ray.dto.LoginDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.vo.AuthTokenVO;
 import com.ray.vo.CurrentMerchantVO;
+import java.util.Collection;
 
 /** 商户短信认证、当前身份与经营状态门禁服务。 */
 public interface MerchantAuthService {
@@ -24,4 +25,7 @@ public interface MerchantAuthService {
 
     /** 校验商户请求的登录态、账号状态和经营访问资格。 */
     void assertRequestAllowed(String method, String path);
+
+    /** 注销指定商户账号的全部商户端会话。 */
+    void invalidateAllSessions(Collection<Long> merchantAccountIds);
 }

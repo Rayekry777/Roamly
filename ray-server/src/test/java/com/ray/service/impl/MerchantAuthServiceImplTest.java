@@ -12,8 +12,10 @@ import cn.dev33.satoken.stp.StpLogic;
 import com.ray.config.SmsProperties;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.Shop;
+import com.ray.enums.MerchantAccountDisabledSource;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.MerchantRole;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MerchantAccountMapper;
 import com.ray.mapper.ShopMapper;
@@ -112,6 +114,38 @@ class MerchantAuthServiceImplTest {
 
         assertEquals(403, exception.status());
         assertEquals("MERCHANT_ACCOUNT_DISABLED", exception.code());
+        verify(stpLogic).logout();
+    }
+
+    @Test
+    void shopSuspensionUsesDedicatedErrorAndInvalidatesCurrentToken() {
+        MerchantAccount account = account(MerchantAccountStatus.DISABLED)
+                .setShopId(3L)
+                .setDisabledSource(MerchantAccountDisabledSource.SHOP_SUSPENSION.name());
+        when(stpLogic.getLoginIdAsLong()).thenReturn(8L);
+        when(mapper.selectById(8L)).thenReturn(account);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.assertRequestAllowed("GET", "/v1/merchant/orders"));
+
+        assertEquals(403, exception.status());
+        assertEquals("MERCHANT_SHOP_SUSPENDED", exception.code());
+        verify(stpLogic).logout();
+    }
+
+    @Test
+    void activeAccountCannotOperateWhenBoundShopIsNotActive() {
+        MerchantAccount account = account(MerchantAccountStatus.ACTIVE).setShopId(3L);
+        when(stpLogic.getLoginIdAsLong()).thenReturn(8L);
+        when(mapper.selectById(8L)).thenReturn(account);
+        when(shopMapper.selectById(3L)).thenReturn(new Shop().setId(3L).setStatus(ShopStatus.SUSPENDED.name()));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.assertRequestAllowed("GET", "/v1/merchant/orders"));
+
+        assertEquals("MERCHANT_SHOP_SUSPENDED", exception.code());
         verify(stpLogic).logout();
     }
 

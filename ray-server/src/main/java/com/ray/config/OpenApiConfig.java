@@ -17,7 +17,13 @@ import com.ray.vo.CommentThreadVO;
 import com.ray.vo.CommentVO;
 import com.ray.vo.CurrentMerchantVO;
 import com.ray.vo.BusinessMediaVO;
+import com.ray.vo.AdminShopDetailVO;
+import com.ray.vo.AdminShopGovernanceResultVO;
+import com.ray.vo.AdminShopListItemVO;
 import com.ray.vo.MerchantApplicationVO;
+import com.ray.vo.MerchantApplicationReviewDetailVO;
+import com.ray.vo.MerchantApplicationReviewListItemVO;
+import com.ray.vo.MerchantApplicationReviewResultVO;
 import com.ray.vo.MerchantShopSummaryVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
@@ -73,6 +79,7 @@ public class OpenApiConfig {
         registerReviewSchemas(components);
         registerVoucherSchemas(components);
         registerMerchantSchemas(components);
+        registerAdminMerchantGovernanceSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -94,6 +101,7 @@ public class OpenApiConfig {
             registerReviewSchemas(openApi.getComponents());
             registerVoucherSchemas(openApi.getComponents());
             registerMerchantSchemas(openApi.getComponents());
+            registerAdminMerchantGovernanceSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -201,6 +209,27 @@ public class OpenApiConfig {
         registerSchema(components, "MerchantApplicationSaveDTO", MerchantApplicationSaveDTO.class);
         registerSchema(components, "BusinessMediaVO", BusinessMediaVO.class);
         registerSchema(components, "MerchantApplicationVO", MerchantApplicationVO.class);
+    }
+
+    private void registerAdminMerchantGovernanceSchemas(Components components) {
+        registerSchema(
+                components,
+                "MerchantApplicationReviewListItemVO",
+                MerchantApplicationReviewListItemVO.class);
+        registerSchema(
+                components,
+                "MerchantApplicationReviewDetailVO",
+                MerchantApplicationReviewDetailVO.class);
+        registerSchema(
+                components,
+                "MerchantApplicationReviewResultVO",
+                MerchantApplicationReviewResultVO.class);
+        registerSchema(components, "AdminShopListItemVO", AdminShopListItemVO.class);
+        registerSchema(components, "AdminShopDetailVO", AdminShopDetailVO.class);
+        registerSchema(
+                components,
+                "AdminShopGovernanceResultVO",
+                AdminShopGovernanceResultVO.class);
     }
 
     private void addError(ApiResponses responses, String status, String description) {

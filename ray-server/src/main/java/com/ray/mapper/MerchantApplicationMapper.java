@@ -10,4 +10,8 @@ public interface MerchantApplicationMapper extends BaseMapper<MerchantApplicatio
     /** 按店主账号锁定唯一申请，供提交事务串行决策。 */
     @Select("SELECT * FROM merchant_application WHERE merchant_account_id=#{accountId} FOR UPDATE")
     MerchantApplication selectByAccountForUpdate(@Param("accountId") Long accountId);
+
+    /** 按申请 ID 加锁读取，供审核事务取得唯一决定权。 */
+    @Select("SELECT * FROM merchant_application WHERE id=#{applicationId} FOR UPDATE")
+    MerchantApplication selectByIdForUpdate(@Param("applicationId") Long applicationId);
 }

@@ -19,7 +19,10 @@ import org.springframework.stereotype.Component;
 public class DevelopmentBusinessObjectInitializer implements ApplicationRunner {
     static final List<String> SEED_OBJECT_KEYS = List.of(
             "seed/merchant/application-3-license.png",
-            "seed/merchant/application-4-license.png");
+            "seed/merchant/application-4-license.png",
+            "seed/merchant/application-9101-license.png",
+            "seed/merchant/application-9102-license.png",
+            "seed/merchant/application-9103-license.png");
 
     private final ObjectStoragePort objectStorage;
     private final Resource seedLicense;

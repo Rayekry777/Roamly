@@ -38,6 +38,9 @@ public class MerchantApplication implements Serializable {
     private String settlementAccountSuffix;
     private String rejectionReason;
     private String submissionIdempotencyKey;
+    private String reviewDecision;
+    private String reviewIdempotencyKey;
+    private String reviewRequestFingerprint;
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
     private Long reviewerAdminId;

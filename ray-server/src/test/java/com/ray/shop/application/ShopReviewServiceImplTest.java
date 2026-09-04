@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.ray.dto.ShopReviewCreateDTO;
 import com.ray.entity.Shop;
 import com.ray.entity.ShopReview;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.ShopReviewMapper;
@@ -48,7 +49,7 @@ class ShopReviewServiceImplTest {
                 shopCacheService);
         ReflectionTestUtils.setField(service, "baseMapper", reviewMapper);
         when(currentUserProvider.requireUserId()).thenReturn(7L);
-        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(1));
+        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()));
     }
 
     @Test
@@ -65,7 +66,7 @@ class ShopReviewServiceImplTest {
 
     @Test
     void rejectsInactiveShop() {
-        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(0));
+        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.SUSPENDED.name()));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,

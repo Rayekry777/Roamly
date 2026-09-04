@@ -211,7 +211,7 @@ CREATE TABLE `shop`  (
   `name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺名称',
   `type_id` bigint(20) UNSIGNED NOT NULL COMMENT '商铺类型的id',
   `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '330100' COMMENT '城市编码',
-  `images` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺图片，多个图片以\',\'隔开',
+  `images` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '消费者摘要图片，多个地址以\',\'隔开',
   `area` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '商圈，例如陆家嘴',
   `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '地址',
   `x` double UNSIGNED NOT NULL COMMENT '经度',
@@ -221,12 +221,27 @@ CREATE TABLE `shop`  (
   `comments` int(10) UNSIGNED NOT NULL COMMENT '评论数量',
   `score` int(2) UNSIGNED NOT NULL COMMENT '评分，1~5分，乘10保存，避免小数',
   `open_hours` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '营业时间，例如 10:00-22:00',
-  `status` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '经营状态：0停用，1启用',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT '经营状态：PENDING待激活、ACTIVE营业中、SUSPENDED已停用、CLOSED已关闭',
+  `source_application_id` bigint UNSIGNED NOT NULL COMMENT '审核通过来源申请ID，逻辑关联merchant_application.id',
+  `business_hours_json` json NOT NULL COMMENT '星期一至星期日结构化营业时段',
+  `activated_at` timestamp NULL DEFAULT NULL COMMENT '首次激活时间',
+  `suspended_at` timestamp NULL DEFAULT NULL COMMENT '最近一次停用时间',
+  `suspension_reason` varchar(500) NULL DEFAULT NULL COMMENT '最近一次停用原因',
+  `status_changed_by_admin_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '最近一次治理管理员ID',
+  `status_command_type` varchar(16) NULL DEFAULT NULL COMMENT '最近治理命令：SUSPENSION停用、ACTIVATION恢复',
+  `status_idempotency_key` varchar(128) NULL DEFAULT NULL COMMENT '最近治理命令幂等键',
+  `status_request_fingerprint` char(64) NULL DEFAULT NULL COMMENT '最近治理请求SHA-256指纹',
+  `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_shop_source_application` (`source_application_id`),
   INDEX `foreign_key_type`(`type_id`) USING BTREE,
-  INDEX `idx_shop_city_type_status`(`city_code`, `type_id`, `status`, `id`) USING BTREE
+  INDEX `idx_shop_status_city_type`(`status`, `city_code`, `type_id`, `id`) USING BTREE,
+  CONSTRAINT `chk_shop_status` CHECK (`status` IN ('PENDING','ACTIVE','SUSPENDED','CLOSED')),
+  CONSTRAINT `chk_shop_activation` CHECK (`status` <> 'ACTIVE' OR `activated_at` IS NOT NULL),
+  CONSTRAINT `chk_shop_suspension` CHECK ((`status`='SUSPENDED' AND `suspended_at` IS NOT NULL AND `suspension_reason` IS NOT NULL) OR (`status`<>'SUSPENDED' AND `suspended_at` IS NULL AND `suspension_reason` IS NULL)),
+  CONSTRAINT `chk_shop_status_command` CHECK ((`status_command_type` IS NULL AND `status_changed_by_admin_id` IS NULL AND `status_idempotency_key` IS NULL AND `status_request_fingerprint` IS NULL) OR (`status_command_type` IN ('SUSPENSION','ACTIVATION') AND `status_changed_by_admin_id` IS NOT NULL AND `status_idempotency_key` IS NOT NULL AND CHAR_LENGTH(`status_request_fingerprint`)=64))
 ) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 CREATE TABLE `merchant_account` (
@@ -237,6 +252,9 @@ CREATE TABLE `merchant_account` (
   `role` varchar(16) NOT NULL DEFAULT 'OWNER' COMMENT '固定角色：OWNER店主、MANAGER店长、VERIFIER核销员',
   `status` varchar(16) NOT NULL DEFAULT 'NOT_APPLIED' COMMENT '展示状态：NOT_APPLIED未入驻、PENDING审核中、ACTIVE已激活、REJECTED审核未通过、DISABLED已停用',
   `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '绑定门店ID，逻辑关联shop.id',
+  `disabled_source` varchar(24) NULL DEFAULT NULL COMMENT '停用来源：SHOP_SUSPENSION门店联动、ACCOUNT_GOVERNANCE平台治理、STAFF_MANAGEMENT员工管理',
+  `disabled_reason` varchar(500) NULL DEFAULT NULL COMMENT '停用原因',
+  `disabled_at` timestamp NULL DEFAULT NULL COMMENT '停用时间',
   `last_login_time` timestamp NULL DEFAULT NULL COMMENT '最近登录时间',
   `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -246,7 +264,9 @@ CREATE TABLE `merchant_account` (
   INDEX `idx_merchant_account_shop_status_role` (`shop_id`, `status`, `role`, `id`),
   CONSTRAINT `chk_merchant_account_role` CHECK (`role` IN ('OWNER','MANAGER','VERIFIER')),
   CONSTRAINT `chk_merchant_account_status` CHECK (`status` IN ('NOT_APPLIED','PENDING','ACTIVE','REJECTED','DISABLED')),
-  CONSTRAINT `chk_merchant_active_shop` CHECK (`status` <> 'ACTIVE' OR `shop_id` IS NOT NULL)
+  CONSTRAINT `chk_merchant_active_shop` CHECK (`status` <> 'ACTIVE' OR `shop_id` IS NOT NULL),
+  CONSTRAINT `chk_merchant_disabled_source` CHECK (`disabled_source` IS NULL OR `disabled_source` IN ('SHOP_SUSPENSION','ACCOUNT_GOVERNANCE','STAFF_MANAGEMENT')),
+  CONSTRAINT `chk_merchant_disabled_fields` CHECK ((`status`='DISABLED' AND `shop_id` IS NOT NULL AND `disabled_source` IS NOT NULL AND `disabled_reason` IS NOT NULL AND `disabled_at` IS NOT NULL) OR (`status`<>'DISABLED' AND `disabled_source` IS NULL AND `disabled_reason` IS NULL AND `disabled_at` IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户店主与员工账号';
 
 CREATE TABLE `merchant_application` (
@@ -272,6 +292,9 @@ CREATE TABLE `merchant_application` (
   `settlement_account_suffix` char(4) NULL DEFAULT NULL COMMENT 'Mock结算账号后四位',
   `rejection_reason` varchar(500) NULL DEFAULT NULL COMMENT '最近驳回原因',
   `submission_idempotency_key` varchar(128) NULL DEFAULT NULL COMMENT '最近提交幂等键',
+  `review_decision` varchar(16) NULL DEFAULT NULL COMMENT '审核决定：APPROVAL通过、REJECTION驳回',
+  `review_idempotency_key` varchar(128) NULL DEFAULT NULL COMMENT '成功审核命令幂等键',
+  `review_request_fingerprint` char(64) NULL DEFAULT NULL COMMENT '审核请求SHA-256指纹',
   `submitted_at` timestamp NULL DEFAULT NULL COMMENT '提交时间',
   `reviewed_at` timestamp NULL DEFAULT NULL COMMENT '审核时间',
   `reviewer_admin_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '审核管理员ID',
@@ -281,8 +304,11 @@ CREATE TABLE `merchant_application` (
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_merchant_application_account` (`merchant_account_id`),
+  UNIQUE INDEX `uk_merchant_application_approved_shop` (`approved_shop_id`),
   INDEX `idx_merchant_application_status_submitted` (`status`,`submitted_at`,`id`),
-  CONSTRAINT `chk_merchant_application_status` CHECK (`status` IN ('DRAFT','PENDING','APPROVED','REJECTED'))
+  CONSTRAINT `chk_merchant_application_status` CHECK (`status` IN ('DRAFT','PENDING','APPROVED','REJECTED')),
+  CONSTRAINT `chk_merchant_application_decision` CHECK (`review_decision` IS NULL OR `review_decision` IN ('APPROVAL','REJECTION')),
+  CONSTRAINT `chk_merchant_application_review_fields` CHECK ((`status`='DRAFT' AND `submission_idempotency_key` IS NULL AND `submitted_at` IS NULL AND `review_decision` IS NULL AND `review_idempotency_key` IS NULL AND `review_request_fingerprint` IS NULL AND `reviewed_at` IS NULL AND `reviewer_admin_id` IS NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NULL) OR (`status`='PENDING' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision` IS NULL AND `review_idempotency_key` IS NULL AND `review_request_fingerprint` IS NULL AND `reviewed_at` IS NULL AND `reviewer_admin_id` IS NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NULL) OR (`status`='APPROVED' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision`='APPROVAL' AND `review_idempotency_key` IS NOT NULL AND CHAR_LENGTH(`review_request_fingerprint`)=64 AND `reviewed_at` IS NOT NULL AND `reviewer_admin_id` IS NOT NULL AND `approved_shop_id` IS NOT NULL AND `rejection_reason` IS NULL) OR (`status`='REJECTED' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision`='REJECTION' AND `review_idempotency_key` IS NOT NULL AND CHAR_LENGTH(`review_request_fingerprint`)=64 AND `reviewed_at` IS NOT NULL AND `reviewer_admin_id` IS NOT NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NOT NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户入驻申请';
 
 CREATE TABLE `business_media_asset` (

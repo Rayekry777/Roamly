@@ -104,6 +104,9 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
                     .eq("id", account.getId())
                     .eq("status", MerchantAccountStatus.REJECTED.name())
                     .set("status", MerchantAccountStatus.NOT_APPLIED.name())
+                    .set("disabled_source", null)
+                    .set("disabled_reason", null)
+                    .set("disabled_at", null)
                     .setSql("version=version+1"));
             if (affected != 1) throw stateConflict();
         }
@@ -203,6 +206,10 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
                 .set("submitted_at", null)
                 .set("reviewed_at", null)
                 .set("reviewer_admin_id", null)
+                .set("review_decision", null)
+                .set("review_idempotency_key", null)
+                .set("review_request_fingerprint", null)
+                .set("approved_shop_id", null)
                 .setSql("version=version+1");
         if (!update(update)) throw versionConflict();
         return getById(existing.getId());

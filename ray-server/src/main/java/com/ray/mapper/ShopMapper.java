@@ -9,6 +9,10 @@ import org.apache.ibatis.annotations.Update;
 
 /** 商户表的数据访问接口。 */
 public interface ShopMapper extends BaseMapper<Shop> {
+    /** 按门店 ID 加锁读取，供停用和恢复事务串行决策。 */
+    @Select("SELECT * FROM shop WHERE id=#{shopId} FOR UPDATE")
+    Shop selectByIdForUpdate(@Param("shopId") Long shopId);
+
     /** 根据有效点评事实重算商户评分和点评数量。 */
     @Update("UPDATE shop SET comments = (SELECT COUNT(*) FROM shop_review "
             + "WHERE shop_id = #{shopId} AND status = 0), "
@@ -24,7 +28,7 @@ public interface ShopMapper extends BaseMapper<Shop> {
             + "<choose><when test='longitude != null and latitude != null'>"
             + "ST_Distance_Sphere(POINT(s.x, s.y), POINT(#{longitude}, #{latitude})) "
             + "</when><otherwise>NULL </otherwise></choose>AS distance "
-            + "FROM shop s WHERE s.status = 1 AND s.city_code = #{cityCode} "
+            + "FROM shop s WHERE s.status = 'ACTIVE' AND s.city_code = #{cityCode} "
             + "<if test='typeId != null'>AND s.type_id = #{typeId} </if>"
             + "<if test='keyword != null and keyword != \"\"'>AND s.name LIKE CONCAT('%', #{keyword}, '%') </if>"
             + "<choose>"
@@ -43,7 +47,7 @@ public interface ShopMapper extends BaseMapper<Shop> {
             @Param("size") int size);
 
     /** 统计与地理筛选相同条件的启用商户数量。 */
-    @Select("<script>SELECT COUNT(*) FROM shop s WHERE s.status = 1 AND s.city_code = #{cityCode} "
+    @Select("<script>SELECT COUNT(*) FROM shop s WHERE s.status = 'ACTIVE' AND s.city_code = #{cityCode} "
             + "<if test='typeId != null'>AND s.type_id = #{typeId} </if>"
             + "<if test='keyword != null and keyword != \"\"'>AND s.name LIKE CONCAT('%', #{keyword}, '%') </if></script>")
     long countEnabledByFilter(

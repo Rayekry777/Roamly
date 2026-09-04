@@ -111,11 +111,34 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(77, operationIds.size());
+        assertEquals(86, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1users/get/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1merchant-applications/get/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1merchant-applications~1{applicationId}/get/responses/404").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1merchant-applications~1{applicationId}~1media~1{mediaId}~1content/get/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1merchant-applications~1{applicationId}~1approval/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1merchant-applications~1{applicationId}~1rejection/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1shops/get/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}/get/responses/404").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}~1suspension/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}~1activation/post/responses/409").isObject());
+        assertRequiredParameter(
+                document,
+                "/v1/admin/merchant-applications/{applicationId}/approval",
+                "post",
+                "Idempotency-Key");
+        assertRequiredParameter(
+                document,
+                "/v1/admin/merchant-applications/{applicationId}/rejection",
+                "post",
+                "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/admin/shops/{shopId}/suspension", "post", "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/admin/shops/{shopId}/activation", "post", "Idempotency-Key");
         assertEquals(0, document.at("/paths/~1v1~1merchant~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
@@ -177,6 +200,15 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("BusinessMediaVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationApprovalRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationRejectionRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("ShopGovernanceRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationReviewDetailVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationReviewListItemVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationReviewResultVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminShopDetailVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminShopListItemVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminShopGovernanceResultVO"), "schemas=" + schemaNames);
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -191,6 +223,36 @@ class OpenApiAndAuthRuntimeTest {
         assertSchemaProperties(document, "CommentCreateDTO", Set.of("content"));
         assertSchemaProperties(document, "CommentVO", Set.of("id", "rootId", "author", "replyToUser", "content", "deleted", "postAuthor", "likedCount", "likedByMe", "deletable", "createdTime"));
         assertSchemaProperties(document, "CommentThreadVO", Set.of("root", "previewReplies", "replyCount", "hasMoreReplies", "nextReplyCursor", "nextReplyOffset"));
+        assertSchemaProperties(document, "MerchantApplicationApprovalRequest", Set.of("version"));
+        assertSchemaProperties(document, "MerchantApplicationRejectionRequest", Set.of("version", "reason"));
+        assertSchemaProperties(document, "ShopGovernanceRequest", Set.of("version", "reason"));
+        assertSchemaProperties(
+                document,
+                "MerchantApplicationReviewResultVO",
+                Set.of(
+                        "applicationId",
+                        "status",
+                        "statusLabel",
+                        "decision",
+                        "decisionLabel",
+                        "reviewerAdminId",
+                        "reviewerDisplayName",
+                        "reviewedAt",
+                        "version",
+                        "shop"));
+        assertSchemaProperties(
+                document,
+                "AdminShopGovernanceResultVO",
+                Set.of(
+                        "shopId",
+                        "status",
+                        "statusLabel",
+                        "version",
+                        "reason",
+                        "operatedByAdminId",
+                        "operatedByAdminName",
+                        "operatedAt",
+                        "affectedAccountCount"));
         assertRefsResolve(document, document, schemaNames);
     }
 
@@ -210,6 +272,15 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/admin/users/{adminUserId}/activation",
                 "POST /v1/admin/users/{adminUserId}/disablement",
                 "POST /v1/admin/users/{adminUserId}/password-reset",
+                "GET /v1/admin/merchant-applications",
+                "GET /v1/admin/merchant-applications/{applicationId}",
+                "GET /v1/admin/merchant-applications/{applicationId}/media/{mediaId}/content",
+                "POST /v1/admin/merchant-applications/{applicationId}/approval",
+                "POST /v1/admin/merchant-applications/{applicationId}/rejection",
+                "GET /v1/admin/shops",
+                "GET /v1/admin/shops/{shopId}",
+                "POST /v1/admin/shops/{shopId}/suspension",
+                "POST /v1/admin/shops/{shopId}/activation",
                 "POST /v1/merchant/auth/sms-codes",
                 "POST /v1/merchant/auth/login",
                 "GET /v1/merchant/auth/me",
@@ -477,6 +548,17 @@ class OpenApiAndAuthRuntimeTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("缺少参数: " + parameterName));
         assertEquals(expectedType, parameter.path("schema").path("type").asText());
+    }
+
+    private void assertRequiredParameter(
+            JsonNode document, String path, String method, String parameterName) {
+        JsonNode parameters = document.path("paths").path(path).path(method).path("parameters");
+        JsonNode parameter = java.util.stream.StreamSupport.stream(parameters.spliterator(), false)
+                .filter(item -> parameterName.equals(item.path("name").asText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("缺少参数: " + parameterName));
+        assertTrue(parameter.path("required").asBoolean(), parameterName + " 必须为必填参数");
+        assertEquals("header", parameter.path("in").asText());
     }
 
     private void assertRefsResolve(JsonNode root, JsonNode node, java.util.List<String> schemaNames) {

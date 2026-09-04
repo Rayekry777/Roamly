@@ -19,7 +19,7 @@ class DevelopmentBusinessObjectInitializerTest {
 
         initializer.run(new DefaultApplicationArguments());
 
-        assertThat(storage.objects).hasSize(2);
+        assertThat(storage.objects).hasSize(5);
         assertThat(storage.objects.get(existingKey)).containsExactly(1);
         assertThat(storage.objects.get(DevelopmentBusinessObjectInitializer.SEED_OBJECT_KEYS.getLast()))
                 .hasSize(543);

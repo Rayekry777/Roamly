@@ -22,6 +22,7 @@ import com.ray.entity.UserInfo;
 import com.ray.enums.EnableStatus;
 import com.ray.enums.PostFeedSort;
 import com.ray.enums.PostStatus;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ContentPostMapper;
 import com.ray.mapper.PostLikeMapper;
@@ -337,7 +338,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     public CursorPageResult<PostCardVO> listShopPosts(Long shopId, Long cursor, int offset, int size) {
         requireCursorOffset(cursor, offset);
         Shop shop = shopService.getById(shopId);
-        if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus()))
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus()))
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
         List<ContentPost> posts = baseMapper.selectShopPosts(shopId, toCursorTime(cursor), offset, size + 1);
         return toCursorPage(posts, cursor, offset, size, this::createdTimeScore);
@@ -408,7 +409,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         }
         Long parsedShopId = IdUtils.parse(shopId, "shopId");
         Shop shop = shopService.getById(parsedShopId);
-        if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus())) {
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus())) {
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
         }
         if (!StringUtils.hasText(shop.getCityCode()) || !isEnabledCity(shop.getCityCode())) {

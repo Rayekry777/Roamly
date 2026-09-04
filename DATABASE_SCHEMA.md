@@ -14,7 +14,7 @@ targetImplementationStatus: 开发中
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 24 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log`、阶段 17 的 `merchant_account`，以及阶段 18 的 `merchant_application`、`business_media_asset` 已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
+当前源码快照为 24 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log`、阶段 17 的 `merchant_account`，阶段 18 的 `merchant_application`、`business_media_asset`，以及阶段 19 对申请、门店与商户账号的治理字段均已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
 
 ## 规则
 
@@ -121,7 +121,7 @@ targetImplementationStatus: 开发中
 - 上传者清理索引为 `idx_business_media_uploader_status_expiry(uploader_merchant_account_id,status,expires_at,id)`；业务读取索引为 `idx_business_media_owner(owner_type,owner_id,purpose,sort_order,id)`。
 - `purpose` 允许 `LICENSE`（营业执照）、`GALLERY`（经营图片）、`VOUCHER_COVER`（券封面）、`VOUCHER_DETAIL`（券详情图）；阶段 18 只开放前两种。`status` 允许 `TEMPORARY`（临时）、`BOUND`（已绑定）、`DELETED`（已删除）；临时记录不得带业务归属，已绑定记录必须同时具备归属类型与 ID。
 
-### 阶段 19 字段冻结
+### 阶段 19 已实现字段
 
 阶段 19 不新增业务表，仍直接覆盖 24 表完整快照；只重构 `merchant_application`、`shop` 与 `merchant_account`。完整事务与接口设计见 [阶段 19 详细设计](./docs/stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md)。
 
@@ -190,6 +190,6 @@ targetImplementationStatus: 开发中
 2026-09-04 已在 `.env` 当前指向且获授权的开发库完成 24 表 Demo 验收：
 
 - 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 24 张业务表、关键唯一索引、旧表退役和种子一致性。
-- `DatabaseBusinessClosureIntegrationTest` 6 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计，以及入驻媒体、社区、点评、订单、发券、过期刷新和用户隔离。
+- `DatabaseBusinessClosureIntegrationTest` 7 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复，以及社区、点评、订单、发券、过期刷新和用户隔离。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 目标 33 表仍只完成冻结设计，阶段 19 至 29 的新增表不得提前标记为已实现。
+- 目标 33 表仍只完成冻结设计，阶段 20 至 29 的新增表不得提前标记为已实现。

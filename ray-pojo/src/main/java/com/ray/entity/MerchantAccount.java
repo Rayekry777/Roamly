@@ -22,6 +22,9 @@ public class MerchantAccount implements Serializable {
     private String role;
     private String status;
     private Long shopId;
+    private String disabledSource;
+    private String disabledReason;
+    private LocalDateTime disabledAt;
     private LocalDateTime lastLoginTime;
     private Integer version;
     private LocalDateTime createTime;

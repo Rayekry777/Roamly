@@ -15,6 +15,7 @@ import com.ray.dto.VoucherOrderCreateDTO;
 import com.ray.entity.Shop;
 import com.ray.entity.VoucherOrder;
 import com.ray.entity.VoucherProduct;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.UserVoucherMapper;
@@ -162,6 +163,6 @@ class VoucherTradeServiceImplTest {
                 .setPayPrice(9900L)
                 .setPurchaseLimit(purchaseLimit)
                 .setStatus("ON_SALE"));
-        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(1));
+        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()));
     }
 }

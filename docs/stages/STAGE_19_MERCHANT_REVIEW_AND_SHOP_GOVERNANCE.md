@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 2
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 18 已实现
 affectedEnds: 后端、管理 Web
 ```
@@ -316,3 +316,10 @@ affectedEnds: 后端、管理 Web
 - 数据库测试结束后恢复 24 表纯种子并清空 Redis DB 15；不得保留审核或治理测试数据。
 - 所有受影响契约、路线图和验证记录同步更新；后端与管理 Web 分别形成包含总结、明细和验证的 Conventional Commit。
 - Android/iOS 真机状态可单列“未确认”，不伪造设备验收，但不阻塞本阶段自动化完成判定。
+
+## 实施验证记录
+
+- 后端默认测试共 140 项：120 项通过，20 项真实环境测试按开关跳过，0 失败；`mvn -DskipTests compile` 与关键依赖树检查通过。
+- `DevelopmentProfileRuntimeTest` 1 项、`OpenApiAndAuthRuntimeTest` 8 项、`DatabaseBusinessClosureIntegrationTest` 7 项全部通过；运行时 OpenAPI 为 86 个唯一操作。
+- 管理 Web 的 Prettier、TypeScript、ESLint、24 项 Vitest、生产构建和 16 项 Playwright 均通过；2 项冻结视口用例按项目条件跳过，但由桌面项目统一覆盖 1440x900、1280x720、390x844。
+- 最终直接核对开发库为 24 张业务表，申请 `9001` 恢复 `PENDING`（审核中）版本 1，管理员恢复首次改密种子，无来源申请 `9001` 的生成门店，操作审计为空；Redis DB 15 大小为 0。

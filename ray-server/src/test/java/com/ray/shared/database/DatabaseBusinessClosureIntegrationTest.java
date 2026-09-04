@@ -92,17 +92,27 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("operation_audit_log", "idx_audit_actor_time"));
         assertEquals(1, indexCount("merchant_account", "uk_merchant_account_phone"));
         assertEquals(1, indexCount("merchant_application", "uk_merchant_application_account"));
+        assertEquals(1, indexCount("merchant_application", "uk_merchant_application_approved_shop"));
         assertEquals(1, indexCount("business_media_asset", "uk_business_media_object_key"));
+        assertEquals(1, indexCount("shop", "uk_shop_source_application"));
+        assertEquals(1, indexCount("shop", "idx_shop_status_city_type"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
                 + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=1"));
         assertEquals(5, count("select count(distinct status) from merchant_account"));
         assertEquals(0, count("select count(*) from merchant_account where status='ACTIVE' and shop_id is null"));
         assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=3 and status='PENDING'"));
         assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=4 and status='REJECTED'"));
-        assertEquals(2, count("select count(*) from business_media_asset where object_key like 'seed/%' "
+        assertEquals(5, count("select count(*) from business_media_asset where object_key like 'seed/%' "
                 + "and byte_size=543 and width=400 and height=400"));
         assertEquals(0, count("select count(*) from business_media_asset where status='BOUND' "
                 + "and (owner_type is null or owner_id is null or expires_at is not null)"));
+        assertEquals(0, count("select count(*) from shop s left join merchant_application a "
+                + "on a.id=s.source_application_id where a.status<>'APPROVED' "
+                + "or a.approved_shop_id<>s.id or s.status<>'ACTIVE'"));
+        assertEquals(1, count("select count(*) from merchant_account where id=5 and status='DISABLED' "
+                + "and disabled_source='ACCOUNT_GOVERNANCE' and disabled_reason is not null and disabled_at is not null"));
+        assertEquals(0, count("select count(*) from merchant_account where status<>'DISABLED' "
+                + "and (disabled_source is not null or disabled_reason is not null or disabled_at is not null)"));
 
         assertEquals(0, count("select count(*) from post p where p.liked_count <> "
                 + "(select count(*) from post_like pl where pl.post_id=p.id)"));
@@ -245,7 +255,7 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void realAdminFlowClosesPasswordAccountSessionProtectionAndAudit() throws Exception {
         String consumerToken = login("13686869696");
         String initialAdminToken = loginAdmin("admin", "Roamly123");
@@ -361,7 +371,209 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
+    void realAdminReviewAndShopGovernanceCloseTransactionsIdempotencyAndSelectiveRecovery() throws Exception {
+        String platformUsername = jdbc.queryForObject(
+                "select username from admin_user where role='PLATFORM_ADMIN' and status='ACTIVE' limit 1",
+                String.class);
+        String platformPassword = "admin".equals(platformUsername) ? "AdminPass9" : "Platform9";
+        String adminToken = loginAdmin(platformUsername, platformPassword);
+
+        String pendingMerchantToken = loginMerchantWithCode("13900000003");
+        ResponseEntity<String> applications = exchange(
+                "/v1/admin/merchant-applications?status=PENDING&page=1&size=20",
+                HttpMethod.GET,
+                null,
+                adminToken);
+        assertEquals(HttpStatus.OK, applications.getStatusCode());
+        assertTrue(data(applications).path("items").toString().contains("9001"));
+
+        ResponseEntity<String> detail = exchange(
+                "/v1/admin/merchant-applications/9001", HttpMethod.GET, null, adminToken);
+        assertEquals(HttpStatus.OK, detail.getStatusCode());
+        assertEquals("13900000003", data(detail).path("contactPhone").asText());
+        assertEquals("8001", data(detail).path("licenseMedia").path("id").asText());
+
+        ResponseEntity<String> approved = exchangeCommand(
+                "/v1/admin/merchant-applications/9001/approval",
+                "stage19-approve-9001",
+                Map.of("version", 1),
+                adminToken);
+        assertEquals(HttpStatus.OK, approved.getStatusCode());
+        String approvedShopId = data(approved).path("shop").path("id").asText();
+        assertFalse(approvedShopId.isBlank());
+        assertEquals("APPROVED", data(approved).path("status").asText());
+        assertEquals("ACTIVE", data(approved).path("shop").path("status").asText());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, pendingMerchantToken).getStatusCode());
+        assertEquals(1, count("select count(*) from shop where id=" + approvedShopId
+                + " and source_application_id=9001 and status='ACTIVE' and version=0"));
+        assertEquals(1, count("select count(*) from merchant_account where id=3 and shop_id=" + approvedShopId
+                + " and role='OWNER' and status='ACTIVE' and version=1"));
+
+        ResponseEntity<String> approvalReplay = exchangeCommand(
+                "/v1/admin/merchant-applications/9001/approval",
+                "stage19-approve-9001",
+                Map.of("version", 1),
+                adminToken);
+        assertEquals(HttpStatus.OK, approvalReplay.getStatusCode());
+        assertEquals(approvedShopId, data(approvalReplay).path("shop").path("id").asText());
+        ResponseEntity<String> approvalFingerprintConflict = exchangeCommand(
+                "/v1/admin/merchant-applications/9001/approval",
+                "stage19-approve-9001",
+                Map.of("version", 2),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, approvalFingerprintConflict.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_REVIEW_IDEMPOTENCY_CONFLICT",
+                objectMapper.readTree(approvalFingerprintConflict.getBody()).path("code").asText());
+        ResponseEntity<String> approvalDecisionConflict = exchangeCommand(
+                "/v1/admin/merchant-applications/9001/rejection",
+                "stage19-reject-9001",
+                Map.of("version", 2, "reason", "重复处理"),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, approvalDecisionConflict.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_ALREADY_REVIEWED",
+                objectMapper.readTree(approvalDecisionConflict.getBody()).path("code").asText());
+
+        Long rejectionApplicationId = jdbc.queryForObject(
+                "select a.id from merchant_application a join merchant_account m "
+                        + "on m.id=a.merchant_account_id where m.phone='13900000008'",
+                Long.class);
+        Long rejectionLicenseId = jdbc.queryForObject(
+                "select license_media_id from merchant_application where id=?",
+                Long.class,
+                rejectionApplicationId);
+        ResponseEntity<byte[]> license = exchangeBytes(
+                "/v1/admin/merchant-applications/" + rejectionApplicationId + "/media/"
+                        + rejectionLicenseId + "/content",
+                adminToken);
+        assertEquals(HttpStatus.OK, license.getStatusCode());
+        assertEquals(MediaType.IMAGE_PNG, license.getHeaders().getContentType());
+        assertTrue(license.getBody() != null && license.getBody().length > 0);
+        Integer rejectionVersion = jdbc.queryForObject(
+                "select version from merchant_application where id=?", Integer.class, rejectionApplicationId);
+        redis.delete("roamly:merchant:sms-limit:13900000008");
+        String rejectionMerchantToken = loginMerchantWithCode("13900000008");
+        ResponseEntity<String> staleRejection = exchangeCommand(
+                "/v1/admin/merchant-applications/" + rejectionApplicationId + "/rejection",
+                "stage19-reject-stale",
+                Map.of("version", rejectionVersion - 1, "reason", "资料不清晰"),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, staleRejection.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_REVIEW_VERSION_CONFLICT",
+                objectMapper.readTree(staleRejection.getBody()).path("code").asText());
+
+        ResponseEntity<String> rejected = exchangeCommand(
+                "/v1/admin/merchant-applications/" + rejectionApplicationId + "/rejection",
+                "stage19-reject-final",
+                Map.of("version", rejectionVersion, "reason", "  营业执照信息不清晰，请重新提交  "),
+                adminToken);
+        assertEquals(HttpStatus.OK, rejected.getStatusCode());
+        assertEquals("REJECTED", data(rejected).path("status").asText());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, rejectionMerchantToken).getStatusCode());
+        assertEquals(1, count("select count(*) from merchant_account where phone='13900000008' "
+                + "and status='REJECTED' and shop_id is null"));
+        assertEquals(HttpStatus.OK, exchangeCommand(
+                        "/v1/admin/merchant-applications/" + rejectionApplicationId + "/rejection",
+                        "stage19-reject-final",
+                        Map.of("version", rejectionVersion, "reason", "营业执照信息不清晰，请重新提交"),
+                        adminToken)
+                .getStatusCode());
+        ResponseEntity<String> rejectionFingerprintConflict = exchangeCommand(
+                "/v1/admin/merchant-applications/" + rejectionApplicationId + "/rejection",
+                "stage19-reject-final",
+                Map.of("version", rejectionVersion, "reason", "经营地址不一致"),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, rejectionFingerprintConflict.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_REVIEW_IDEMPOTENCY_CONFLICT",
+                objectMapper.readTree(rejectionFingerprintConflict.getBody()).path("code").asText());
+
+        redis.delete("roamly:merchant:sms-limit:13900000001");
+        String shopOwnerToken = loginMerchantWithCode("13900000001");
+        ResponseEntity<String> suspended = exchangeCommand(
+                "/v1/admin/shops/1/suspension",
+                "stage19-shop1-suspend",
+                Map.of("version", 0, "reason", "例行安全检查"),
+                adminToken);
+        assertEquals(HttpStatus.OK, suspended.getStatusCode());
+        assertEquals("SUSPENDED", data(suspended).path("status").asText());
+        assertEquals(1, data(suspended).path("affectedAccountCount").asInt());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, shopOwnerToken).getStatusCode());
+        redis.delete("roamly:merchant:sms-limit:13900000001");
+        String suspendedOwnerToken = loginMerchantWithCode("13900000001");
+        ResponseEntity<String> suspendedAccess = exchange(
+                "/v1/merchant/orders", HttpMethod.GET, null, suspendedOwnerToken);
+        assertEquals(HttpStatus.FORBIDDEN, suspendedAccess.getStatusCode());
+        assertEquals("MERCHANT_SHOP_SUSPENDED",
+                objectMapper.readTree(suspendedAccess.getBody()).path("code").asText());
+
+        assertEquals(HttpStatus.OK, exchangeCommand(
+                        "/v1/admin/shops/1/suspension",
+                        "stage19-shop1-suspend",
+                        Map.of("version", 0, "reason", "例行安全检查"),
+                        adminToken)
+                .getStatusCode());
+        ResponseEntity<String> shopIdempotencyConflict = exchangeCommand(
+                "/v1/admin/shops/1/suspension",
+                "stage19-shop1-suspend",
+                Map.of("version", 0, "reason", "不同原因"),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, shopIdempotencyConflict.getStatusCode());
+        assertEquals("SHOP_GOVERNANCE_IDEMPOTENCY_CONFLICT",
+                objectMapper.readTree(shopIdempotencyConflict.getBody()).path("code").asText());
+        ResponseEntity<String> shopVersionConflict = exchangeCommand(
+                "/v1/admin/shops/1/activation",
+                "stage19-shop1-activate-stale",
+                Map.of("version", 0, "reason", "检查完成"),
+                adminToken);
+        assertEquals(HttpStatus.CONFLICT, shopVersionConflict.getStatusCode());
+        assertEquals("SHOP_VERSION_CONFLICT",
+                objectMapper.readTree(shopVersionConflict.getBody()).path("code").asText());
+
+        ResponseEntity<String> activated = exchangeCommand(
+                "/v1/admin/shops/1/activation",
+                "stage19-shop1-activate",
+                Map.of("version", 1, "reason", "检查完成"),
+                adminToken);
+        assertEquals(HttpStatus.OK, activated.getStatusCode());
+        assertEquals("ACTIVE", data(activated).path("status").asText());
+        assertEquals(1, data(activated).path("affectedAccountCount").asInt());
+        assertEquals(1, count("select count(*) from merchant_account where id=1 and status='ACTIVE' "
+                + "and disabled_source is null and disabled_reason is null and disabled_at is null"));
+
+        assertEquals(HttpStatus.OK, exchangeCommand(
+                        "/v1/admin/shops/2/suspension",
+                        "stage19-shop2-suspend",
+                        Map.of("version", 0, "reason", "选择性恢复验证"),
+                        adminToken)
+                .getStatusCode());
+        ResponseEntity<String> shopTwoActivated = exchangeCommand(
+                "/v1/admin/shops/2/activation",
+                "stage19-shop2-activate",
+                Map.of("version", 1, "reason", "选择性恢复验证完成"),
+                adminToken);
+        assertEquals(HttpStatus.OK, shopTwoActivated.getStatusCode());
+        assertEquals(0, data(shopTwoActivated).path("affectedAccountCount").asInt());
+        assertEquals(1, count("select count(*) from merchant_account where id=5 and status='DISABLED' "
+                + "and disabled_source='ACCOUNT_GOVERNANCE'"));
+
+        String financeUsername = jdbc.queryForObject(
+                "select username from admin_user where role='FINANCE' and status='ACTIVE' limit 1", String.class);
+        String financePassword = "admin".equals(financeUsername) ? "AdminPass9" : "Platform9";
+        String financeToken = loginAdmin(financeUsername, financePassword);
+        assertEquals(HttpStatus.FORBIDDEN,
+                exchange("/v1/admin/merchant-applications", HttpMethod.GET, null, financeToken).getStatusCode());
+        assertTrue(count("select count(*) from operation_audit_log where actor_type='ADMIN' "
+                + "and action in ('MERCHANT_APPLICATION_SENSITIVE_VIEWED','MERCHANT_APPLICATION_APPROVED',"
+                + "'MERCHANT_APPLICATION_REJECTED','SHOP_SUSPENDED','SHOP_ACTIVATED') and result='SUCCEEDED'") >= 7);
+        assertEquals(1, count("select count(*) from operation_audit_log where action='MERCHANT_APPLICATION_APPROVED' "
+                + "and object_id='9001'"));
+    }
+
+    @Test
+    @Order(6)
     void realHttpClosesAuthSectionPostCommentAndThreeFeedFlows() throws Exception {
         String authorToken = login("13686869696");
         String readerToken = login("13838411438");
@@ -425,7 +637,7 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(5)
+    @Order(7)
     void realTradeFlowClosesShopReviewStockSettlementWalletExpiryAndIsolation() throws Exception {
         String firstToken = login("13686869696");
         String buyerToken = login("13456789011");
@@ -603,6 +815,20 @@ class DatabaseBusinessClosureIntegrationTest {
         headers.setBearerAuth(token);
         headers.set("Idempotency-Key", key);
         return http.exchange(path, HttpMethod.POST, new HttpEntity<>(null, headers), String.class);
+    }
+
+    private ResponseEntity<String> exchangeCommand(String path, String key, Object body, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Idempotency-Key", key);
+        return http.exchange(path, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+    }
+
+    private ResponseEntity<byte[]> exchangeBytes(String path, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        return http.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
     }
 
     private HttpStatus concurrentRoleChange(

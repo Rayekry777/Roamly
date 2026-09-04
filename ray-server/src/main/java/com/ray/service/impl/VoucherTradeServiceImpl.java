@@ -11,6 +11,7 @@ import com.ray.entity.VoucherOrder;
 import com.ray.entity.VoucherProduct;
 import com.ray.enums.UserVoucherStatus;
 import com.ray.enums.VoucherOrderStatus;
+import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.UserVoucherMapper;
@@ -97,7 +98,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 || (product.getSaleEndTime() != null && product.getSaleEndTime().isBefore(now)))
             throw BusinessException.conflict("VOUCHER_PRODUCT_NOT_AVAILABLE", "商品当前不可购买");
         Shop shop = shopMapper.selectById(product.getShopId());
-        if (shop == null || !Integer.valueOf(1).equals(shop.getStatus()))
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus()))
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或未营业");
         int quantity = request.quantity();
         if (product.getPurchaseLimit() != null && quantity > product.getPurchaseLimit())

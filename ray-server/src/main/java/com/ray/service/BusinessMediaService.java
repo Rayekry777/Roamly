@@ -3,6 +3,7 @@ package com.ray.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.ray.entity.BusinessMediaAsset;
 import com.ray.vo.BusinessMediaVO;
+import com.ray.vo.AdminBusinessMediaVO;
 import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +27,13 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
     /** 将持久化媒体转换为受控摘要。 */
     List<BusinessMediaVO> viewsForApplication(
             Long accountId, Long applicationId, Long licenseId, List<Long> galleryIds);
+
+    /** 为已授权管理端返回指定申请的已绑定私有媒体摘要。 */
+    List<AdminBusinessMediaVO> adminViewsForApplication(
+            Long applicationId, Long licenseId, List<Long> galleryIds);
+
+    /** 为已授权管理端读取指定申请所属的已绑定私有媒体。 */
+    BusinessMediaContent readApplicationContentForAdmin(Long applicationId, Long mediaId);
 
     /** 清理过期临时媒体并重试已标记删除的对象。 */
     void cleanupExpiredTemporaryImages();

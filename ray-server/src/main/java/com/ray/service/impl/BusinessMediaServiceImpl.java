@@ -18,6 +18,7 @@ import com.ray.storage.ObjectStorageException;
 import com.ray.storage.ObjectStoragePort;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.BusinessMediaVO;
+import com.ray.vo.AdminBusinessMediaVO;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -217,6 +218,50 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         return List.copyOf(views);
     }
 
+    /** 校验申请归属、用途和绑定状态后生成管理端专用鉴权路径。 */
+    @Override
+    public List<AdminBusinessMediaVO> adminViewsForApplication(
+            Long applicationId, Long licenseId, List<Long> galleryIds) {
+        List<MediaReference> references = references(licenseId, galleryIds);
+        if (references.isEmpty()) return List.of();
+        Map<Long, BusinessMediaAsset> assets = loadAssets(references, false);
+        List<AdminBusinessMediaVO> views = new ArrayList<>();
+        for (MediaReference reference : references) {
+            BusinessMediaAsset asset = assets.get(reference.id());
+            requirePurpose(asset, reference.purpose());
+            assertAdminApplicationBound(asset, applicationId);
+            BusinessMediaPurpose purpose = BusinessMediaPurpose.valueOf(asset.getPurpose());
+            views.add(new AdminBusinessMediaVO(
+                    IdUtils.format(asset.getId()),
+                    purpose,
+                    purpose.label(),
+                    asset.getOriginalFilename(),
+                    asset.getMimeType(),
+                    asset.getByteSize(),
+                    asset.getWidth(),
+                    asset.getHeight(),
+                    "/v1/admin/merchant-applications/" + applicationId + "/media/" + asset.getId() + "/content"));
+        }
+        return List.copyOf(views);
+    }
+
+    /** 只读取归属于指定申请且已绑定的营业执照或经营图片。 */
+    @Override
+    public BusinessMediaContent readApplicationContentForAdmin(Long applicationId, Long mediaId) {
+        BusinessMediaAsset asset = getById(mediaId);
+        assertAdminApplicationBound(asset, applicationId);
+        if (!Set.of(BusinessMediaPurpose.LICENSE.name(), BusinessMediaPurpose.GALLERY.name())
+                .contains(asset.getPurpose())) {
+            throw BusinessException.notFound("BUSINESS_MEDIA_NOT_FOUND", "经营媒体不存在");
+        }
+        try {
+            ObjectStoragePort.StoredObject object = storage.get(asset.getObjectKey());
+            return new BusinessMediaContent(object.content(), asset.getMimeType(), asset.getOriginalFilename());
+        } catch (ObjectStorageException exception) {
+            throw unavailable(exception);
+        }
+    }
+
     /** 分批标记过期媒体，并持续重试未确认删除成功的对象。 */
     @Override
     @Scheduled(
@@ -339,6 +384,15 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         }
         if (!BusinessMediaStatus.BOUND.name().equals(asset.getStatus())) {
             throw BusinessException.conflict("BUSINESS_MEDIA_ALREADY_BOUND", "经营媒体状态不可读取");
+        }
+    }
+
+    private void assertAdminApplicationBound(BusinessMediaAsset asset, Long applicationId) {
+        if (asset == null
+                || !BusinessMediaStatus.BOUND.name().equals(asset.getStatus())
+                || !APPLICATION_OWNER.equals(asset.getOwnerType())
+                || !applicationId.equals(asset.getOwnerId())) {
+            throw BusinessException.notFound("BUSINESS_MEDIA_NOT_FOUND", "经营媒体不存在");
         }
     }
 
