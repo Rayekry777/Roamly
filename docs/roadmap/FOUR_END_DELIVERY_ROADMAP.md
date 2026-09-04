@@ -1,10 +1,11 @@
 # Roamly 四端交付路线图
 
 ```yaml
-roadmapVersion: 1
+roadmapVersion: 2
 updatedAt: 2026-09-05
 status: 已冻结
 scope: 阶段顺序、依赖与跨端验收
+reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依赖
 ```
 
 ## 路线图职责
@@ -32,7 +33,7 @@ scope: 阶段顺序、依赖与跨端验收
 | [20](../stages/STAGE_20_VOUCHER_AUTHORING.md) | 四类券模型、商户建券和草稿 | 是 | 否 | 是 | 否 | 已实现 |
 | [21](../stages/STAGE_21_VOUCHER_REVIEW_AND_CONSUMER_DISPLAY.md) | 券审核、上下架和消费者展示 | 是 | 是 | 是 | 是 | 已实现 |
 | [22](../stages/STAGE_22_CHECKOUT_PRICING_AND_STOCK_LOCK.md) | 确认订单、计价、限购和库存锁 | 是 | 是 | 否 | 否 | 已实现 |
-| [23](../stages/STAGE_23_ORDER_EXPIRY_MOCK_PAYMENT_AND_ISSUANCE.md) | SnailJob 关单、Mock 支付和多份发券 | 是 | 是 | 否 | 否 | 已实现 |
+| [23](../stages/STAGE_23_ORDER_EXPIRY_MOCK_PAYMENT_AND_ISSUANCE.md) | SnailJob 关单、Mock 支付和多份发券 | 是 | 是 | 是 | 否 | 已实现 |
 | [24](../stages/STAGE_24_VOUCHER_REFUND.md) | 单券退款、财务异常退款和状态聚合 | 是 | 是 | 否 | 是 | 已实现 |
 | [25](../stages/STAGE_25_MERCHANT_STAFF.md) | 商户员工邀请、角色与停用 | 是 | 否 | 是 | 否 | 已实现 |
 | [26](../stages/STAGE_26_VOUCHER_REDEMPTION.md) | 手输券码、核销、撤销和审计 | 是 | 否 | 是 | 是 | 已实现 |
@@ -53,7 +54,7 @@ scope: 阶段顺序、依赖与跨端验收
 | 20 | 阶段 19 已实现 | 四类券校验、草稿、提交、版本冲突和商户页面通过 |
 | 21 | 阶段 20 已实现 | 审核、销售状态、消费者可见性和三客户端展示通过 |
 | 22 | 阶段 21 已实现 | 服务端计价、数量限购、Lock4j、库存条件扣减和确认页通过 |
-| 23 | 阶段 22 已实现 | 15 分钟关单、支付竞态、幂等发券、SnailJob 和消费者页面通过 |
+| 23 | 阶段 22 已实现 | 15 分钟关单、支付竞态、幂等发券、SnailJob、消费者支付页面和商户订单只读权限通过 |
 | 24 | 阶段 23 已实现 | 单券退款、异常退款、支付聚合和权限通过 |
 | 25 | 阶段 24 已实现 | 邀请过期/单次消费、角色守卫、停用会话和商户页面通过 |
 | 26 | 阶段 25 已实现 | 核销预览/确认、跨店拒绝、重复防护、撤销和审计通过 |
