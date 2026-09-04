@@ -12,12 +12,6 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 
 增加 60 秒动态券二维码、商户 WebSocket 多设备刷新和管理 SSE 资源刷新；推送不替代权威查询。
 
-## 设计复核（v2）
-
-- 动态券令牌使用随机值并绑定消费者、券和用途，Redis 60 秒过期且单次消费；二维码内容不携带裸券号。
-- 管理端 SSE 先通过 `ADMIN`（管理端）会话申请 30 秒票据，连接建立后只发送资源定位事件；断线由客户端回退查询。
-- 商户 WebSocket 保留 `/v1/merchant/ws` 协议边界，本轮以同源轮询/SSE 兼容通道提供 Demo 能力，不改变核销事实。
-
 ## 设计复核（v3）
 
 - 商户端使用原生 WebSocket `wss://<host>/v1/merchant/ws`，握手只接受 `Authorization: Bearer <merchant-token>`，服务端从独立 `MERCHANT`（商户端）登录域解析账号和所属门店；非活动账号、无门店账号和跨域 Token 拒绝握手。
