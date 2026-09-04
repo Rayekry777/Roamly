@@ -13,5 +13,10 @@ public interface VoucherOrderMapper extends BaseMapper<VoucherOrder> {
     long sumNonCanceledQuantity(
             @Param("userId") Long userId,
             @Param("productId") Long productId,
-            @Param("canceledStatus") int canceledStatus);
+            @Param("canceledStatus") String canceledStatus);
+
+    /** 查询当前用户使用指定幂等键创建的订单。 */
+    @Select("SELECT * FROM voucher_order WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey} LIMIT 1")
+    VoucherOrder findByUserAndIdempotencyKey(
+            @Param("userId") Long userId, @Param("idempotencyKey") String idempotencyKey);
 }

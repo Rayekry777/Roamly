@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(98, operationIds.size());
+        assertEquals(99, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
@@ -147,6 +147,9 @@ class OpenApiAndAuthRuntimeTest {
                 document, "/v1/admin/voucher-reviews/{productId}/approval", "post", "Idempotency-Key");
         assertRequiredParameter(
                 document, "/v1/admin/voucher-reviews/{productId}/rejection", "post", "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/voucher-products/{productId}/orders", "post", "Idempotency-Key");
+        assertTrue(document.path("paths").has("/v1/voucher-products/{productId}/order-confirmations"));
         assertEquals(0, document.at("/paths/~1v1~1merchant~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
@@ -212,6 +215,7 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("VoucherProductVO"));
         assertTrue(schemaNames.contains("VoucherProductDetailVO"));
         assertTrue(schemaNames.contains("VoucherOrderCreateDTO"));
+        assertTrue(schemaNames.contains("VoucherOrderConfirmationVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("VoucherOrderDetailVO"));
         assertTrue(schemaNames.contains("UserVoucherVO"));
         assertTrue(schemaNames.contains("CurrentMerchantVO"));
@@ -384,6 +388,7 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/feeds/following",
                 "GET /v1/shops/{shopId}/voucher-products",
                 "GET /v1/voucher-products/{productId}",
+                "POST /v1/voucher-products/{productId}/order-confirmations",
                 "POST /v1/voucher-products/{productId}/orders",
                 "GET /v1/users/me/orders",
                 "GET /v1/users/me/orders/{orderId}",

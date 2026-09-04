@@ -32,7 +32,7 @@ class VoucherSettlementServiceImplTest {
         UserVoucherMapper userVoucherMapper = mock(UserVoucherMapper.class);
         VoucherSettlementService service = new VoucherSettlementServiceImpl(orderMapper, productMapper, userVoucherMapper);
         VoucherOrder order = new VoucherOrder().setId(9L).setUserId(7L).setProductId(1001L).setShopId(4L)
-                .setQuantity(1).setStatus(VoucherOrderStatus.PENDING_PAYMENT.code());
+                .setQuantity(1).setStatus(VoucherOrderStatus.PENDING_PAYMENT.name());
         VoucherProduct product = new VoucherProduct().setId(1001L).setValidityType("DAYS_AFTER_PURCHASE")
                 .setValidDays(30);
         when(orderMapper.selectById(9L)).thenReturn(order);
@@ -60,7 +60,7 @@ class VoucherSettlementServiceImplTest {
         UserVoucherMapper userVoucherMapper = mock(UserVoucherMapper.class);
         VoucherSettlementService service = new VoucherSettlementServiceImpl(orderMapper, productMapper, userVoucherMapper);
         when(orderMapper.selectById(9L)).thenReturn(new VoucherOrder().setId(9L)
-                .setStatus(VoucherOrderStatus.CANCELED.code()));
+                .setStatus(VoucherOrderStatus.CANCELED.name()));
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.confirmPaid(9L, LocalDateTime.now()));

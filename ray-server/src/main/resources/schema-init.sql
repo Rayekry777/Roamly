@@ -497,13 +497,17 @@ CREATE TABLE `voucher_order`  (
   `total_amount` bigint UNSIGNED NULL COMMENT '总金额，单位分',
   `pay_amount` bigint UNSIGNED NULL COMMENT '支付金额，单位分',
   `pay_type` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '支付方式 1：余额支付；2：支付宝；3：微信',
-  `status` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '订单状态，1：未支付；2：已支付；3：已核销；4：已取消；5：退款中；6：已退款',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING_PAYMENT' COMMENT '订单状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、REFUNDING退款中、REFUNDED已退款',
+  `payment_expire_time` timestamp NULL COMMENT '待支付订单过期时间',
+  `idempotency_key` varchar(128) NOT NULL COMMENT '当前用户下单幂等键',
+  `request_fingerprint` char(64) NOT NULL COMMENT '下单请求SHA-256指纹',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下单时间',
   `pay_time` timestamp NULL DEFAULT NULL COMMENT '支付时间',
   `use_time` timestamp NULL DEFAULT NULL COMMENT '核销时间',
   `refund_time` timestamp NULL DEFAULT NULL COMMENT '退款时间',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_voucher_order_user_idempotency` (`user_id`,`idempotency_key`),
   INDEX `idx_order_user_status_time` (`user_id`,`status`,`create_time`,`id`),
   INDEX `idx_order_product_user` (`product_id`,`user_id`,`id`)
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;

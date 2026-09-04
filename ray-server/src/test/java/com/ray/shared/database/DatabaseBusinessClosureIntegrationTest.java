@@ -790,9 +790,9 @@ class DatabaseBusinessClosureIntegrationTest {
                 exchange("/v1/shops/3/reviews/me", HttpMethod.DELETE, null, firstToken).getStatusCode());
         assertEquals(0, count("select comments from shop where id=3"));
 
-        ResponseEntity<String> pending = exchange(
+        ResponseEntity<String> pending = exchangeCommand(
                 "/v1/voucher-products/3002/orders",
-                HttpMethod.POST,
+                "stage22-integration-pending",
                 Map.of("quantity", 1),
                 firstToken);
         assertEquals(HttpStatus.CREATED, pending.getStatusCode());
@@ -803,9 +803,9 @@ class DatabaseBusinessClosureIntegrationTest {
                 .getStatusCode());
         assertEquals(80, count("select available_stock from voucher_product where id=3002"));
 
-        ResponseEntity<String> paid = exchange(
+        ResponseEntity<String> paid = exchangeCommand(
                 "/v1/voucher-products/3002/orders",
-                HttpMethod.POST,
+                "stage22-integration-paid",
                 Map.of("quantity", 1),
                 buyerToken);
         assertEquals(HttpStatus.CREATED, paid.getStatusCode());

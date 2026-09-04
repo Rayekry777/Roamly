@@ -31,7 +31,7 @@ scope: 阶段顺序、依赖与跨端验收
 | [19](../stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md) | 商户审核、门店激活与停用 | 是 | 否 | 否 | 是 | 已实现 |
 | [20](../stages/STAGE_20_VOUCHER_AUTHORING.md) | 四类券模型、商户建券和草稿 | 是 | 否 | 是 | 否 | 已实现 |
 | [21](../stages/STAGE_21_VOUCHER_REVIEW_AND_CONSUMER_DISPLAY.md) | 券审核、上下架和消费者展示 | 是 | 是 | 是 | 是 | 已实现 |
-| [22](../stages/STAGE_22_CHECKOUT_PRICING_AND_STOCK_LOCK.md) | 确认订单、计价、限购和库存锁 | 是 | 是 | 否 | 否 | 未实现 |
+| [22](../stages/STAGE_22_CHECKOUT_PRICING_AND_STOCK_LOCK.md) | 确认订单、计价、限购和库存锁 | 是 | 是 | 否 | 否 | 已实现 |
 | [23](../stages/STAGE_23_ORDER_EXPIRY_MOCK_PAYMENT_AND_ISSUANCE.md) | SnailJob 关单、Mock 支付和多份发券 | 是 | 是 | 否 | 否 | 未实现 |
 | [24](../stages/STAGE_24_VOUCHER_REFUND.md) | 单券退款、财务异常退款和状态聚合 | 是 | 是 | 否 | 是 | 未实现 |
 | [25](../stages/STAGE_25_MERCHANT_STAFF.md) | 商户员工邀请、角色与停用 | 是 | 否 | 是 | 否 | 未实现 |

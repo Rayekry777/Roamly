@@ -8,6 +8,7 @@ import com.ray.utils.converter.IdUtils;
 import com.ray.vo.UserVoucherVO;
 import com.ray.vo.VoucherOrderDetailVO;
 import com.ray.vo.VoucherOrderVO;
+import com.ray.vo.VoucherOrderConfirmationVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 团购订单和券包接口。 */
@@ -38,15 +41,26 @@ public class VoucherTradeController {
 
     public VoucherTradeController(VoucherTradeService service) { this.service = service; }
 
+    /** 读取服务端订单确认快照，不占用库存。 */
+    @PostMapping("/v1/voucher-products/{productId}/order-confirmations")
+    @Operation(summary = "确认团购订单", operationId = "confirmVoucherProductOrder")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "确认成功", useReturnTypeSchema = true))
+    public Result<VoucherOrderConfirmationVO> confirm(
+            @Parameter(description = "团购商品 ID") @PathVariable String productId,
+            @Valid @RequestBody VoucherOrderCreateDTO dto) {
+        return Result.ok(service.confirmOrder(IdUtils.parse(productId, "productId"), dto.quantity()));
+    }
+
     /** 创建待支付团购订单。 */
     @PostMapping("/v1/voucher-products/{productId}/orders")
     @Operation(summary = "创建团购订单", operationId = "createVoucherProductOrder")
     @ApiResponses(@ApiResponse(responseCode = "201", description = "创建成功", useReturnTypeSchema = true))
     public ResponseEntity<Result<VoucherOrderVO>> create(
             @Parameter(description = "团购商品 ID") @PathVariable String productId,
-            @Valid @RequestBody VoucherOrderCreateDTO dto) {
+            @Valid @RequestBody VoucherOrderCreateDTO dto,
+            @RequestHeader("Idempotency-Key") @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}") String idempotencyKey) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Result.ok(service.createOrder(IdUtils.parse(productId, "productId"), dto)));
+                .body(Result.ok(service.createOrder(IdUtils.parse(productId, "productId"), dto, idempotencyKey)));
     }
 
     /** 查询当前用户订单。 */

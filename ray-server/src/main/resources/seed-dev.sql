@@ -184,11 +184,11 @@ VALUES
   (7, 3105, '手作饮品', 2, '杯', 2100, 1);
 
 INSERT INTO `voucher_order`
-  (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`, `pay_amount`, `pay_type`, `status`, `create_time`, `pay_time`, `update_time`)
+  (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`, `pay_amount`, `pay_type`, `status`, `payment_expire_time`, `idempotency_key`, `request_fingerprint`, `create_time`, `pay_time`, `update_time`)
 VALUES
-  (6001, 1, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 1, '2026-09-04 09:00:00', NULL, '2026-09-04 09:00:00'),
-  (6002, 2, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 2, '2026-09-03 10:00:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00'),
-  (6003, 3, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 4, '2026-09-03 11:00:00', NULL, '2026-09-03 11:05:00');
+  (6001, 1, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 'PENDING_PAYMENT', '2026-09-04 09:15:00', 'seed-order-6001', REPEAT('0', 64), '2026-09-04 09:00:00', NULL, '2026-09-04 09:00:00'),
+  (6002, 2, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 'PAID', NULL, 'seed-order-6002', REPEAT('1', 64), '2026-09-03 10:00:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00'),
+  (6003, 3, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 'CANCELED', NULL, 'seed-order-6003', REPEAT('2', 64), '2026-09-03 11:00:00', NULL, '2026-09-03 11:05:00');
 
 INSERT INTO `user_voucher`
   (`id`, `user_id`, `order_id`, `product_id`, `shop_id`, `voucher_code`, `status`, `valid_begin_time`, `expire_time`, `create_time`, `update_time`)

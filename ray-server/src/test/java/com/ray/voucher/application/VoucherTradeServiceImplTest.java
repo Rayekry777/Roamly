@@ -81,14 +81,14 @@ class VoucherTradeServiceImplTest {
     @Test
     void sumsPurchasedQuantityAndReleasesLockAfterCommit() {
         preparePurchasableProduct(3);
-        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, 4)).thenReturn(2L);
+        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, "CANCELED")).thenReturn(2L);
         when(productMapper.deductStock(1001L, 1)).thenReturn(1);
         when(idWorker.nextId("voucher-order")).thenReturn(9001L);
         when(orderMapper.insert(any(VoucherOrder.class))).thenReturn(1);
 
-        service.createOrder(1001L, new VoucherOrderCreateDTO(1));
+        service.createOrder(1001L, new VoucherOrderCreateDTO(1), "stage22-order-1");
 
-        verify(orderMapper).sumNonCanceledQuantity(7L, 1001L, 4);
+        verify(orderMapper).sumNonCanceledQuantity(7L, 1001L, "CANCELED");
         InOrder order = inOrder(transactionManager, lock);
         order.verify(transactionManager).commit(transactionStatus);
         order.verify(lock).isHeldByCurrentThread();
@@ -98,11 +98,11 @@ class VoucherTradeServiceImplTest {
     @Test
     void rejectsTotalQuantityAbovePurchaseLimit() {
         preparePurchasableProduct(2);
-        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, 4)).thenReturn(2L);
+        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, "CANCELED")).thenReturn(2L);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+        () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1), "stage22-order-2"));
 
         assertEquals("VOUCHER_PURCHASE_LIMIT_REACHED", exception.code());
         verify(productMapper, never()).deductStock(any(), any(Integer.class));
@@ -118,7 +118,7 @@ class VoucherTradeServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1), "stage22-order-3"));
 
         assertEquals(409, exception.status());
         assertEquals("ORDER_REQUEST_BUSY", exception.code());
@@ -132,7 +132,7 @@ class VoucherTradeServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1), "stage22-order-4"));
 
         assertEquals(503, exception.status());
         assertEquals("ORDER_COORDINATION_UNAVAILABLE", exception.code());
@@ -145,7 +145,7 @@ class VoucherTradeServiceImplTest {
         try {
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+                    () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1), "stage22-order-5"));
 
             assertEquals("ORDER_COORDINATION_UNAVAILABLE", exception.code());
             assertTrue(Thread.currentThread().isInterrupted());
@@ -162,6 +162,7 @@ class VoucherTradeServiceImplTest {
                 .setTitle("双人套餐")
                 .setPriceAmount(9900L)
                 .setPurchaseLimit(purchaseLimit)
+                .setAvailableStock(10)
                 .setReviewStatus("APPROVED")
                 .setSaleStatus("ON_SALE"));
         when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()));

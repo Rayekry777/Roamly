@@ -1,9 +1,9 @@
 # 阶段 22：确认订单、计价与库存锁
 
 ```yaml
-designVersion: 1
+designVersion: 2
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 21 已实现
 affectedEnds: 后端、消费者小程序
 ```
@@ -20,7 +20,7 @@ affectedEnds: 后端、消费者小程序
 ## 状态机、数据与权限
 
 - 下单只创建 `PENDING_PAYMENT`（待支付）订单；支付、关单和退款状态迁移不在本阶段发生。
-- 重构 `voucher_order` 的数量、计价、快照与过期时间事实，并条件扣减 `voucher_product` 库存；字段以数据库契约为准。
+- 重构 `voucher_order` 的数量、计价、幂等与过期时间事实，并条件扣减 `voucher_product` 库存；字段以数据库契约为准。
 - 仅 `CONSUMER`（消费者端）当前用户可确认和创建自己的订单；服务端按用户、商品和门店事实校验限购与可售性。
 
 ## 后端
@@ -34,7 +34,7 @@ affectedEnds: 后端、消费者小程序
 
 - `POST /v1/voucher-products/{productId}/order-confirmations` 返回确认快照，不占库存。
 - `POST /v1/voucher-products/{productId}/orders` 请求包含数量并要求 `Idempotency-Key`。
-- 返回订单 ID、订单号、金额、创建时间和 `paymentExpireTime`，状态为 `PENDING_PAYMENT`（待支付）。
+- 返回订单 ID、订单号、金额、创建时间和 `paymentExpireTime`，状态为 `PENDING_PAYMENT`（待支付）；订单使用用户级 `idempotencyKey`（幂等键）和请求指纹唯一约束。
 
 ## 消费者小程序
 
@@ -47,6 +47,13 @@ affectedEnds: 后端、消费者小程序
 - 价格、库存或限购变化返回最新服务端事实并要求重新确认；锁等待失败返回 409，协调服务不可用返回 503。
 - 重复幂等键返回同一订单，键被不同请求复用时拒绝；数据库事务失败不留下库存扣减或半成品订单。
 - 未登录返回 401，商品不可公开或不存在返回 404，禁止根据客户端传入金额下单。
+
+## 实现记录
+
+- `voucher_order.status` 已重构为字符串状态，新增 `payment_expire_time`、`idempotency_key`、`request_fingerprint` 及用户级唯一索引；开发种子同步使用字符串状态。
+- `POST /v1/voucher-products/{productId}/order-confirmations` 返回服务端单价、数量上下限、总价、优惠、实付、库存、服务端时间和支付过期参考时间。
+- `POST /v1/voucher-products/{productId}/orders` 要求 8 至 128 位 `Idempotency-Key`；重复请求返回同一订单，复用键但请求指纹不同返回 `ORDER_IDEMPOTENCY_CONFLICT`（订单幂等键冲突）。
+- 消费者端增加数量步进、确认页和提交中锁定；客户端金额仅用于展示，创建订单始终重新读取服务端商品事实。
 
 ## 验收
 

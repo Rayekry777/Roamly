@@ -3,6 +3,7 @@ package com.ray.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.ray.config.OrderCoordinationProperties;
 import com.ray.dto.VoucherOrderCreateDTO;
 import com.ray.entity.Shop;
@@ -30,12 +31,14 @@ import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.UserVoucherVO;
 import com.ray.vo.VoucherOrderDetailVO;
 import com.ray.vo.VoucherOrderVO;
+import com.ray.vo.VoucherOrderConfirmationVO;
 import com.ray.vo.VoucherProductVO;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
@@ -72,17 +75,54 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         this.transactionTemplate = transactionTemplate;
     }
 
+    /** 读取服务端价格、库存和限购事实，不占用库存。 */
+    @Override
+    public VoucherOrderConfirmationVO confirmOrder(Long productId, Integer requestedQuantity) {
+        currentUserProvider.requireUserId();
+        VoucherProduct product = productMapper.selectById(productId);
+        Shop shop = product == null ? null : shopMapper.selectById(product.getShopId());
+        if (product == null || !isPurchasable(product, shop))
+            throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购商品不存在或当前不可购买");
+        int quantity = requestedQuantity == null ? 1 : requestedQuantity;
+        int maxQuantity = maxQuantity(product);
+        if (quantity < 1 || quantity > maxQuantity)
+            throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "购买数量超出当前可购范围");
+        long alreadyPurchased = getBaseMapper().sumNonCanceledQuantity(
+                currentUserProvider.requireUserId(), productId, VoucherOrderStatus.CANCELED.name());
+        if (product.getPurchaseLimit() != null && product.getPurchaseLimit() > 0
+                && alreadyPurchased + quantity > product.getPurchaseLimit())
+            throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
+        long total = amount(product.getPriceAmount(), quantity);
+        long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
+                ? 0L : Math.max(0L, amount(product.getMarketAmount() - product.getPriceAmount(), quantity));
+        LocalDateTime now = LocalDateTime.now();
+        return new VoucherOrderConfirmationVO(
+                IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
+                product.getPriceAmount(), quantity, 1, maxQuantity, total, discount, total,
+                product.getAvailableStock(), now, now.plusMinutes(15));
+    }
+
     /** 按用户和商品串行完成限购校验、库存预扣与订单事务。 */
     @Override
-    public VoucherOrderVO createOrder(Long productId, VoucherOrderCreateDTO request) {
+    public VoucherOrderVO createOrder(Long productId, VoucherOrderCreateDTO request, String idempotencyKey) {
         Long userId = currentUserProvider.requireUserId();
+        if (idempotencyKey == null || idempotencyKey.isBlank())
+            throw BusinessException.badRequest("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key 不能为空");
+        String fingerprint = DigestUtil.sha256Hex(productId + "|" + request.quantity());
         RLock lock = getOrderLock(userId, productId);
         if (!tryAcquire(lock)) {
             throw BusinessException.conflict("ORDER_REQUEST_BUSY", "订单正在处理中，请稍后重试");
         }
         try {
-            VoucherOrderVO result = transactionTemplate.execute(
-                    status -> createOrderInTransaction(userId, productId, request));
+            VoucherOrderVO result;
+            try {
+                result = transactionTemplate.execute(
+                        status -> createOrderInTransaction(userId, productId, request, idempotencyKey, fingerprint));
+            } catch (DuplicateKeyException exception) {
+                VoucherOrder existing = getBaseMapper().findByUserAndIdempotencyKey(userId, idempotencyKey);
+                if (existing != null && fingerprint.equals(existing.getRequestFingerprint())) return toOrderVO(existing, null);
+                throw BusinessException.conflict("ORDER_IDEMPOTENCY_CONFLICT", "Idempotency-Key 已用于其他下单请求");
+            }
             if (result == null) throw new IllegalStateException("订单事务未返回结果");
             return result;
         } finally {
@@ -92,33 +132,36 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     /** 在已持有用户商品锁时执行完整数据库事务。 */
     private VoucherOrderVO createOrderInTransaction(
-            Long userId, Long productId, VoucherOrderCreateDTO request) {
+            Long userId, Long productId, VoucherOrderCreateDTO request, String idempotencyKey, String fingerprint) {
+        VoucherOrder existing = getBaseMapper().findByUserAndIdempotencyKey(userId, idempotencyKey);
+        if (existing != null) {
+            if (fingerprint.equals(existing.getRequestFingerprint())) return toOrderVO(existing, null);
+            throw BusinessException.conflict("ORDER_IDEMPOTENCY_CONFLICT", "Idempotency-Key 已用于其他下单请求");
+        }
         VoucherProduct product = productMapper.selectById(productId);
         if (product == null) throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购商品不存在");
         LocalDateTime now = LocalDateTime.now();
-        if (!VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())
-                || !VoucherSaleStatus.ON_SALE.name().equals(product.getSaleStatus())
-                || (product.getSaleBeginTime() != null && product.getSaleBeginTime().isAfter(now))
-                || (product.getSaleEndTime() != null && product.getSaleEndTime().isBefore(now)))
-            throw BusinessException.conflict("VOUCHER_PRODUCT_NOT_AVAILABLE", "商品当前不可购买");
         Shop shop = shopMapper.selectById(product.getShopId());
-        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus()))
-            throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或未营业");
+        if (!isPurchasable(product, shop))
+            throw BusinessException.conflict("VOUCHER_PRODUCT_NOT_AVAILABLE", "商品当前不可购买");
         int quantity = request.quantity();
-        if (product.getPurchaseLimit() != null && quantity > product.getPurchaseLimit())
+        int maxQuantity = maxQuantity(product);
+        if (quantity > maxQuantity)
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
         long purchasedQuantity = getBaseMapper().sumNonCanceledQuantity(
-                userId, productId, VoucherOrderStatus.CANCELED.code());
+                userId, productId, VoucherOrderStatus.CANCELED.name());
         if (product.getPurchaseLimit() != null && purchasedQuantity + quantity > product.getPurchaseLimit())
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
         if (productMapper.deductStock(productId, quantity) != 1)
             throw BusinessException.conflict("VOUCHER_OUT_OF_STOCK", "商品库存不足或已下架");
         long orderId = idWorker.nextId("voucher-order");
-        long amount = product.getPriceAmount() * quantity;
+        long amount = amount(product.getPriceAmount(), quantity);
         VoucherOrder order = new VoucherOrder().setId(orderId).setUserId(userId).setProductId(productId)
                 .setShopId(product.getShopId()).setProductTitle(product.getTitle()).setUnitPrice(product.getPriceAmount())
                 .setQuantity(quantity).setTotalAmount(amount).setPayAmount(amount)
-                .setStatus(VoucherOrderStatus.PENDING_PAYMENT.code()).setPayType(3);
+                .setStatus(VoucherOrderStatus.PENDING_PAYMENT.name()).setPayType(3)
+                .setPaymentExpireTime(now.plusMinutes(15)).setIdempotencyKey(idempotencyKey)
+                .setRequestFingerprint(fingerprint);
         if (!save(order)) throw new BusinessException(500, "ORDER_CREATE_FAILED", "订单创建失败");
         return toOrderVO(order, null);
     }
@@ -168,7 +211,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         validatePage(page, size);
         Page<VoucherOrder> result = new Page<>(page, size);
         var wrapper = query().eq("user_id", userId).orderByDesc("create_time").orderByDesc("id");
-        if (status != null && !status.isBlank()) wrapper.eq("status", parseStatus(status).code());
+        if (status != null && !status.isBlank()) wrapper.eq("status", parseStatus(status).name());
         result = page(result, wrapper);
         return new PageResult<>(result.getRecords().stream().map(order -> toOrderVO(order, null)).toList(), page, size,
                 result.getTotal());
@@ -179,7 +222,8 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     public VoucherOrderDetailVO getOrder(Long orderId) {
         VoucherOrder order = query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()).one();
         if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
-        VoucherProductVO product = order.getProductId() == null ? null : productService.getDetail(order.getProductId()).product();
+        VoucherProduct orderedProduct = order.getProductId() == null ? null : productMapper.selectById(order.getProductId());
+        VoucherProductVO product = orderedProduct == null ? null : toProductVO(orderedProduct);
         ShopSummaryVO shop = order.getShopId() == null ? null : shopSummary(shopMapper.selectById(order.getShopId()));
         return new VoucherOrderDetailVO(toOrderVO(order, product), product, shop);
     }
@@ -190,13 +234,13 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     public void cancelOrder(Long orderId) {
         VoucherOrder order = query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()).one();
         if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
-        if (!Integer.valueOf(VoucherOrderStatus.PENDING_PAYMENT.code()).equals(order.getStatus()))
+        if (!VoucherOrderStatus.PENDING_PAYMENT.name().equals(order.getStatus()))
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "只有待支付订单可以取消");
         if (getBaseMapper().update(
                         null,
                         new UpdateWrapper<VoucherOrder>().eq("id", orderId).eq("user_id", order.getUserId())
-                                .eq("status", VoucherOrderStatus.PENDING_PAYMENT.code())
-                                .set("status", VoucherOrderStatus.CANCELED.code()))
+                                .eq("status", VoucherOrderStatus.PENDING_PAYMENT.name())
+                                .set("status", VoucherOrderStatus.CANCELED.name()))
                 != 1)
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "订单状态已变化，请重试");
         if (order.getProductId() != null) productMapper.restoreStock(order.getProductId(), order.getQuantity());
@@ -235,8 +279,9 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     private VoucherOrderStatus parseStatus(String status) {
-        try { return VoucherOrderStatus.valueOf(status.toUpperCase(Locale.ROOT)); }
-        catch (IllegalArgumentException exception) { throw BusinessException.badRequest("INVALID_STATUS", "订单状态无效"); }
+        VoucherOrderStatus parsed = VoucherOrderStatus.parse(status);
+        if (parsed == null) throw BusinessException.badRequest("INVALID_STATUS", "订单状态无效");
+        return parsed;
     }
 
     private void validatePage(int page, int size) {
@@ -245,13 +290,36 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     private VoucherOrderVO toOrderVO(VoucherOrder order, VoucherProductVO product) {
-        String status = VoucherOrderStatus.fromCode(order.getStatus()).name();
-        LocalDateTime expire = order.getCreateTime() == null ? null : order.getCreateTime().plusMinutes(30);
+        String status = order.getStatus() == null ? VoucherOrderStatus.PENDING_PAYMENT.name() : order.getStatus();
+        LocalDateTime expire = order.getPaymentExpireTime();
         return new VoucherOrderVO(IdUtils.format(order.getId()), IdUtils.format(order.getId()), IdUtils.format(order.getUserId()),
                 IdUtils.format(order.getShopId()), IdUtils.format(order.getProductId()), order.getProductTitle(),
                 order.getQuantity() == null ? 1 : order.getQuantity(), order.getUnitPrice(), order.getTotalAmount(),
                 order.getPayAmount(), status, order.getCreateTime(), order.getPayTime(),
                 status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire);
+    }
+
+    private boolean isPurchasable(VoucherProduct product, Shop shop) {
+        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus())
+                || !VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())) return false;
+        if (VoucherSaleStatus.OFF_SALE.name().equals(product.getSaleStatus())) return false;
+        if (product.getAvailableStock() == null || product.getAvailableStock() <= 0) return false;
+        LocalDateTime now = LocalDateTime.now();
+        return (product.getSaleBeginTime() == null || !product.getSaleBeginTime().isAfter(now))
+                && (product.getSaleEndTime() == null || !product.getSaleEndTime().isBefore(now));
+    }
+
+    private int maxQuantity(VoucherProduct product) {
+        int limit = product.getPurchaseLimit() == null || product.getPurchaseLimit() <= 0
+                ? 99 : product.getPurchaseLimit();
+        int stock = product.getAvailableStock() == null ? 0 : product.getAvailableStock();
+        return Math.min(99, Math.min(limit, stock));
+    }
+
+    private long amount(Long unitAmount, int quantity) {
+        if (unitAmount == null || unitAmount < 0) throw BusinessException.conflict("VOUCHER_PRICE_CHANGED", "商品价格暂不可用");
+        try { return Math.multiplyExact(unitAmount, (long) quantity); }
+        catch (ArithmeticException exception) { throw BusinessException.badRequest("ORDER_AMOUNT_INVALID", "订单金额超出允许范围"); }
     }
 
     private UserVoucherVO toVoucherVO(UserVoucher voucher) {
@@ -268,5 +336,16 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         String cover = shop.getImages() == null ? null : shop.getImages().split(",")[0];
         return new ShopSummaryVO(IdUtils.format(shop.getId()), shop.getName(), IdUtils.format(shop.getTypeId()), cover,
                 shop.getAddress(), shop.getScore() == null ? 0 : shop.getScore());
+    }
+
+    private VoucherProductVO toProductVO(VoucherProduct product) {
+        Long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
+                ? null : Math.max(0L, product.getMarketAmount() - product.getPriceAmount());
+        String saleStatus = product.getSaleStatus();
+        return new VoucherProductVO(IdUtils.format(product.getId()), IdUtils.format(product.getShopId()),
+                product.getTitle(), product.getSubTitle(), null, product.getPriceAmount(), product.getMarketAmount(),
+                discount, product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
+                product.getProductType(), saleStatus, product.getSaleBeginTime(), product.getSaleEndTime(),
+                VoucherProductPresentation.validityText(product), VoucherProductPresentation.usageRules(product));
     }
 }

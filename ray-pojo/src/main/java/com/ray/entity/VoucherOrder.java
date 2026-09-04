@@ -40,7 +40,7 @@ public class VoucherOrder implements Serializable {
     /** 下单时单价，单位分。 */
     private Long unitPrice;
 
-    /** 购买数量，第一阶段固定为 1。 */
+    /** 购买数量，范围为 1 至 99 并受商品限购与库存约束。 */
     private Integer quantity;
 
     /** 订单总金额，单位分。 */
@@ -54,10 +54,15 @@ public class VoucherOrder implements Serializable {
      */
     private Integer payType;
 
-    /**
-     * 订单状态，1：未支付；2：已支付；3：已核销；4：已取消；5：退款中；6：已退款
-     */
-    private Integer status;
+    /** 订单状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、REFUNDING退款中、REFUNDED已退款。 */
+    private String status;
+
+    /** 待支付订单的服务端过期时间。 */
+    private LocalDateTime paymentExpireTime;
+
+    /** 当前用户下单请求的幂等键及请求指纹。 */
+    private String idempotencyKey;
+    private String requestFingerprint;
 
     /**
      * 下单时间

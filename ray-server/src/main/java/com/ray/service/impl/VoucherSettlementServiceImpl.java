@@ -42,26 +42,26 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
         if (paidTime == null) throw BusinessException.badRequest("INVALID_ARGUMENT", "支付时间不能为空");
         VoucherOrder order = orderMapper.selectById(orderId);
         if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
-        if (Integer.valueOf(VoucherOrderStatus.PAID.code()).equals(order.getStatus())) {
+        if (VoucherOrderStatus.PAID.name().equals(order.getStatus())) {
             ensureVoucherIssued(order, paidTime);
             return;
         }
-        if (!Integer.valueOf(VoucherOrderStatus.PENDING_PAYMENT.code()).equals(order.getStatus()))
+        if (!VoucherOrderStatus.PENDING_PAYMENT.name().equals(order.getStatus()))
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "订单状态不允许确认支付");
         int changed = orderMapper.update(
                 null,
                 new UpdateWrapper<VoucherOrder>().eq("id", orderId)
-                        .eq("status", VoucherOrderStatus.PENDING_PAYMENT.code())
-                        .set("status", VoucherOrderStatus.PAID.code()).set("pay_time", paidTime));
+                        .eq("status", VoucherOrderStatus.PENDING_PAYMENT.name())
+                        .set("status", VoucherOrderStatus.PAID.name()).set("pay_time", paidTime));
         if (changed == 0) {
             VoucherOrder latest = orderMapper.selectById(orderId);
-            if (latest != null && Integer.valueOf(VoucherOrderStatus.PAID.code()).equals(latest.getStatus())) {
+            if (latest != null && VoucherOrderStatus.PAID.name().equals(latest.getStatus())) {
                 ensureVoucherIssued(latest, paidTime);
                 return;
             }
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "订单状态已变化，请重试");
         }
-        order.setStatus(VoucherOrderStatus.PAID.code()).setPayTime(paidTime);
+        order.setStatus(VoucherOrderStatus.PAID.name()).setPayTime(paidTime);
         ensureVoucherIssued(order, paidTime);
     }
 

@@ -18,6 +18,8 @@ import com.ray.service.VoucherProductService;
 import com.ray.service.VoucherTradeService;
 import com.ray.shared.config.MockMvcTestConfiguration;
 import com.ray.vo.VoucherOrderVO;
+import com.ray.vo.VoucherOrderConfirmationVO;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,10 +40,22 @@ class VoucherTradeControllerTest {
     }
 
     @Test
-    void rejectsQuantityOtherThanOneBeforeCreatingOrder() throws Exception {
+    void rejectsInvalidQuantityBeforeCreatingOrder() throws Exception {
         mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"quantity\":2}"))
+                        .content("{\"quantity\":0}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void confirmsServerCalculatedOrderSnapshot() throws Exception {
+        when(tradeService.confirmOrder(1001L, 2)).thenReturn(new VoucherOrderConfirmationVO(
+                "1001", "4", "套餐", 8000L, 2, 1, 3, 16000L, 2000L, 16000L, 3,
+                LocalDateTime.now(), LocalDateTime.now().plusMinutes(15)));
+        mockMvc.perform(post("/v1/voucher-products/1001/order-confirmations")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"quantity\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.maxQuantity").value(3))
+                .andExpect(jsonPath("$.data.payAmount").value(16000));
     }
 
     @Test
@@ -56,27 +70,30 @@ class VoucherTradeControllerTest {
 
     @Test
     void createsOrderUsingProductStringId() throws Exception {
-        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any()))
+        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any(), org.mockito.ArgumentMatchers.eq("stage22-order-6")))
                 .thenReturn(new VoucherOrderVO("10", "10", "7", "4", "1001", "套餐", 1, 8000L, 8000L,
                         8000L, "PENDING_PAYMENT", null, null, null, null));
-        mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "stage22-order-6")
                         .content("{\"quantity\":1}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.productId").value("1001"));
     }
 
     @Test
     void exposesOrderCoordinationErrors() throws Exception {
-        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any()))
+        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any(), org.mockito.ArgumentMatchers.eq("stage22-order-7")))
                 .thenThrow(BusinessException.conflict("ORDER_REQUEST_BUSY", "订单正在处理中，请稍后重试"));
-        mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "stage22-order-7")
                         .content("{\"quantity\":1}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ORDER_REQUEST_BUSY"));
 
-        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any()))
+        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any(), org.mockito.ArgumentMatchers.eq("stage22-order-8")))
                 .thenThrow(new BusinessException(
                         503, "ORDER_COORDINATION_UNAVAILABLE", "订单协调服务暂不可用，请稍后重试"));
-        mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "stage22-order-8")
                         .content("{\"quantity\":1}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("ORDER_COORDINATION_UNAVAILABLE"));
