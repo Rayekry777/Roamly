@@ -528,6 +528,25 @@ CREATE TABLE `payment_transaction` (
   INDEX `idx_payment_transaction_order_status` (`order_id`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单支付交易';
 
+CREATE TABLE `voucher_refund` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '退款ID',
+  `voucher_id` bigint UNSIGNED NOT NULL COMMENT '用户券ID',
+  `order_id` bigint NOT NULL COMMENT '订单ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '消费者ID',
+  `amount` bigint UNSIGNED NOT NULL COMMENT '退款金额，单位分',
+  `status` varchar(16) NOT NULL COMMENT 'REQUESTED已申请、PROCESSING处理中、SUCCEEDED退款成功、FAILED退款失败、REJECTED退款被拒',
+  `reason` varchar(255) NULL,
+  `idempotency_key` varchar(128) NOT NULL,
+  `requested_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_time` timestamp NULL,
+  `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_voucher_refund_voucher_key` (`voucher_id`,`idempotency_key`),
+  INDEX `idx_voucher_refund_order_status` (`order_id`,`status`),
+  INDEX `idx_voucher_refund_user_time` (`user_id`,`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='单券退款记录';
+
 CREATE TABLE `user_voucher` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` bigint UNSIGNED NOT NULL,
