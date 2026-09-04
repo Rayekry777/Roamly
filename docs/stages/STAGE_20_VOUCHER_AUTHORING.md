@@ -22,7 +22,7 @@ affectedEnds: 后端、商户小程序
 
 - 阶段 19 已实现，商户申请审核能创建 `ACTIVE`（营业中）门店并激活 `OWNER`（店主）账号。
 - `MERCHANT`（商户端）认证域、`merchant:voucher:manage`（团购券管理）权限和门店停用门禁可用。
-- `business_media_asset`（经营媒体）已支持 `VOUCHER_COVER`（券封面）与 `VOUCHER_DETAIL`（券详情图）用途枚举，但上传、绑定和读取尚未向建券开放。
+- `business_media_asset`（经营媒体）已支持 `VOUCHER_COVER`（券封面）与 `VOUCHER_DETAIL`（券详情图）用途枚举，阶段实现已完成上传、绑定和鉴权读取。
 - 当前 24 表快照、86 个运行时操作和两端自动化均已通过；本阶段完成后应为 25 表和 93 个运行时操作。
 
 ## 核心决策
