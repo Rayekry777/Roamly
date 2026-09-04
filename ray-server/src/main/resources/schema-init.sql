@@ -311,6 +311,27 @@ CREATE TABLE `merchant_application` (
   CONSTRAINT `chk_merchant_application_review_fields` CHECK ((`status`='DRAFT' AND `submission_idempotency_key` IS NULL AND `submitted_at` IS NULL AND `review_decision` IS NULL AND `review_idempotency_key` IS NULL AND `review_request_fingerprint` IS NULL AND `reviewed_at` IS NULL AND `reviewer_admin_id` IS NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NULL) OR (`status`='PENDING' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision` IS NULL AND `review_idempotency_key` IS NULL AND `review_request_fingerprint` IS NULL AND `reviewed_at` IS NULL AND `reviewer_admin_id` IS NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NULL) OR (`status`='APPROVED' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision`='APPROVAL' AND `review_idempotency_key` IS NOT NULL AND CHAR_LENGTH(`review_request_fingerprint`)=64 AND `reviewed_at` IS NOT NULL AND `reviewer_admin_id` IS NOT NULL AND `approved_shop_id` IS NOT NULL AND `rejection_reason` IS NULL) OR (`status`='REJECTED' AND `submission_idempotency_key` IS NOT NULL AND `submitted_at` IS NOT NULL AND `review_decision`='REJECTION' AND `review_idempotency_key` IS NOT NULL AND CHAR_LENGTH(`review_request_fingerprint`)=64 AND `reviewed_at` IS NOT NULL AND `reviewer_admin_id` IS NOT NULL AND `approved_shop_id` IS NULL AND `rejection_reason` IS NOT NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户入驻申请';
 
+CREATE TABLE `merchant_staff_invitation` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '邀请ID',
+  `shop_id` bigint UNSIGNED NOT NULL,
+  `inviter_account_id` bigint UNSIGNED NOT NULL,
+  `invite_token_digest` char(64) NOT NULL,
+  `target_phone` varchar(11) NOT NULL,
+  `target_role` varchar(16) NOT NULL COMMENT 'MANAGER店长、VERIFIER核销员',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING待接受、ACCEPTED已接受、REVOKED已撤销、EXPIRED已过期',
+  `expire_time` timestamp NOT NULL,
+  `accepted_time` timestamp NULL,
+  `revoked_time` timestamp NULL,
+  `accepted_account_id` bigint UNSIGNED NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_staff_invitation_token` (`invite_token_digest`),
+  INDEX `idx_staff_invitation_shop_status` (`shop_id`,`status`,`expire_time`),
+  CONSTRAINT `chk_staff_invitation_role` CHECK (`target_role` IN ('MANAGER','VERIFIER')),
+  CONSTRAINT `chk_staff_invitation_status` CHECK (`status` IN ('PENDING','ACCEPTED','REVOKED','EXPIRED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商户员工邀请';
+
 CREATE TABLE `business_media_asset` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '经营媒体ID',
   `uploader_merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '上传商户账号ID',
