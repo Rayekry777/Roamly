@@ -217,7 +217,8 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
         List<Long> reviewIds = reviews.stream().map(ShopReview::getId).toList();
         List<ShopReviewMedia> relations = baseMapper.selectMediaRelations(reviewIds);
         if (relations == null) relations = List.of();
-        List<MediaAsset> loadedAssets = mediaAssetService.listByIds(relations.stream().map(ShopReviewMedia::getMediaAssetId).toList());
+        List<Long> assetIds = relations.stream().map(ShopReviewMedia::getMediaAssetId).toList();
+        List<MediaAsset> loadedAssets = assetIds.isEmpty() ? List.of() : mediaAssetService.listByIds(assetIds);
         if (loadedAssets == null) loadedAssets = List.of();
         Map<Long, MediaAsset> assets = loadedAssets
                 .stream().collect(Collectors.toMap(MediaAsset::getId, asset -> asset));

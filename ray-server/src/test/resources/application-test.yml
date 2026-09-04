@@ -1,0 +1,20 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      database: ${TEST_REDIS_DATABASE:15}
+
+logging:
+  level:
+    com.ray: INFO
+
+ray:
+  auth:
+    sms:
+      mode: MOCK
+      mock-code: ${SMS_MOCK_CODE:123456}

@@ -4,8 +4,6 @@ import static com.ray.constant.RedisConstants.CACHE_SHOP_KEY;
 import static com.ray.constant.RedisConstants.CACHE_SHOP_TTL;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.ray.dto.CreateShopDTO;
-import com.ray.dto.UpdateShopDTO;
 import com.ray.entity.City;
 import com.ray.entity.Shop;
 import com.ray.enums.EnableStatus;
@@ -16,26 +14,21 @@ import com.ray.result.PageResult;
 import com.ray.service.CityService;
 import com.ray.service.ShopService;
 import com.ray.utils.cache.CacheClient;
-import com.ray.utils.converter.IdUtils;
 import com.ray.utils.converter.ViewMapper;
 import com.ray.vo.ShopVO;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /** 商户查询、地理排序与缓存一致性实现。 */
 @Service
 public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements ShopService {
-    private final StringRedisTemplate redis;
     private final CacheClient cacheClient;
     private final CityService cityService;
 
-    public ShopServiceImpl(StringRedisTemplate redis, CacheClient cacheClient, CityService cityService) {
-        this.redis = redis;
+    public ShopServiceImpl(CacheClient cacheClient, CityService cityService) {
         this.cacheClient = cacheClient;
         this.cityService = cityService;
     }
@@ -70,49 +63,6 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         long total = baseMapper.countEnabledByFilter(normalizedCityCode, typeId, normalizedKeyword);
         return new PageResult<>(
                 shops.stream().map(ViewMapper::toShop).toList(), page, size, total);
-    }
-
-    /** 新增商户。 */
-    @Override
-    public Long createShop(CreateShopDTO request) {
-        Shop shop = new Shop()
-                .setName(request.name())
-                .setTypeId(IdUtils.parse(request.typeId(), "typeId"))
-                .setImages(request.images())
-                .setArea(request.area())
-                .setAddress(request.address())
-                .setX(request.longitude())
-                .setY(request.latitude())
-                .setAvgPrice(request.avgPrice())
-                .setSold(request.sold() == null ? 0 : request.sold())
-                .setComments(request.comments() == null ? 0 : request.comments())
-                .setScore(request.score() == null ? 0 : request.score())
-                .setOpenHours(request.openHours());
-        save(shop);
-        return shop.getId();
-    }
-
-    /** 更新商户并删除旧缓存。 */
-    @Transactional
-    @Override
-    public void updateShop(Long id, UpdateShopDTO request) {
-        if (getById(id) == null) throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在");
-        Shop shop = new Shop()
-                .setId(id)
-                .setName(request.name())
-                .setImages(request.images())
-                .setArea(request.area())
-                .setAddress(request.address())
-                .setX(request.longitude())
-                .setY(request.latitude())
-                .setAvgPrice(request.avgPrice())
-                .setSold(request.sold())
-                .setComments(request.comments())
-                .setScore(request.score())
-                .setOpenHours(request.openHours());
-        if (request.typeId() != null) shop.setTypeId(IdUtils.parse(request.typeId(), "typeId"));
-        updateById(shop);
-        redis.delete(CACHE_SHOP_KEY + id);
     }
 
     private String requireEnabledCity(String cityCode) {

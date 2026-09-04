@@ -13,5 +13,10 @@ knife4j:
 springdoc:
   api-docs:
     enabled: false
+
+ray:
+  auth:
+    sms:
+      mode: DISABLED
   swagger-ui:
     enabled: false

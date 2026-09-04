@@ -105,7 +105,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     /** 查询当前用户订单详情。 */
     @Override
     public VoucherOrderDetailVO getOrder(Long orderId) {
-        VoucherOrder order = getOne(query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()));
+        VoucherOrder order = query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()).one();
         if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
         VoucherProductVO product = order.getProductId() == null ? null : productService.getDetail(order.getProductId()).product();
         ShopSummaryVO shop = order.getShopId() == null ? null : shopSummary(shopMapper.selectById(order.getShopId()));
@@ -116,7 +116,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Transactional
     @Override
     public void cancelOrder(Long orderId) {
-        VoucherOrder order = getOne(query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()));
+        VoucherOrder order = query().eq("id", orderId).eq("user_id", currentUserProvider.requireUserId()).one();
         if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
         if (!Integer.valueOf(VoucherOrderStatus.PENDING_PAYMENT.code()).equals(order.getStatus()))
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "只有待支付订单可以取消");

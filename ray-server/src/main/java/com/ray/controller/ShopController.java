@@ -1,34 +1,24 @@
 package com.ray.controller;
 
-import com.ray.dto.CreateShopDTO;
-import com.ray.dto.UpdateShopDTO;
 import com.ray.enums.ShopSort;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.ShopService;
 import com.ray.utils.converter.IdUtils;
-import com.ray.vo.IdVO;
 import com.ray.vo.ShopVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -79,25 +69,5 @@ public class ShopController {
                 size,
                 longitude,
                 latitude));
-    }
-
-    @PostMapping
-    @SecurityRequirement(name = "BearerAuth")
-    @Operation(summary = "新增商户", operationId = "createShop")
-    @ApiResponses(@ApiResponse(responseCode = "201", description = "创建成功", useReturnTypeSchema = true))
-    public ResponseEntity<Result<IdVO>> create(@Valid @RequestBody CreateShopDTO request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Result.ok(new IdVO(IdUtils.format(shopService.createShop(request)))));
-    }
-
-    @PutMapping("/{shopId}")
-    @SecurityRequirement(name = "BearerAuth")
-    @Operation(summary = "更新商户", operationId = "updateShop")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "更新成功", useReturnTypeSchema = true))
-    public Result<Void> update(
-            @Parameter(description = "商户 ID") @PathVariable String shopId,
-            @Valid @RequestBody UpdateShopDTO request) {
-        shopService.updateShop(IdUtils.parse(shopId, "shopId"), request);
-        return Result.ok(null);
     }
 }

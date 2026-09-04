@@ -2,10 +2,13 @@ package com.ray.controller;
 
 import com.ray.dto.LoginDTO;
 import com.ray.dto.SmsCodeDTO;
+import com.ray.result.ErrorResult;
 import com.ray.result.Result;
 import com.ray.service.UserService;
 import com.ray.vo.AuthTokenVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,7 +35,13 @@ public class AuthController {
     @PostMapping("/sms-codes")
     @SecurityRequirements
     @Operation(summary = "发送短信验证码", operationId = "sendSmsCode")
-    @ApiResponses(@ApiResponse(responseCode = "204", description = "验证码已发送"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "验证码已发送"),
+        @ApiResponse(
+                responseCode = "503",
+                description = "当前环境未配置短信供应商",
+                content = @Content(schema = @Schema(implementation = ErrorResult.class)))
+    })
     public ResponseEntity<Void> sendCode(@Valid @RequestBody SmsCodeDTO request) {
         userService.sendCode(request.phone());
         return ResponseEntity.noContent().build();

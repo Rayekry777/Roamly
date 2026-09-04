@@ -10,3 +10,9 @@ spring:
 logging:
   level:
     com.ray: DEBUG
+
+ray:
+  auth:
+    sms:
+      mode: MOCK
+      mock-code: ${SMS_MOCK_CODE:123456}

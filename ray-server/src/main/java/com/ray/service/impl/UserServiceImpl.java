@@ -9,6 +9,7 @@ import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.ray.config.SmsProperties;
 import com.ray.dto.LoginDTO;
 import com.ray.entity.User;
 import com.ray.exception.BusinessException;
@@ -34,19 +35,25 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
     private final StringRedisTemplate redis;
     private final CurrentUserProvider currentUserProvider;
+    private final SmsProperties smsProperties;
 
-    public UserServiceImpl(StringRedisTemplate redis, CurrentUserProvider currentUserProvider) {
+    public UserServiceImpl(
+            StringRedisTemplate redis, CurrentUserProvider currentUserProvider, SmsProperties smsProperties) {
         this.redis = redis;
         this.currentUserProvider = currentUserProvider;
+        this.smsProperties = smsProperties;
     }
 
-    /** 生成并暂存短信验证码。 */
+    /** 按当前环境策略暂存短信验证码，不记录验证码明文。 */
     @Override
     public void sendCode(String phone) {
         if (RegexUtils.isPhoneInvalid(phone)) throw BusinessException.badRequest("INVALID_PHONE", "手机号格式错误");
-        String code = RandomUtil.randomNumbers(6);
+        if (smsProperties.getMode() == SmsProperties.Mode.DISABLED) {
+            throw new BusinessException(503, "SMS_SERVICE_UNAVAILABLE", "短信服务暂不可用");
+        }
+        String code = smsProperties.requireMockCode();
         redis.opsForValue().set(LOGIN_CODE_KEY + phone, code, LOGIN_CODE_TTL, TimeUnit.MINUTES);
-        log.debug("[用户登录] 短信验证码已生成，手机号={}", maskPhone(phone));
+        log.debug("[用户登录] 模拟短信验证码已写入缓存，手机号={}", maskPhone(phone));
     }
 
     /** 校验短信验证码并创建独立 Sa-Token 会话。 */
