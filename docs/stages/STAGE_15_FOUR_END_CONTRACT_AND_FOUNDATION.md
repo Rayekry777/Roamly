@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 1
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 1-14 已实现
 affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 ```
@@ -55,3 +55,10 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 - 管理 Web 与商户小程序均为独立 Git 工程，README 与实际状态一致。
 - 三端视觉令牌扫描通过，若依 Logo、默认蓝色和竞品视觉不在目标设计中。
 - 四个工作区执行格式与链接检查，阶段 15 状态更新为“已实现”后才进入阶段 16。
+
+## 验证记录
+
+- 2026-09-04：消费者小程序 `npm run build:npm` 成功，`npm run verify` 的 34 个测试文件、122 项测试全部通过；仓库配置改用游客 AppID，真实值由已忽略的本地配置承载。
+- 2026-09-04：商户小程序完成独立 Git、原生 TypeScript、TDesign、四个主入口、Roamly 令牌和测试基座；`npm run build:npm`、类型检查、Lint、样式检查和 5 项测试通过。
+- 2026-09-04：管理 Web 完成 Node 24、pnpm 11、Vue 3、Element Plus、Pinia、Router、Vitest、Playwright、Roamly 主题和 plus-ui MIT 声明；类型检查、Lint、2 项单测、生产构建、格式检查及桌面/390px E2E 通过。
+- 2026-09-04：四份契约、阶段 15-30 路线图、16 份阶段设计、27 份文档链接、中文释义、33 表目标计数与四个工作区格式检查通过。
