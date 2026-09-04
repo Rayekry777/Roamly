@@ -28,6 +28,22 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
     List<BusinessMediaVO> viewsForApplication(
             Long accountId, Long applicationId, Long licenseId, List<Long> galleryIds);
 
+    /** 将当前券草稿引用同步为已绑定媒体，并在提交后清理移除对象。 */
+    void syncVoucherProductReferences(
+            Long accountId, Long shopId, Long productId, Long coverId, List<Long> detailIds);
+
+    /** 按券草稿顺序返回当前门店可读取的媒体摘要。 */
+    List<BusinessMediaVO> viewsForVoucherProduct(
+            Long accountId, Long shopId, Long productId, Long coverId, List<Long> detailIds);
+
+    /** 将源商品媒体复制为目标商品独享的私有对象与媒体记录。 */
+    VoucherMediaCopy copyVoucherProductReferences(
+            Long accountId, Long shopId, Long sourceProductId, Long targetProductId,
+            Long coverId, List<Long> detailIds);
+
+    /** 标记指定券商品的全部媒体，待事务提交后删除私有对象。 */
+    void deleteVoucherProductReferences(Long shopId, Long productId);
+
     /** 为已授权管理端返回指定申请的已绑定私有媒体摘要。 */
     List<AdminBusinessMediaVO> adminViewsForApplication(
             Long applicationId, Long licenseId, List<Long> galleryIds);
@@ -47,6 +63,13 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
         @Override
         public byte[] content() {
             return content.clone();
+        }
+    }
+
+    /** 复制后目标商品的封面与有序详情媒体 ID。 */
+    record VoucherMediaCopy(Long coverId, List<Long> detailIds) {
+        public VoucherMediaCopy {
+            detailIds = List.copyOf(detailIds);
         }
     }
 }

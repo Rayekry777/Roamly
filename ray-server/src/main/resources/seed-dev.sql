@@ -59,7 +59,8 @@ VALUES
   (8002, 4, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-4-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9002, 0, '2026-09-03 10:00:00', NULL),
   (8101, 1, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-9101-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9101, 0, '2026-08-01 10:00:00', NULL),
   (8102, 5, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-9102-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9102, 0, '2026-08-02 10:00:00', NULL),
-  (8103, 6, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-9103-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9103, 0, '2026-08-03 10:00:00', NULL);
+  (8103, 6, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-9103-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9103, 0, '2026-08-03 10:00:00', NULL),
+  (8201, 1, 'VOUCHER_COVER', 'BOUND', 'roamly-business-local', 'seed/merchant/voucher-3105-cover.png', '套餐券封面.png', 'image/png', 543, 400, 400, 'VOUCHER_PRODUCT', 3105, 0, '2026-09-04 16:00:00', NULL);
 
 INSERT INTO merchant_application
   (id, merchant_account_id, status, shop_name, license_number, legal_representative, contact_name, contact_phone, shop_type_id, city_code, district, address, longitude, latitude, business_hours_json, license_media_id, gallery_media_ids_json, settlement_account_name, settlement_bank_name, settlement_account_suffix, rejection_reason, submission_idempotency_key, review_decision, review_idempotency_key, review_request_fingerprint, submitted_at, reviewed_at, reviewer_admin_id, approved_shop_id, version)
@@ -128,10 +129,59 @@ INSERT INTO `shop_review_media` (`id`, `review_id`, `media_asset_id`, `sort`, `c
 VALUES (1, 4001, 502, 0, '2026-09-02 13:10:00');
 
 INSERT INTO `voucher_product`
-  (`id`, `shop_id`, `title`, `sub_title`, `cover`, `rules`, `pay_price`, `original_price`, `deduction_value`, `sale_type`, `total_stock`, `available_stock`, `sold_count`, `purchase_limit`, `validity_type`, `valid_days`, `status`)
+  (`id`, `shop_id`, `product_type`, `title`, `sub_title`, `cover_media_id`, `detail_media_ids_json`,
+   `price_amount`, `market_amount`, `face_value_amount`, `minimum_spend_amount`, `discount_rate_bps`,
+   `maximum_discount_amount`, `total_use_count`, `total_stock`, `available_stock`, `sold_count`,
+   `purchase_limit`, `sale_begin_time`, `sale_end_time`, `validity_type`, `valid_begin_time`,
+   `valid_end_time`, `valid_days`, `usage_rules_json`, `excluded_dates_json`, `reservation_required`,
+   `reservation_notice`, `stackable`, `refund_anytime`, `refund_expired`, `review_status`,
+   `sale_status`, `rejection_reason`, `submission_idempotency_key`, `submission_request_fingerprint`,
+   `submitted_at`, `version`)
 VALUES
-  (3001, 1, '103 茶餐厅 100 元代金券', '工作日、周末通用', NULL, '不可与店内其他优惠同享', 8000, 10000, 10000, 'NORMAL', 200, 198, 1, 1, 'DAYS_AFTER_PURCHASE', 30, 'ON_SALE'),
-  (3002, 2, '漫游咖啡双人套餐', '限店内堂食使用', NULL, '请提前向商户确认可用时间', 6800, 8800, NULL, 'NORMAL', 80, 80, 0, 1, 'DAYS_AFTER_PURCHASE', 15, 'ON_SALE');
+  (3001, 1, 'CASH', '103 茶餐厅 100 元代金券', '工作日、周末通用', NULL, '[]',
+   8000, 10000, 10000, 10000, NULL, NULL, NULL, 200, 198, 1, 1,
+   '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
+   '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]}]',
+   '[]', 0, NULL, 0, 1, 1, 'APPROVED', 'ON_SALE', NULL, NULL, NULL, NULL, 0),
+  (3002, 2, 'PACKAGE', '漫游咖啡双人套餐', '限店内堂食使用', NULL, '[]',
+   6800, 8800, NULL, NULL, NULL, NULL, NULL, 80, 80, 0, 1,
+   '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 15,
+   '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]}]',
+   '[]', 1, '请至少提前一小时预约', 0, 1, 0, 'APPROVED', 'ON_SALE', NULL, NULL, NULL, NULL, 0),
+  (3101, 1, 'PACKAGE', '下午茶双人套餐', '商户草稿，可继续编辑', NULL, '[]',
+   5200, 7200, NULL, NULL, NULL, NULL, NULL, 60, 60, 0, 2,
+   '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 20,
+   '[]', '[]', 0, NULL, 0, 1, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
+  (3102, 1, 'CASH', '50 元代金券', '商户草稿，可继续编辑', NULL, '[]',
+   4200, 5000, 5000, 5000, NULL, NULL, NULL, 100, 100, 0, 1,
+   '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
+   '[]', '[]', 0, NULL, 0, 1, 1, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
+  (3103, 1, 'DISCOUNT', '全场 85 折券', '商户草稿，可继续编辑', NULL, '[]',
+   100, 100, NULL, 10000, 8500, 3000, NULL, 120, 120, 0, 1,
+   '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 15,
+   '[]', '[]', 0, NULL, 0, 0, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
+  (3104, 1, 'MULTI_USE', '精品咖啡 5 次卡', '商户草稿，可继续编辑', NULL, '[]',
+   12800, 15000, NULL, NULL, NULL, NULL, 5, 40, 40, 0, 1,
+   '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 60,
+   '[]', '[]', 1, '使用前请预约座位', 0, 1, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
+  (3105, 1, 'PACKAGE', '秋日招牌双人餐', '阶段 21 券审核样例', 8201, '[]',
+   8800, 11800, NULL, NULL, NULL, NULL, NULL, 100, 100, 0, 2,
+   '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
+   '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]}]',
+   '["2026-10-01"]', 1, '周末请提前两小时预约', 0, 1, 1, 'PENDING', NULL, NULL,
+   'stage20-seed-pending', 'fa0bb3e35f8801224c57ed87a1e1f44b1d73db24a40c73653ecb27eeebac0d02',
+   '2026-09-04 16:00:00', 1);
+
+INSERT INTO `voucher_package_item`
+  (`id`, `product_id`, `name`, `quantity`, `unit`, `unit_price_amount`, `sort_order`)
+VALUES
+  (1, 3002, '手冲咖啡', 2, '杯', 3000, 0),
+  (2, 3002, '当日甜点', 2, '份', 1400, 1),
+  (3, 3101, '港式奶茶', 2, '杯', 1800, 0),
+  (4, 3101, '菠萝油', 2, '份', 1800, 1),
+  (5, 3104, '精品咖啡任选', 1, '杯/次', 3000, 0),
+  (6, 3105, '招牌主食', 2, '份', 3800, 0),
+  (7, 3105, '手作饮品', 2, '杯', 2100, 1);
 
 INSERT INTO `voucher_order`
   (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`, `pay_amount`, `pay_type`, `status`, `create_time`, `pay_time`, `update_time`)

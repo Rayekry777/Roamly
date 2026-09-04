@@ -3,12 +3,14 @@ package com.ray.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.entity.Shop;
 import com.ray.entity.VoucherProduct;
-import com.ray.enums.VoucherProductStatus;
+import com.ray.enums.VoucherReviewStatus;
+import com.ray.enums.VoucherSaleStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.VoucherProductMapper;
 import com.ray.service.VoucherProductService;
 import com.ray.utils.converter.IdUtils;
+import com.ray.utils.converter.VoucherProductPresentation;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.VoucherProductDetailVO;
 import com.ray.vo.VoucherProductVO;
@@ -29,10 +31,11 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
     @Override
     public List<VoucherProductVO> listByShop(Long shopId, String status) {
         if (shopMapper.selectById(shopId) == null) throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在");
-        if (status != null && !status.isBlank() && !VoucherProductStatus.ON_SALE.name().equals(status))
+        if (status != null && !status.isBlank() && !VoucherSaleStatus.ON_SALE.name().equals(status))
             throw BusinessException.badRequest("INVALID_STATUS", "公开接口仅支持查询 ON_SALE 商品");
         return lambdaQuery().eq(VoucherProduct::getShopId, shopId)
-                .eq(VoucherProduct::getStatus, VoucherProductStatus.ON_SALE.name())
+                .eq(VoucherProduct::getReviewStatus, VoucherReviewStatus.APPROVED.name())
+                .eq(VoucherProduct::getSaleStatus, VoucherSaleStatus.ON_SALE.name())
                 .orderByAsc(VoucherProduct::getId).list().stream().map(this::toVO).toList();
     }
 
@@ -40,7 +43,9 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
     @Override
     public VoucherProductDetailVO getDetail(Long productId) {
         VoucherProduct product = getById(productId);
-        if (product == null || !VoucherProductStatus.ON_SALE.name().equals(product.getStatus()))
+        if (product == null
+                || !VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())
+                || !VoucherSaleStatus.ON_SALE.name().equals(product.getSaleStatus()))
             throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购商品不存在");
         Shop shop = shopMapper.selectById(product.getShopId());
         if (shop == null) throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在");
@@ -49,17 +54,14 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
 
     /** 将商品实体转换为接口模型。 */
     VoucherProductVO toVO(VoucherProduct product) {
-        Long discount = product.getOriginalPrice() == null || product.getPayPrice() == null
-                ? null : product.getOriginalPrice() - product.getPayPrice();
-        String validity = "FIXED_RANGE".equals(product.getValidityType())
-                ? String.valueOf(product.getValidBeginTime()) + " 至 " + product.getValidEndTime()
-                : product.getValidDays() == null ? null : "购买后 " + product.getValidDays() + " 天内有效";
+        Long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
+                ? null : product.getMarketAmount() - product.getPriceAmount();
         return new VoucherProductVO(
                 IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
-                product.getSubTitle(), product.getCover(), product.getPayPrice(), product.getOriginalPrice(),
+                product.getSubTitle(), null, product.getPriceAmount(), product.getMarketAmount(),
                 discount, product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
-                product.getSaleType(), product.getStatus(), product.getSaleBeginTime(), product.getSaleEndTime(),
-                validity, product.getRules());
+                product.getProductType(), product.getSaleStatus(), product.getSaleBeginTime(), product.getSaleEndTime(),
+                VoucherProductPresentation.validityText(product), VoucherProductPresentation.usageRules(product));
     }
 
     private ShopSummaryVO toShopSummary(Shop shop) {

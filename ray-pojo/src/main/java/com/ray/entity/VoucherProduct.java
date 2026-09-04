@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-/** 团购商品持久化模型。金额统一以分保存。 */
+/** 四类团购券的商品、规则、审核与销售事实。金额统一以分保存。 */
 @Data
 @Accessors(chain = true)
 @TableName("voucher_product")
@@ -16,14 +16,18 @@ public class VoucherProduct implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     private Long shopId;
+    private String productType;
     private String title;
     private String subTitle;
-    private String cover;
-    private String rules;
-    private Long payPrice;
-    private Long originalPrice;
-    private Long deductionValue;
-    private String saleType;
+    private Long coverMediaId;
+    private String detailMediaIdsJson;
+    private Long priceAmount;
+    private Long marketAmount;
+    private Long faceValueAmount;
+    private Long minimumSpendAmount;
+    private Integer discountRateBps;
+    private Long maximumDiscountAmount;
+    private Integer totalUseCount;
     private Integer totalStock;
     private Integer availableStock;
     private Integer soldCount;
@@ -34,7 +38,24 @@ public class VoucherProduct implements Serializable {
     private LocalDateTime validBeginTime;
     private LocalDateTime validEndTime;
     private Integer validDays;
-    private String status;
+    private String usageRulesJson;
+    private String excludedDatesJson;
+    private Boolean reservationRequired;
+    private String reservationNotice;
+    private Boolean stackable;
+    private Boolean refundAnytime;
+    private Boolean refundExpired;
+    private String reviewStatus;
+    private String saleStatus;
+    private String rejectionReason;
+    private String submissionIdempotencyKey;
+    private String submissionRequestFingerprint;
+    private LocalDateTime submittedAt;
+    private String reviewDecision;
+    private String reviewIdempotencyKey;
+    private String reviewRequestFingerprint;
+    private LocalDateTime reviewedAt;
+    private Long reviewerAdminId;
     private Integer version;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

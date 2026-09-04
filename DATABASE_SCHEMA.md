@@ -144,17 +144,17 @@ targetImplementationStatus: 开发中
 - `disabled_reason` 最多 500 字，`disabled_at` 保存停用时间；非 `DISABLED`（已停用）账号必须清空三项。
 - 门店停用只条件更新当前 `ACTIVE`（已激活）账号并写 `SHOP_SUSPENSION`；门店恢复只条件恢复该来源账号，其他来源保持停用。
 
-阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 24 表纯种子状态。
+阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 25 表纯种子状态。
 
 ### 阶段 20 字段冻结
 
-阶段 20 直接重构 `voucher_product` 并新增 `voucher_package_item`，实现后当前快照应由 24 表变为 25 表；目标 33 表总数不变。完整字段、索引、媒体同步、状态约束和种子规则以 [阶段 20 详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md) 为真源。
+阶段 20 直接重构 `voucher_product` 并新增 `voucher_package_item`，当前快照已由 24 表变为 25 表；目标 33 表总数不变。完整字段、索引、媒体同步、状态约束和种子规则以 [阶段 20 详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md) 为真源。
 
 - `voucher_product` 删除 `cover`、`rules`、`pay_price`、`original_price`、`deduction_value`、`sale_type` 和旧单一 `status`，改为四类券专属字段、结构化时间/使用规则、`review_status`（审核状态）与 `sale_status`（销售状态）。
 - 商品索引固定为 `idx_voucher_product_shop_review(shop_id,review_status,update_time,id)`、`idx_voucher_product_public(shop_id,review_status,sale_status,sale_begin_time,sale_end_time,id)` 与 `idx_voucher_product_submission(submission_idempotency_key)`。
 - `voucher_package_item` 保存套餐券和次卡的有序明细，以 `product_id,sort_order` 唯一；代金券和折扣券不得存在明细。
 - 券媒体保存即绑定 `VOUCHER_PRODUCT`（券商品），封面恰好一张、详情图最多九张；复制创建独立对象键，删除在事务提交后清理。
-- 既有商品 3001/3002 直接转换为已审核在售种子，保持订单、库存、销量与消费者 Demo；新增四类草稿和一个审核中商品。
+- 既有商品 3001/3002 直接转换为已审核在售种子，保持订单、库存、销量与消费者 Demo；新增四类草稿和一个审核中商品。阶段 20 数据库级测试已验证媒体绑定、版本冲突、角色隔离、提交幂等和 25 表快照，并在结束后恢复纯种子状态。
 
 ### 目标重构表
 
@@ -197,9 +197,10 @@ targetImplementationStatus: 开发中
 
 `DatabaseBusinessClosureIntegrationTest` 仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行。它在开始前重建当前快照，使用 Redis DB 15，完成真实 HTTP/Service/SQL 场景后再次重建种子并清空测试 Redis，确保日常开发环境回到纯种子状态。
 
-2026-09-04 已在 `.env` 当前指向且获授权的开发库完成 24 表 Demo 验收：
+2026-09-05 已在 `.env` 当前指向且获授权的开发库完成 25 表 Demo 验收：
 
-- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 24 张业务表、关键唯一索引、旧表退役和种子一致性。
-- `DatabaseBusinessClosureIntegrationTest` 7 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复，以及社区、点评、订单、发券、过期刷新和用户隔离。
+- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 25 张业务表、关键唯一索引、旧表退役和种子一致性。
+- `DatabaseBusinessClosureIntegrationTest` 8 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、发券、过期刷新和用户隔离。
+- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 93 个唯一 `operationId`、新增券视图 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 目标 33 表仍只完成冻结设计，阶段 20 至 29 的新增表不得提前标记为已实现。
+- 目标 33 表仍只完成冻结设计，阶段 21 至 29 的新增表不得提前标记为已实现。

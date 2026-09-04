@@ -12,6 +12,8 @@ import com.ray.entity.VoucherProduct;
 import com.ray.enums.UserVoucherStatus;
 import com.ray.enums.VoucherOrderStatus;
 import com.ray.enums.ShopStatus;
+import com.ray.enums.VoucherReviewStatus;
+import com.ray.enums.VoucherSaleStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.UserVoucherMapper;
@@ -22,6 +24,7 @@ import com.ray.service.CurrentUserProvider;
 import com.ray.service.VoucherProductService;
 import com.ray.service.VoucherTradeService;
 import com.ray.utils.converter.IdUtils;
+import com.ray.utils.converter.VoucherProductPresentation;
 import com.ray.utils.generator.RedisIdWorker;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.UserVoucherVO;
@@ -93,7 +96,8 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         VoucherProduct product = productMapper.selectById(productId);
         if (product == null) throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购商品不存在");
         LocalDateTime now = LocalDateTime.now();
-        if (!"ON_SALE".equals(product.getStatus())
+        if (!VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())
+                || !VoucherSaleStatus.ON_SALE.name().equals(product.getSaleStatus())
                 || (product.getSaleBeginTime() != null && product.getSaleBeginTime().isAfter(now))
                 || (product.getSaleEndTime() != null && product.getSaleEndTime().isBefore(now)))
             throw BusinessException.conflict("VOUCHER_PRODUCT_NOT_AVAILABLE", "商品当前不可购买");
@@ -110,9 +114,9 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (productMapper.deductStock(productId, quantity) != 1)
             throw BusinessException.conflict("VOUCHER_OUT_OF_STOCK", "商品库存不足或已下架");
         long orderId = idWorker.nextId("voucher-order");
-        long amount = product.getPayPrice() * quantity;
+        long amount = product.getPriceAmount() * quantity;
         VoucherOrder order = new VoucherOrder().setId(orderId).setUserId(userId).setProductId(productId)
-                .setShopId(product.getShopId()).setProductTitle(product.getTitle()).setUnitPrice(product.getPayPrice())
+                .setShopId(product.getShopId()).setProductTitle(product.getTitle()).setUnitPrice(product.getPriceAmount())
                 .setQuantity(quantity).setTotalAmount(amount).setPayAmount(amount)
                 .setStatus(VoucherOrderStatus.PENDING_PAYMENT.code()).setPayType(3);
         if (!save(order)) throw new BusinessException(500, "ORDER_CREATE_FAILED", "订单创建失败");
@@ -256,7 +260,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return new UserVoucherVO(IdUtils.format(voucher.getId()), voucher.getVoucherCode(), IdUtils.format(voucher.getOrderId()),
                 IdUtils.format(voucher.getProductId()), product == null ? null : product.getTitle(), shop,
                 voucher.getStatus(), voucher.getValidBeginTime(), voucher.getExpireTime(), voucher.getUseTime(),
-                product == null ? null : product.getRules());
+                product == null ? null : VoucherProductPresentation.usageRules(product));
     }
 
     private ShopSummaryVO shopSummary(Shop shop) {

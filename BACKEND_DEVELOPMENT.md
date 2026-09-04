@@ -138,13 +138,13 @@ deviceAcceptanceStatus: 不适用
 - 阶段 19 新增错误码：`MERCHANT_APPLICATION_NOT_FOUND`（商户申请不存在）、`MERCHANT_APPLICATION_ALREADY_REVIEWED`（商户申请已审核）、`MERCHANT_APPLICATION_REVIEW_VERSION_CONFLICT`（商户申请审核版本冲突）、`MERCHANT_APPLICATION_REVIEW_IDEMPOTENCY_CONFLICT`（商户申请审核幂等键冲突）、`SHOP_STATUS_CONFLICT`（门店经营状态冲突）、`SHOP_VERSION_CONFLICT`（门店版本冲突）、`SHOP_GOVERNANCE_IDEMPOTENCY_CONFLICT`（门店治理幂等键冲突）、`MERCHANT_SHOP_SUSPENDED`（所属门店已停用）；对象读取复用 `OBJECT_STORAGE_UNAVAILABLE`（对象存储不可用）。
 - 本阶段不新增业务表，当前仍为 24 张；运行时 OpenAPI 已由 77 增至 86 个唯一 `operationId`。
 
-## 阶段 20 服务端冻结设计
+## 阶段 20 服务端实现
 
-- 阶段 20 的字段、接口、事务、媒体和测试真源为 [四类券模型与商户建券详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md)，当前只完成设计冻结，能力状态为“未实现”。
+- 阶段 20 的字段、接口、事务、媒体和测试真源为 [四类券模型与商户建券详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md)，四类券建模和商户建券闭环已实现。
 - 旧 `NORMAL`（普通团购）/`SECKILL`（秒杀团购）商品直接重构为 `PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券）、`MULTI_USE`（次卡），审核状态与销售状态分离，不保留旧字段兼容层。
 - 新增商户券列表、创建、详情、更新、删除、复制与提交共 7 个操作；仅 `OWNER`（店主）和 `MANAGER`（店长）的活动门店可用，`VERIFIER`（核销员）拒绝。
 - 草稿保存绑定私有券图片，复制生成独立对象；商品、明细、媒体和事务感知商户审计原子更新，提交使用版本、幂等键和 SHA-256 请求指纹。
-- 阶段完成目标为 25 张业务表和 93 个唯一 `operationId`；阶段 21 的平台审核、上下架与消费者新结构展示仍为“未实现”。
+- 阶段完成目标为 25 张业务表和 93 个唯一 `operationId`，已通过普通单元测试、真实数据库集成测试和 OpenAPI 运行时测试；阶段 21 的平台审核、上下架与消费者新结构展示仍为“未实现”。
 
 ## 后端阶段
 

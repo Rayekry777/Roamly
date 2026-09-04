@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 2
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 19 已实现
 affectedEnds: 后端、商户小程序
 ```

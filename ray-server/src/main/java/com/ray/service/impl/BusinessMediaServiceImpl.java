@@ -6,12 +6,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.config.ObjectStorageProperties;
 import com.ray.entity.BusinessMediaAsset;
 import com.ray.entity.MerchantAccount;
+import com.ray.entity.VoucherProduct;
 import com.ray.enums.BusinessMediaPurpose;
 import com.ray.enums.BusinessMediaStatus;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.MerchantRole;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.BusinessMediaAssetMapper;
+import com.ray.mapper.VoucherProductMapper;
 import com.ray.service.BusinessMediaService;
 import com.ray.service.MerchantAuthService;
 import com.ray.storage.ObjectStorageException;
@@ -44,10 +46,12 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         implements BusinessMediaService {
     private static final int CLEANUP_BATCH_SIZE = 100;
     private static final String APPLICATION_OWNER = "MERCHANT_APPLICATION";
+    private static final String VOUCHER_PRODUCT_OWNER = "VOUCHER_PRODUCT";
 
     private final ObjectStoragePort storage;
     private final BusinessImageInspector inspector;
     private final MerchantAuthService merchantAuthService;
+    private final VoucherProductMapper voucherProductMapper;
     private final BusinessMediaCleanupWriter cleanupWriter;
     private final long retentionHours;
 
@@ -55,25 +59,24 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
             ObjectStoragePort storage,
             BusinessImageInspector inspector,
             MerchantAuthService merchantAuthService,
+            VoucherProductMapper voucherProductMapper,
             BusinessMediaCleanupWriter cleanupWriter,
             ObjectStorageProperties properties) {
         this.storage = storage;
         this.inspector = inspector;
         this.merchantAuthService = merchantAuthService;
+        this.voucherProductMapper = voucherProductMapper;
         this.cleanupWriter = cleanupWriter;
         this.retentionHours = properties.getTemporaryRetentionHours();
         if (retentionHours <= 0) throw new IllegalArgumentException("经营媒体临时保留时间必须大于0小时");
     }
 
-    /** 校验店主可编辑状态，写入私有对象并创建临时记录。 */
+    /** 按媒体用途校验入驻或团购券权限，写入私有对象并创建临时记录。 */
     @Override
     @Transactional
     public BusinessMediaVO uploadImage(MultipartFile file, String purposeValue) {
-        MerchantAccount account = requireEditableOwner();
         BusinessMediaPurpose purpose = parsePurpose(purposeValue);
-        if (purpose != BusinessMediaPurpose.LICENSE && purpose != BusinessMediaPurpose.GALLERY) {
-            throw BusinessException.badRequest("BUSINESS_MEDIA_INVALID_TYPE", "阶段18只支持营业执照和经营图片");
-        }
+        MerchantAccount account = requireUploader(purpose);
         BusinessImageInspector.ImageMetadata image = inspector.inspect(file);
         String objectKey = newObjectKey(account.getId(), image.extension());
         try {
@@ -127,9 +130,15 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
     /** 校验归属与生命周期后读取私有对象。 */
     @Override
     public BusinessMediaContent readContent(Long mediaId) {
-        Long accountId = merchantAuthService.requireCurrentAccount().getId();
+        MerchantAccount account = merchantAuthService.requireCurrentAccount();
         BusinessMediaAsset asset = getById(mediaId);
-        requireOwned(accountId, asset);
+        if (asset != null
+                && BusinessMediaStatus.BOUND.name().equals(asset.getStatus())
+                && VOUCHER_PRODUCT_OWNER.equals(asset.getOwnerType())) {
+            requireVoucherProductAccess(account, asset.getOwnerId());
+        } else {
+            requireOwned(account.getId(), asset);
+        }
         assertReadable(asset);
         try {
             ObjectStoragePort.StoredObject object = storage.get(asset.getObjectKey());
@@ -218,6 +227,126 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         return List.copyOf(views);
     }
 
+    /** 锁定期望与已绑定媒体，原子完成券草稿绑定、排序和移除。 */
+    @Override
+    public void syncVoucherProductReferences(
+            Long accountId, Long shopId, Long productId, Long coverId, List<Long> detailIds) {
+        MerchantAccount account = requireVoucherContext(accountId, shopId);
+        requireVoucherProduct(shopId, productId);
+        List<MediaReference> desired = voucherReferences(coverId, detailIds);
+        Map<Long, BusinessMediaAsset> desiredAssets = loadAssets(desired, true);
+        LocalDateTime now = LocalDateTime.now();
+        Set<Long> desiredIds = new LinkedHashSet<>();
+        for (MediaReference reference : desired) {
+            desiredIds.add(reference.id());
+            BusinessMediaAsset asset = desiredAssets.get(reference.id());
+            requirePurpose(asset, reference.purpose());
+            assertVoucherUsable(account, productId, asset);
+            if (BusinessMediaStatus.TEMPORARY.name().equals(asset.getStatus())) {
+                int affected = baseMapper.update(null, new UpdateWrapper<BusinessMediaAsset>()
+                        .eq("id", asset.getId())
+                        .eq("uploader_merchant_account_id", accountId)
+                        .eq("status", BusinessMediaStatus.TEMPORARY.name())
+                        .isNull("owner_type")
+                        .isNull("owner_id")
+                        .gt("expires_at", now)
+                        .set("status", BusinessMediaStatus.BOUND.name())
+                        .set("owner_type", VOUCHER_PRODUCT_OWNER)
+                        .set("owner_id", productId)
+                        .set("sort_order", reference.sortOrder())
+                        .set("bound_at", now)
+                        .set("expires_at", null));
+                if (affected != 1) {
+                    throw BusinessException.conflict("BUSINESS_MEDIA_ALREADY_BOUND", "券媒体状态已变化，请重新加载");
+                }
+            } else {
+                int affected = baseMapper.update(null, new UpdateWrapper<BusinessMediaAsset>()
+                        .eq("id", asset.getId())
+                        .eq("status", BusinessMediaStatus.BOUND.name())
+                        .eq("owner_type", VOUCHER_PRODUCT_OWNER)
+                        .eq("owner_id", productId)
+                        .set("sort_order", reference.sortOrder()));
+                if (affected != 1) {
+                    throw BusinessException.conflict("BUSINESS_MEDIA_ALREADY_BOUND", "券媒体状态已变化，请重新加载");
+                }
+            }
+        }
+
+        List<BusinessMediaAsset> existing = list(new QueryWrapper<BusinessMediaAsset>()
+                .eq("owner_type", VOUCHER_PRODUCT_OWNER)
+                .eq("owner_id", productId)
+                .eq("status", BusinessMediaStatus.BOUND.name())
+                .orderByAsc("id")
+                .last("FOR UPDATE"));
+        existing.stream()
+                .filter(asset -> !desiredIds.contains(asset.getId()))
+                .forEach(asset -> markDeletedAfterCommit(asset, now));
+    }
+
+    /** 验证当前账号与商品同店后，按草稿顺序返回券媒体摘要。 */
+    @Override
+    public List<BusinessMediaVO> viewsForVoucherProduct(
+            Long accountId, Long shopId, Long productId, Long coverId, List<Long> detailIds) {
+        requireVoucherContext(accountId, shopId);
+        requireVoucherProduct(shopId, productId);
+        List<MediaReference> references = voucherReferences(coverId, detailIds);
+        if (references.isEmpty()) return List.of();
+        Map<Long, BusinessMediaAsset> assets = loadAssets(references, false);
+        List<BusinessMediaVO> views = new ArrayList<>();
+        for (MediaReference reference : references) {
+            BusinessMediaAsset asset = assets.get(reference.id());
+            requirePurpose(asset, reference.purpose());
+            assertVoucherBound(asset, productId);
+            views.add(toView(asset));
+        }
+        return List.copyOf(views);
+    }
+
+    /** 复制每一个私有对象与媒体记录，目标商品不共享源 object_key。 */
+    @Override
+    public VoucherMediaCopy copyVoucherProductReferences(
+            Long accountId,
+            Long shopId,
+            Long sourceProductId,
+            Long targetProductId,
+            Long coverId,
+            List<Long> detailIds) {
+        MerchantAccount account = requireVoucherContext(accountId, shopId);
+        requireVoucherProduct(shopId, sourceProductId);
+        requireVoucherProduct(shopId, targetProductId);
+        List<MediaReference> source = voucherReferences(coverId, detailIds);
+        if (source.isEmpty()) return new VoucherMediaCopy(null, List.of());
+        Map<Long, BusinessMediaAsset> assets = loadAssets(source, true);
+        Long targetCoverId = null;
+        List<Long> targetDetailIds = new ArrayList<>();
+        for (MediaReference reference : source) {
+            BusinessMediaAsset asset = assets.get(reference.id());
+            requirePurpose(asset, reference.purpose());
+            assertVoucherBound(asset, sourceProductId);
+            BusinessMediaAsset copied = copyVoucherAsset(account, targetProductId, asset, reference.sortOrder());
+            if (reference.purpose() == BusinessMediaPurpose.VOUCHER_COVER) {
+                targetCoverId = copied.getId();
+            } else {
+                targetDetailIds.add(copied.getId());
+            }
+        }
+        return new VoucherMediaCopy(targetCoverId, targetDetailIds);
+    }
+
+    /** 锁定并标记商品全部已绑定媒体，事务提交后删除对象。 */
+    @Override
+    public void deleteVoucherProductReferences(Long shopId, Long productId) {
+        requireVoucherProduct(shopId, productId);
+        LocalDateTime now = LocalDateTime.now();
+        List<BusinessMediaAsset> assets = list(new QueryWrapper<BusinessMediaAsset>()
+                .eq("owner_type", VOUCHER_PRODUCT_OWNER)
+                .eq("owner_id", productId)
+                .eq("status", BusinessMediaStatus.BOUND.name())
+                .orderByAsc("id")
+                .last("FOR UPDATE"));
+        assets.forEach(asset -> markDeletedAfterCommit(asset, now));
+    }
+
     /** 校验申请归属、用途和绑定状态后生成管理端专用鉴权路径。 */
     @Override
     public List<AdminBusinessMediaVO> adminViewsForApplication(
@@ -302,6 +431,50 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         return account;
     }
 
+    private MerchantAccount requireUploader(BusinessMediaPurpose purpose) {
+        if (purpose == BusinessMediaPurpose.LICENSE || purpose == BusinessMediaPurpose.GALLERY) {
+            return requireEditableOwner();
+        }
+        return requireVoucherManager();
+    }
+
+    private MerchantAccount requireVoucherManager() {
+        MerchantAccount account = merchantAuthService.requireCurrentAccount();
+        MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
+        MerchantRole role = MerchantRole.valueOf(account.getRole());
+        if (status != MerchantAccountStatus.ACTIVE || account.getShopId() == null) {
+            throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
+        }
+        if (role != MerchantRole.OWNER && role != MerchantRole.MANAGER) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "当前角色无权管理团购券");
+        }
+        return account;
+    }
+
+    private MerchantAccount requireVoucherContext(Long accountId, Long shopId) {
+        MerchantAccount account = requireVoucherManager();
+        if (!account.getId().equals(accountId) || !account.getShopId().equals(shopId)) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "商户身份上下文不一致");
+        }
+        return account;
+    }
+
+    private VoucherProduct requireVoucherProduct(Long shopId, Long productId) {
+        VoucherProduct product = voucherProductMapper.selectById(productId);
+        if (product == null || !shopId.equals(product.getShopId())) {
+            throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购券不存在");
+        }
+        return product;
+    }
+
+    private void requireVoucherProductAccess(MerchantAccount account, Long productId) {
+        MerchantAccount active = requireVoucherManager();
+        if (!active.getId().equals(account.getId())) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "商户身份上下文不一致");
+        }
+        requireVoucherProduct(active.getShopId(), productId);
+    }
+
     private BusinessMediaPurpose parsePurpose(String value) {
         try {
             return BusinessMediaPurpose.valueOf(value == null ? "" : value.trim().toUpperCase(Locale.ROOT));
@@ -320,6 +493,21 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         for (MediaReference value : values) {
             if (!distinct.add(value.id())) {
                 throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "经营媒体不能重复引用");
+            }
+        }
+        return values;
+    }
+
+    private List<MediaReference> voucherReferences(Long coverId, List<Long> detailIds) {
+        List<MediaReference> values = new ArrayList<>();
+        if (coverId != null) values.add(new MediaReference(coverId, BusinessMediaPurpose.VOUCHER_COVER, 0));
+        for (int index = 0; index < detailIds.size(); index++) {
+            values.add(new MediaReference(detailIds.get(index), BusinessMediaPurpose.VOUCHER_DETAIL, index));
+        }
+        Set<Long> distinct = new LinkedHashSet<>();
+        for (MediaReference value : values) {
+            if (!distinct.add(value.id())) {
+                throw BusinessException.badRequest("VOUCHER_PRODUCT_INCOMPLETE", "封面与详情图片不能重复引用");
             }
         }
         return values;
@@ -387,6 +575,29 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         }
     }
 
+    private void assertVoucherUsable(MerchantAccount account, Long productId, BusinessMediaAsset asset) {
+        if (asset == null || BusinessMediaStatus.DELETED.name().equals(asset.getStatus())) {
+            throw BusinessException.notFound("BUSINESS_MEDIA_NOT_FOUND", "券媒体不存在");
+        }
+        if (BusinessMediaStatus.TEMPORARY.name().equals(asset.getStatus())) {
+            requireOwned(account.getId(), asset);
+            if (asset.getExpiresAt() == null || !asset.getExpiresAt().isAfter(LocalDateTime.now())) {
+                throw BusinessException.conflict("BUSINESS_MEDIA_EXPIRED", "临时券媒体已过期");
+            }
+            return;
+        }
+        assertVoucherBound(asset, productId);
+    }
+
+    private void assertVoucherBound(BusinessMediaAsset asset, Long productId) {
+        if (asset == null
+                || !BusinessMediaStatus.BOUND.name().equals(asset.getStatus())
+                || !VOUCHER_PRODUCT_OWNER.equals(asset.getOwnerType())
+                || !productId.equals(asset.getOwnerId())) {
+            throw BusinessException.conflict("BUSINESS_MEDIA_ALREADY_BOUND", "券媒体已绑定其他业务");
+        }
+    }
+
     private void assertAdminApplicationBound(BusinessMediaAsset asset, Long applicationId) {
         if (asset == null
                 || !BusinessMediaStatus.BOUND.name().equals(asset.getStatus())
@@ -415,6 +626,59 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         LocalDate today = LocalDate.now();
         return "merchant/" + accountId + "/" + today.getYear() + "/"
                 + String.format("%02d", today.getMonthValue()) + "/" + UUID.randomUUID() + "." + extension;
+    }
+
+    private BusinessMediaAsset copyVoucherAsset(
+            MerchantAccount account, Long targetProductId, BusinessMediaAsset source, int sortOrder) {
+        ObjectStoragePort.StoredObject object;
+        try {
+            object = storage.get(source.getObjectKey());
+        } catch (ObjectStorageException exception) {
+            throw unavailable(exception);
+        }
+        String objectKey = newObjectKey(account.getId(), extension(source));
+        try {
+            storage.put(objectKey, source.getMimeType(), object.content());
+        } catch (ObjectStorageException exception) {
+            throw unavailable(exception);
+        }
+        registerRollbackDelete(objectKey);
+        BusinessMediaAsset copy = new BusinessMediaAsset()
+                .setUploaderMerchantAccountId(account.getId())
+                .setPurpose(source.getPurpose())
+                .setStatus(BusinessMediaStatus.BOUND.name())
+                .setBucketName(storage.bucketName())
+                .setObjectKey(objectKey)
+                .setOriginalFilename(source.getOriginalFilename())
+                .setMimeType(source.getMimeType())
+                .setByteSize(source.getByteSize())
+                .setWidth(source.getWidth())
+                .setHeight(source.getHeight())
+                .setOwnerType(VOUCHER_PRODUCT_OWNER)
+                .setOwnerId(targetProductId)
+                .setSortOrder(sortOrder)
+                .setBoundAt(LocalDateTime.now());
+        if (!save(copy)) throw new IllegalStateException("券媒体复制记录创建失败");
+        return copy;
+    }
+
+    private String extension(BusinessMediaAsset asset) {
+        String key = asset.getObjectKey();
+        int dot = key == null ? -1 : key.lastIndexOf('.');
+        return dot < 0 || dot == key.length() - 1 ? "bin" : key.substring(dot + 1);
+    }
+
+    private void markDeletedAfterCommit(BusinessMediaAsset asset, LocalDateTime now) {
+        int affected = baseMapper.update(null, new UpdateWrapper<BusinessMediaAsset>()
+                .eq("id", asset.getId())
+                .eq("status", BusinessMediaStatus.BOUND.name())
+                .set("status", BusinessMediaStatus.DELETED.name())
+                .set("deleted_at", now)
+                .set("expires_at", now));
+        if (affected != 1) {
+            throw BusinessException.conflict("BUSINESS_MEDIA_ALREADY_BOUND", "券媒体状态已变化，请重新加载");
+        }
+        deleteAfterCommit(asset);
     }
 
     private void registerRollbackDelete(String objectKey) {

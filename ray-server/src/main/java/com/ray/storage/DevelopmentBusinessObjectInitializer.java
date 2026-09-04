@@ -22,7 +22,8 @@ public class DevelopmentBusinessObjectInitializer implements ApplicationRunner {
             "seed/merchant/application-4-license.png",
             "seed/merchant/application-9101-license.png",
             "seed/merchant/application-9102-license.png",
-            "seed/merchant/application-9103-license.png");
+            "seed/merchant/application-9103-license.png",
+            "seed/merchant/voucher-3105-cover.png");
 
     private final ObjectStoragePort objectStorage;
     private final Resource seedLicense;

@@ -50,7 +50,7 @@ public class BusinessMediaController {
     })
     public ResponseEntity<Result<BusinessMediaVO>> upload(
             @Parameter(description = "图片文件", required = true) @RequestParam("file") MultipartFile file,
-            @Parameter(description = "LICENSE（营业执照）或 GALLERY（经营图片）", required = true)
+            @Parameter(description = "LICENSE（营业执照）、GALLERY（经营图片）、VOUCHER_COVER（券封面）或 VOUCHER_DETAIL（券详情图）", required = true)
                     @RequestParam("purpose")
                     String purpose) {
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(service.uploadImage(file, purpose)));

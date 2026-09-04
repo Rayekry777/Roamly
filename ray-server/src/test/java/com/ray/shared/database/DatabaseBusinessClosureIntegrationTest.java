@@ -75,11 +75,11 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasTwentyFourCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasTwentyFiveCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(24, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(25, tableNames.size(), "当前表=" + tableNames);
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -94,6 +94,10 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("merchant_application", "uk_merchant_application_account"));
         assertEquals(1, indexCount("merchant_application", "uk_merchant_application_approved_shop"));
         assertEquals(1, indexCount("business_media_asset", "uk_business_media_object_key"));
+        assertEquals(1, indexCount("voucher_product", "idx_voucher_product_shop_review"));
+        assertEquals(1, indexCount("voucher_product", "idx_voucher_product_public"));
+        assertEquals(1, indexCount("voucher_product", "idx_voucher_product_submission"));
+        assertEquals(1, indexCount("voucher_package_item", "uk_voucher_package_item_product_sort"));
         assertEquals(1, indexCount("shop", "uk_shop_source_application"));
         assertEquals(1, indexCount("shop", "idx_shop_status_city_type"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
@@ -102,7 +106,7 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(0, count("select count(*) from merchant_account where status='ACTIVE' and shop_id is null"));
         assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=3 and status='PENDING'"));
         assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=4 and status='REJECTED'"));
-        assertEquals(5, count("select count(*) from business_media_asset where object_key like 'seed/%' "
+        assertEquals(6, count("select count(*) from business_media_asset where object_key like 'seed/%' "
                 + "and byte_size=543 and width=400 and height=400"));
         assertEquals(0, count("select count(*) from business_media_asset where status='BOUND' "
                 + "and (owner_type is null or owner_id is null or expires_at is not null)"));
@@ -124,9 +128,128 @@ class DatabaseBusinessClosureIntegrationTest {
                 + "(select round(avg(r.score)*10) from shop_review r where r.shop_id=s.id and r.status=0)"));
         assertEquals(198, count("select available_stock from voucher_product where id=3001"));
         assertEquals(1, count("select sold_count from voucher_product where id=3001"));
+        assertEquals(4, count("select count(distinct product_type) from voucher_product"));
+        assertEquals(2, count("select count(*) from voucher_product "
+                + "where review_status='APPROVED' and sale_status='ON_SALE'"));
+        assertEquals(1, count("select count(*) from voucher_product where id=3105 "
+                + "and review_status='PENDING' and sale_status is null and cover_media_id=8201"));
+        assertEquals(0, count("select count(*) from voucher_product where review_status<>'APPROVED' "
+                + "and sale_status is not null"));
+        assertEquals(7, count("select count(*) from voucher_package_item"));
         assertEquals(1, count("select count(*) from user_voucher where order_id=6002 and status='UNUSED'"));
         assertEquals(1, count("select count(*) from post_media pm join media_asset m on m.id=pm.media_asset_id "
                 + "where pm.post_id=1001 and m.status=1 and m.bound_type=1 and m.bound_id=1001"));
+    }
+
+    @Test
+    @Order(2)
+    void merchantVoucherAuthoringClosesMediaVersionCopySubmissionAndRoleIsolation() throws Exception {
+        String ownerToken = loginMerchantWithCode("13900000001");
+        ResponseEntity<String> seeded = exchange(
+                "/v1/merchant/voucher-products?page=1&size=20", HttpMethod.GET, null, ownerToken);
+        assertEquals(HttpStatus.OK, seeded.getStatusCode());
+        assertEquals(6, data(seeded).path("items").size());
+
+        String coverId = uploadBusinessImage(ownerToken, "VOUCHER_COVER", "voucher-cover.png");
+        String detailId = uploadBusinessImage(ownerToken, "VOUCHER_DETAIL", "voucher-detail.png");
+        ResponseEntity<String> created = exchange(
+                "/v1/merchant/voucher-products",
+                HttpMethod.POST,
+                Map.of("productType", "CASH"),
+                ownerToken);
+        assertEquals(HttpStatus.CREATED, created.getStatusCode());
+        String productId = data(created).path("id").asText();
+        assertEquals("DRAFT", data(created).path("reviewStatus").asText());
+        assertEquals(0, data(created).path("version").asInt());
+
+        Map<String, Object> complete = completeCashVoucher(0, coverId, detailId);
+        ResponseEntity<String> saved = exchange(
+                "/v1/merchant/voucher-products/" + productId,
+                HttpMethod.PUT,
+                complete,
+                ownerToken);
+        assertEquals(HttpStatus.OK, saved.getStatusCode());
+        assertEquals(1, data(saved).path("version").asInt());
+        assertEquals(1, data(saved).path("detailMedia").size());
+        assertEquals(2, count("select count(*) from business_media_asset where owner_type='VOUCHER_PRODUCT' "
+                + "and owner_id=" + productId + " and status='BOUND'"));
+        assertEquals(HttpStatus.OK, exchange(
+                        "/v1/merchant/business-media/images/" + coverId + "/content",
+                        HttpMethod.GET,
+                        null,
+                        ownerToken)
+                .getStatusCode());
+
+        assertEquals(HttpStatus.CONFLICT, exchange(
+                        "/v1/merchant/voucher-products/" + productId,
+                        HttpMethod.PUT,
+                        complete,
+                        ownerToken)
+                .getStatusCode());
+        ResponseEntity<String> submitted = exchangeCommand(
+                "/v1/merchant/voucher-products/" + productId + "/submission",
+                "stage20-submit-0001",
+                Map.of("version", 1),
+                ownerToken);
+        assertEquals(HttpStatus.OK, submitted.getStatusCode());
+        assertEquals("PENDING", data(submitted).path("reviewStatus").asText());
+        assertEquals(2, data(submitted).path("version").asInt());
+        ResponseEntity<String> replay = exchangeCommand(
+                "/v1/merchant/voucher-products/" + productId + "/submission",
+                "stage20-submit-0001",
+                Map.of("version", 1),
+                ownerToken);
+        assertEquals(HttpStatus.OK, replay.getStatusCode());
+        assertEquals(2, data(replay).path("version").asInt());
+        assertEquals(HttpStatus.CONFLICT, exchangeCommand(
+                        "/v1/merchant/voucher-products/" + productId + "/submission",
+                        "stage20-submit-0002",
+                        Map.of("version", 1),
+                        ownerToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, exchange(
+                        "/v1/merchant/voucher-products/3002", HttpMethod.GET, null, ownerToken)
+                .getStatusCode());
+
+        ResponseEntity<String> copied = exchange(
+                "/v1/merchant/voucher-products/" + productId + "/copies",
+                HttpMethod.POST,
+                null,
+                ownerToken);
+        assertEquals(HttpStatus.CREATED, copied.getStatusCode());
+        String copiedId = data(copied).path("id").asText();
+        String copiedCoverId = data(copied).path("coverMediaId").asText();
+        assertFalse(copiedCoverId.equals(coverId));
+        String sourceKey = jdbc.queryForObject(
+                "select object_key from business_media_asset where id=?", String.class, Long.valueOf(coverId));
+        String copiedKey = jdbc.queryForObject(
+                "select object_key from business_media_asset where id=?", String.class, Long.valueOf(copiedCoverId));
+        assertFalse(sourceKey.equals(copiedKey));
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/merchant/voucher-products/" + copiedId,
+                        HttpMethod.DELETE,
+                        null,
+                        ownerToken)
+                .getStatusCode());
+        assertEquals(0, count("select count(*) from voucher_product where id=" + copiedId));
+
+        jdbc.update("insert into merchant_account(id,phone,nickname,role,status,shop_id,version) "
+                + "values(20,'13900000020','门店店长','MANAGER','ACTIVE',1,0)");
+        jdbc.update("insert into merchant_account(id,phone,nickname,role,status,shop_id,version) "
+                + "values(21,'13900000021','门店核销员','VERIFIER','ACTIVE',1,0)");
+        String managerToken = loginMerchantWithCode("13900000020");
+        String verifierToken = loginMerchantWithCode("13900000021");
+        assertEquals(HttpStatus.OK, exchange(
+                        "/v1/merchant/voucher-products", HttpMethod.GET, null, managerToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, exchange(
+                        "/v1/merchant/voucher-products", HttpMethod.GET, null, verifierToken)
+                .getStatusCode());
+        assertEquals(5, count("select count(*) from operation_audit_log where actor_type='MERCHANT' "
+                + "and object_type='VOUCHER_PRODUCT' and action like 'MERCHANT_VOUCHER_%'"));
+
+        // Keep the following governance scenario focused on the seeded shop owner.
+        jdbc.update("delete from merchant_account where id in (20,21)");
     }
 
     @Test
@@ -204,6 +327,8 @@ class DatabaseBusinessClosureIntegrationTest {
     void realMerchantFlowClosesCreationStatusIsolationRateLimitAndLogout() throws Exception {
         String consumerToken = login("13686869696");
 
+        // The Spring context and Redis DB are shared by ordered scenarios.
+        redis.delete("roamly:merchant:sms-limit:13900000001");
         ResponseEntity<String> code = exchange(
                 "/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", "13900000001"), null);
         assertEquals(HttpStatus.NO_CONTENT, code.getStatusCode());
@@ -807,6 +932,44 @@ class DatabaseBusinessClosureIntegrationTest {
         request.put("settlementAccountName", "测试结算户");
         request.put("settlementBankName", "Roamly Mock 银行");
         request.put("settlementAccountSuffix", "0018");
+        return request;
+    }
+
+    private Map<String, Object> completeCashVoucher(int version, String coverId, String detailId) {
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("version", version);
+        request.put("title", "数据库集成测试 50 元代金券");
+        request.put("subTitle", "工作日与周末通用");
+        request.put("coverMediaId", coverId);
+        request.put("detailMediaIds", List.of(detailId));
+        request.put("priceAmount", 4200);
+        request.put("marketAmount", 5000);
+        request.put("faceValueAmount", 5000);
+        request.put("minimumSpendAmount", 5000);
+        request.put("discountRateBps", null);
+        request.put("maximumDiscountAmount", null);
+        request.put("totalUseCount", null);
+        request.put("totalStock", 100);
+        request.put("purchaseLimit", 2);
+        request.put("saleBeginTime", "2026-09-10T10:00:00");
+        request.put("saleEndTime", "2026-12-31T22:00:00");
+        request.put("validityType", "DAYS_AFTER_PURCHASE");
+        request.put("validBeginTime", null);
+        request.put("validEndTime", null);
+        request.put("validDays", 30);
+        request.put("usageRules", java.util.Arrays.stream(com.ray.enums.BusinessDayOfWeek.values())
+                .map(day -> Map.of(
+                        "dayOfWeek", day.name(),
+                        "closed", false,
+                        "periods", List.of(Map.of("open", "10:00", "close", "22:00"))))
+                .toList());
+        request.put("excludedDates", List.of());
+        request.put("reservationRequired", false);
+        request.put("reservationNotice", null);
+        request.put("stackable", false);
+        request.put("refundAnytime", true);
+        request.put("refundExpired", true);
+        request.put("packageItems", List.of());
         return request;
     }
 

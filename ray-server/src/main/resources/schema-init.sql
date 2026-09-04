@@ -416,37 +416,75 @@ CREATE TABLE `user_info`  (
 
 
 DROP TABLE IF EXISTS `user_voucher`;
+DROP TABLE IF EXISTS `voucher_package_item`;
 DROP TABLE IF EXISTS `voucher_product`;
 DROP TABLE IF EXISTS `voucher_order`;
 CREATE TABLE `voucher_product` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `shop_id` bigint UNSIGNED NOT NULL,
-  `title` varchar(120) NOT NULL,
+  `product_type` varchar(16) NOT NULL COMMENT '券型：PACKAGE套餐券、CASH代金券、DISCOUNT折扣券、MULTI_USE次卡',
+  `title` varchar(120) NULL,
   `sub_title` varchar(255) NULL,
-  `cover` varchar(255) NULL,
-  `rules` varchar(2000) NULL,
-  `pay_price` bigint UNSIGNED NOT NULL,
-  `original_price` bigint UNSIGNED NULL,
-  `deduction_value` bigint UNSIGNED NULL,
-  `sale_type` varchar(16) NOT NULL DEFAULT 'NORMAL',
+  `cover_media_id` bigint UNSIGNED NULL,
+  `detail_media_ids_json` json NOT NULL,
+  `price_amount` bigint UNSIGNED NULL,
+  `market_amount` bigint UNSIGNED NULL,
+  `face_value_amount` bigint UNSIGNED NULL,
+  `minimum_spend_amount` bigint UNSIGNED NULL,
+  `discount_rate_bps` int UNSIGNED NULL,
+  `maximum_discount_amount` bigint UNSIGNED NULL,
+  `total_use_count` int UNSIGNED NULL,
   `total_stock` int UNSIGNED NOT NULL DEFAULT 0,
   `available_stock` int UNSIGNED NOT NULL DEFAULT 0,
   `sold_count` int UNSIGNED NOT NULL DEFAULT 0,
   `purchase_limit` int UNSIGNED NOT NULL DEFAULT 1,
   `sale_begin_time` timestamp NULL,
   `sale_end_time` timestamp NULL,
-  `validity_type` varchar(32) NOT NULL DEFAULT 'DAYS_AFTER_PURCHASE',
+  `validity_type` varchar(32) NULL,
   `valid_begin_time` timestamp NULL,
   `valid_end_time` timestamp NULL,
   `valid_days` int UNSIGNED NULL,
-  `status` varchar(16) NOT NULL DEFAULT 'DRAFT',
+  `usage_rules_json` json NOT NULL,
+  `excluded_dates_json` json NOT NULL,
+  `reservation_required` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+  `reservation_notice` varchar(500) NULL,
+  `stackable` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+  `refund_anytime` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+  `refund_expired` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+  `review_status` varchar(16) NOT NULL DEFAULT 'DRAFT' COMMENT '审核状态：DRAFT草稿、PENDING审核中、APPROVED审核通过、REJECTED审核未通过',
+  `sale_status` varchar(16) NULL COMMENT '销售状态：SCHEDULED待开售、ON_SALE销售中、OFF_SALE已下架、SOLD_OUT已售罄、ENDED已结束',
+  `rejection_reason` varchar(500) NULL,
+  `submission_idempotency_key` varchar(128) NULL,
+  `submission_request_fingerprint` char(64) NULL,
+  `submitted_at` timestamp NULL,
+  `review_decision` varchar(16) NULL,
+  `review_idempotency_key` varchar(128) NULL,
+  `review_request_fingerprint` char(64) NULL,
+  `reviewed_at` timestamp NULL,
+  `reviewer_admin_id` bigint UNSIGNED NULL,
   `version` int UNSIGNED NOT NULL DEFAULT 0,
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  INDEX `idx_voucher_product_shop_status` (`shop_id`,`status`,`id`),
-  INDEX `idx_voucher_product_sale` (`status`,`sale_begin_time`,`sale_end_time`,`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='团购商品';
+  INDEX `idx_voucher_product_shop_review` (`shop_id`,`review_status`,`update_time`,`id`),
+  INDEX `idx_voucher_product_public` (`shop_id`,`review_status`,`sale_status`,`sale_begin_time`,`sale_end_time`,`id`),
+  INDEX `idx_voucher_product_submission` (`submission_idempotency_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='四类团购券商品';
+
+CREATE TABLE `voucher_package_item` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `product_id` bigint UNSIGNED NOT NULL COMMENT '逻辑关联voucher_product.id',
+  `name` varchar(80) NOT NULL,
+  `quantity` int UNSIGNED NOT NULL,
+  `unit` varchar(16) NOT NULL,
+  `unit_price_amount` bigint UNSIGNED NULL,
+  `sort_order` int UNSIGNED NOT NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_voucher_package_item_product_sort` (`product_id`,`sort_order`),
+  INDEX `idx_voucher_package_item_product` (`product_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='套餐券与次卡有序明细';
 
 CREATE TABLE `voucher_order`  (
   `id` bigint(20) NOT NULL COMMENT '主键',

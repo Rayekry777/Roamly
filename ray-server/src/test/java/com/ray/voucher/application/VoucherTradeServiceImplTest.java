@@ -160,9 +160,10 @@ class VoucherTradeServiceImplTest {
                 .setId(1001L)
                 .setShopId(4L)
                 .setTitle("双人套餐")
-                .setPayPrice(9900L)
+                .setPriceAmount(9900L)
                 .setPurchaseLimit(purchaseLimit)
-                .setStatus("ON_SALE"));
+                .setReviewStatus("APPROVED")
+                .setSaleStatus("ON_SALE"));
         when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()));
     }
 }

@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(86, operationIds.size());
+        assertEquals(93, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
@@ -147,6 +147,16 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1merchant~1application~1submission/post/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/responses/413").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products/post/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}/put/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}/put/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}~1copies/post/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}~1submission/post/responses/409").isObject());
+        assertRequiredParameter(
+                document,
+                "/v1/merchant/voucher-products/{productId}/submission",
+                "post",
+                "Idempotency-Key");
         assertTrue(document.at("/paths/~1v1~1auth~1sessions/post/security").isArray());
         assertEquals(
                 0, document.at("/paths/~1v1~1auth~1sessions/post/security").size());
@@ -200,6 +210,12 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("BusinessMediaVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductCreateRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductUpdateRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductSubmitRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherPackageItemRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherPackageItemVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationApprovalRequest"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationRejectionRequest"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("ShopGovernanceRequest"), "schemas=" + schemaNames);
@@ -288,6 +304,13 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/business-media/images",
                 "DELETE /v1/merchant/business-media/images/{mediaId}",
                 "GET /v1/merchant/business-media/images/{mediaId}/content",
+                "GET /v1/merchant/voucher-products",
+                "POST /v1/merchant/voucher-products",
+                "GET /v1/merchant/voucher-products/{productId}",
+                "PUT /v1/merchant/voucher-products/{productId}",
+                "DELETE /v1/merchant/voucher-products/{productId}",
+                "POST /v1/merchant/voucher-products/{productId}/copies",
+                "POST /v1/merchant/voucher-products/{productId}/submission",
                 "GET /v1/merchant/application",
                 "PUT /v1/merchant/application",
                 "POST /v1/merchant/application/submission",
