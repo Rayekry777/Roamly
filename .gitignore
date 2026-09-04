@@ -2,6 +2,7 @@ HELP.md
 target/
 .env
 uploads/
+business-objects/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

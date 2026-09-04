@@ -9,11 +9,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.service.VoucherSettlementService;
 import com.ray.shared.config.IntegrationTest;
+import com.ray.storage.ObjectStoragePort;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import javax.imageio.ImageIO;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpEntity;
@@ -37,6 +42,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.DatabasePopulatorUtils;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.util.LinkedMultiValueMap;
 
 /** 在显式授权的开发 MySQL 与隔离 Redis DB 15 上验收完整 Demo 业务闭环。 */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -51,6 +57,7 @@ class DatabaseBusinessClosureIntegrationTest {
     @Autowired private TestRestTemplate http;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VoucherSettlementService settlementService;
+    @Autowired private ObjectStoragePort objectStorage;
 
     @BeforeAll
     void rebuildAuthorizedDevelopmentDatabase() {
@@ -60,17 +67,19 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @AfterAll
     void restoreSeedOnlyState() {
+        jdbc.queryForList("select object_key from business_media_asset where object_key not like 'seed/%'", String.class)
+                .forEach(objectStorage::delete);
         rebuildSnapshot();
         flushRedis();
     }
 
     @Test
     @Order(1)
-    void snapshotHasTwentyTwoCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasTwentyFourCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(22, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(24, tableNames.size(), "当前表=" + tableNames);
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -82,10 +91,18 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("admin_user", "uk_admin_user_username"));
         assertEquals(1, indexCount("operation_audit_log", "idx_audit_actor_time"));
         assertEquals(1, indexCount("merchant_account", "uk_merchant_account_phone"));
+        assertEquals(1, indexCount("merchant_application", "uk_merchant_application_account"));
+        assertEquals(1, indexCount("business_media_asset", "uk_business_media_object_key"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
                 + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=1"));
         assertEquals(5, count("select count(distinct status) from merchant_account"));
         assertEquals(0, count("select count(*) from merchant_account where status='ACTIVE' and shop_id is null"));
+        assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=3 and status='PENDING'"));
+        assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=4 and status='REJECTED'"));
+        assertEquals(2, count("select count(*) from business_media_asset where object_key like 'seed/%' "
+                + "and byte_size=543 and width=400 and height=400"));
+        assertEquals(0, count("select count(*) from business_media_asset where status='BOUND' "
+                + "and (owner_type is null or owner_id is null or expires_at is not null)"));
 
         assertEquals(0, count("select count(*) from post p where p.liked_count <> "
                 + "(select count(*) from post_like pl where pl.post_id=p.id)"));
@@ -100,6 +117,76 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, count("select count(*) from user_voucher where order_id=6002 and status='UNUSED'"));
         assertEquals(1, count("select count(*) from post_media pm join media_asset m on m.id=pm.media_asset_id "
                 + "where pm.post_id=1001 and m.status=1 and m.bound_type=1 and m.bound_id=1001"));
+    }
+
+    @Test
+    @Order(3)
+    void realMerchantOnboardingClosesMediaDraftConflictSubmissionAndIsolation() throws Exception {
+        String ownerToken = loginMerchantWithCode("13900000008");
+        assertTrue(data(exchange("/v1/merchant/application", HttpMethod.GET, null, ownerToken)).isNull());
+        assertEquals(HttpStatus.OK,
+                exchange("/v1/merchant/reference/cities", HttpMethod.GET, null, ownerToken).getStatusCode());
+        assertEquals(HttpStatus.OK,
+                exchange("/v1/merchant/reference/shop-types", HttpMethod.GET, null, ownerToken).getStatusCode());
+
+        String licenseId = uploadBusinessImage(ownerToken, "LICENSE", "license.png");
+        String galleryId = uploadBusinessImage(ownerToken, "GALLERY", "gallery.png");
+        ResponseEntity<String> content = exchange(
+                "/v1/merchant/business-media/images/" + licenseId + "/content",
+                HttpMethod.GET,
+                null,
+                ownerToken);
+        assertEquals(HttpStatus.OK, content.getStatusCode());
+
+        String otherToken = loginMerchantWithCode("13900000007");
+        ResponseEntity<String> isolated = exchange(
+                "/v1/merchant/business-media/images/" + licenseId + "/content",
+                HttpMethod.GET,
+                null,
+                otherToken);
+        assertEquals(HttpStatus.FORBIDDEN, isolated.getStatusCode());
+        assertEquals("BUSINESS_MEDIA_NOT_OWNED", objectMapper.readTree(isolated.getBody()).path("code").asText());
+
+        Map<String, Object> draft = completeApplication(0, licenseId, galleryId);
+        ResponseEntity<String> saved = exchange(
+                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+        assertEquals(HttpStatus.OK, saved.getStatusCode());
+        assertEquals(0, data(saved).path("version").asInt());
+        assertEquals("DRAFT", data(saved).path("status").asText());
+        ResponseEntity<String> updated = exchange(
+                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+        assertEquals(HttpStatus.OK, updated.getStatusCode());
+        assertEquals(1, data(updated).path("version").asInt());
+        ResponseEntity<String> stale = exchange(
+                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+        assertEquals(HttpStatus.CONFLICT, stale.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_VERSION_CONFLICT",
+                objectMapper.readTree(stale.getBody()).path("code").asText());
+
+        ResponseEntity<String> submitted = exchangeWithIdempotency(
+                "/v1/merchant/application/submission", "stage18-submit-0001", ownerToken);
+        assertEquals(HttpStatus.OK, submitted.getStatusCode());
+        String applicationId = data(submitted).path("id").asText();
+        assertEquals("PENDING", data(submitted).path("status").asText());
+        assertEquals(HttpStatus.OK, exchangeWithIdempotency(
+                        "/v1/merchant/application/submission", "stage18-submit-0001", ownerToken)
+                .getStatusCode());
+        ResponseEntity<String> differentKey = exchangeWithIdempotency(
+                "/v1/merchant/application/submission", "stage18-submit-0002", ownerToken);
+        assertEquals(HttpStatus.CONFLICT, differentKey.getStatusCode());
+        assertEquals("MERCHANT_APPLICATION_IDEMPOTENCY_CONFLICT",
+                objectMapper.readTree(differentKey.getBody()).path("code").asText());
+        assertEquals(1, count("select count(*) from merchant_account where phone='13900000008' and status='PENDING'"));
+        assertEquals(2, count("select count(*) from business_media_asset where owner_type='MERCHANT_APPLICATION' "
+                + "and owner_id=" + applicationId + " and status='BOUND' and expires_at is null"));
+        ResponseEntity<String> boundDelete = exchange(
+                "/v1/merchant/business-media/images/" + licenseId,
+                HttpMethod.DELETE,
+                null,
+                ownerToken);
+        assertEquals(HttpStatus.CONFLICT, boundDelete.getStatusCode());
+        assertEquals("BUSINESS_MEDIA_ALREADY_BOUND",
+                objectMapper.readTree(boundDelete.getBody()).path("code").asText());
     }
 
     @Test
@@ -447,6 +534,75 @@ class DatabaseBusinessClosureIntegrationTest {
                 exchange("/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", phone), null)
                         .getStatusCode());
         return loginMerchant(phone);
+    }
+
+    private String uploadBusinessImage(String token, String purpose, String filename) throws Exception {
+        LinkedMultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        byte[] bytes = imageBytes();
+        body.add("purpose", purpose);
+        ByteArrayResource resource = new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return filename;
+            }
+        };
+        HttpHeaders fileHeaders = new HttpHeaders();
+        fileHeaders.setContentType(MediaType.IMAGE_PNG);
+        body.add("file", new HttpEntity<>(resource, fileHeaders));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        ResponseEntity<String> response = http.exchange(
+                "/v1/merchant/business-media/images",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                String.class);
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        return data(response).path("id").asText();
+    }
+
+    private byte[] imageBytes() throws Exception {
+        BufferedImage image = new BufferedImage(400, 400, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        return output.toByteArray();
+    }
+
+    private Map<String, Object> completeApplication(int version, String licenseId, String galleryId) {
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("version", version);
+        request.put("shopName", "真实入驻测试门店");
+        request.put("licenseNumber", "91330100MA2TEST018");
+        request.put("legalRepresentative", "测试店主");
+        request.put("contactName", "测试店主");
+        request.put("contactPhone", "13900000008");
+        request.put("shopTypeId", "1");
+        request.put("cityCode", "330100");
+        request.put("district", "拱墅区");
+        request.put("address", "运河路 18 号");
+        request.put("longitude", 120.149100);
+        request.put("latitude", 30.316000);
+        request.put("businessHours", java.util.Arrays.stream(com.ray.enums.BusinessDayOfWeek.values())
+                .map(day -> Map.of(
+                        "dayOfWeek", day.name(),
+                        "closed", day == com.ray.enums.BusinessDayOfWeek.SUNDAY,
+                        "periods", day == com.ray.enums.BusinessDayOfWeek.SUNDAY
+                                ? List.of()
+                                : List.of(Map.of("open", "09:00", "close", "21:00"))))
+                .toList());
+        request.put("licenseMediaId", licenseId);
+        request.put("galleryMediaIds", List.of(galleryId));
+        request.put("settlementAccountName", "测试结算户");
+        request.put("settlementBankName", "Roamly Mock 银行");
+        request.put("settlementAccountSuffix", "0018");
+        return request;
+    }
+
+    private ResponseEntity<String> exchangeWithIdempotency(String path, String key, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.set("Idempotency-Key", key);
+        return http.exchange(path, HttpMethod.POST, new HttpEntity<>(null, headers), String.class);
     }
 
     private HttpStatus concurrentRoleChange(

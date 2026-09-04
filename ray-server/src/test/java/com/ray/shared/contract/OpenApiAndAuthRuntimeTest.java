@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(69, operationIds.size());
+        assertEquals(77, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
@@ -120,6 +120,10 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1me/get/responses/401").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1application/post/responses/405").isMissingNode());
+        assertTrue(document.at("/paths/~1v1~1merchant~1application~1submission/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/responses/413").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1auth~1sessions/post/security").isArray());
         assertEquals(
                 0, document.at("/paths/~1v1~1auth~1sessions/post/security").size());
@@ -170,6 +174,9 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("UserVoucherVO"));
         assertTrue(schemaNames.contains("CurrentMerchantVO"));
         assertTrue(schemaNames.contains("MerchantShopSummaryVO"));
+        assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("BusinessMediaVO"), "schemas=" + schemaNames);
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -207,6 +214,14 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/auth/login",
                 "GET /v1/merchant/auth/me",
                 "POST /v1/merchant/auth/logout",
+                "POST /v1/merchant/business-media/images",
+                "DELETE /v1/merchant/business-media/images/{mediaId}",
+                "GET /v1/merchant/business-media/images/{mediaId}/content",
+                "GET /v1/merchant/application",
+                "PUT /v1/merchant/application",
+                "POST /v1/merchant/application/submission",
+                "GET /v1/merchant/reference/cities",
+                "GET /v1/merchant/reference/shop-types",
                 "GET /v1/cities",
                 "GET /v1/sections",
                 "GET /v1/sections/{sectionId}",

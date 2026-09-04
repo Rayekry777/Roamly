@@ -3,6 +3,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
 DROP TABLE IF EXISTS `admin_user`;
+DROP TABLE IF EXISTS `business_media_asset`;
+DROP TABLE IF EXISTS `merchant_application`;
 DROP TABLE IF EXISTS `merchant_account`;
 
 CREATE TABLE `admin_user` (
@@ -246,6 +248,71 @@ CREATE TABLE `merchant_account` (
   CONSTRAINT `chk_merchant_account_status` CHECK (`status` IN ('NOT_APPLIED','PENDING','ACTIVE','REJECTED','DISABLED')),
   CONSTRAINT `chk_merchant_active_shop` CHECK (`status` <> 'ACTIVE' OR `shop_id` IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户店主与员工账号';
+
+CREATE TABLE `merchant_application` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '入驻申请ID',
+  `merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '申请店主账号ID，逻辑关联merchant_account.id',
+  `status` varchar(16) NOT NULL DEFAULT 'DRAFT' COMMENT '申请状态：DRAFT草稿、PENDING审核中、APPROVED审核通过、REJECTED审核未通过',
+  `shop_name` varchar(128) NULL DEFAULT NULL COMMENT '门店名称',
+  `license_number` varchar(64) NULL DEFAULT NULL COMMENT '统一社会信用代码',
+  `legal_representative` varchar(64) NULL DEFAULT NULL COMMENT '法定代表人',
+  `contact_name` varchar(64) NULL DEFAULT NULL COMMENT '联系人',
+  `contact_phone` varchar(11) NULL DEFAULT NULL COMMENT '联系人手机号',
+  `shop_type_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '门店类目ID，逻辑关联shop_type.id',
+  `city_code` varchar(16) NULL DEFAULT NULL COMMENT '城市编码，逻辑关联city.code',
+  `district` varchar(64) NULL DEFAULT NULL COMMENT '区县',
+  `address` varchar(255) NULL DEFAULT NULL COMMENT '详细地址',
+  `longitude` decimal(10,6) NULL DEFAULT NULL COMMENT '经度',
+  `latitude` decimal(10,6) NULL DEFAULT NULL COMMENT '纬度',
+  `business_hours_json` json NULL COMMENT '星期一至星期日结构化营业时段',
+  `license_media_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '营业执照媒体ID',
+  `gallery_media_ids_json` json NULL COMMENT '零至九张有序经营图片ID',
+  `settlement_account_name` varchar(64) NULL DEFAULT NULL COMMENT 'Mock结算户名',
+  `settlement_bank_name` varchar(64) NULL DEFAULT NULL COMMENT 'Mock结算银行',
+  `settlement_account_suffix` char(4) NULL DEFAULT NULL COMMENT 'Mock结算账号后四位',
+  `rejection_reason` varchar(500) NULL DEFAULT NULL COMMENT '最近驳回原因',
+  `submission_idempotency_key` varchar(128) NULL DEFAULT NULL COMMENT '最近提交幂等键',
+  `submitted_at` timestamp NULL DEFAULT NULL COMMENT '提交时间',
+  `reviewed_at` timestamp NULL DEFAULT NULL COMMENT '审核时间',
+  `reviewer_admin_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '审核管理员ID',
+  `approved_shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '审核生成门店ID',
+  `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_merchant_application_account` (`merchant_account_id`),
+  INDEX `idx_merchant_application_status_submitted` (`status`,`submitted_at`,`id`),
+  CONSTRAINT `chk_merchant_application_status` CHECK (`status` IN ('DRAFT','PENDING','APPROVED','REJECTED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户入驻申请';
+
+CREATE TABLE `business_media_asset` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '经营媒体ID',
+  `uploader_merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '上传商户账号ID',
+  `purpose` varchar(24) NOT NULL COMMENT '用途：LICENSE营业执照、GALLERY经营图片、VOUCHER_COVER券封面、VOUCHER_DETAIL券详情图',
+  `status` varchar(16) NOT NULL DEFAULT 'TEMPORARY' COMMENT '状态：TEMPORARY临时、BOUND已绑定、DELETED已删除',
+  `bucket_name` varchar(128) NOT NULL COMMENT '对象存储桶',
+  `object_key` varchar(512) NOT NULL COMMENT '服务端生成的私有对象键',
+  `original_filename` varchar(255) NOT NULL COMMENT '原始文件名',
+  `mime_type` varchar(64) NOT NULL COMMENT '实际图片MIME',
+  `byte_size` bigint UNSIGNED NOT NULL COMMENT '字节数',
+  `width` int UNSIGNED NOT NULL COMMENT '像素宽度',
+  `height` int UNSIGNED NOT NULL COMMENT '像素高度',
+  `owner_type` varchar(32) NULL DEFAULT NULL COMMENT '业务归属类型：MERCHANT_APPLICATION入驻申请、VOUCHER_PRODUCT团购券',
+  `owner_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '业务归属ID',
+  `sort_order` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '业务内排序，从0开始',
+  `bound_at` timestamp NULL DEFAULT NULL COMMENT '绑定时间',
+  `expires_at` timestamp NULL DEFAULT NULL COMMENT '临时媒体过期时间',
+  `deleted_at` timestamp NULL DEFAULT NULL COMMENT '删除时间',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_business_media_object_key` (`object_key`),
+  INDEX `idx_business_media_uploader_status_expiry` (`uploader_merchant_account_id`,`status`,`expires_at`,`id`),
+  INDEX `idx_business_media_owner` (`owner_type`,`owner_id`,`purpose`,`sort_order`,`id`),
+  CONSTRAINT `chk_business_media_purpose` CHECK (`purpose` IN ('LICENSE','GALLERY','VOUCHER_COVER','VOUCHER_DETAIL')),
+  CONSTRAINT `chk_business_media_status` CHECK (`status` IN ('TEMPORARY','BOUND','DELETED')),
+  CONSTRAINT `chk_business_media_owner` CHECK ((`status`='TEMPORARY' AND `owner_type` IS NULL AND `owner_id` IS NULL) OR (`status`='BOUND' AND `owner_type` IS NOT NULL AND `owner_id` IS NOT NULL) OR `status`='DELETED')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='经营与团购私有媒体';
 
 
 DROP TABLE IF EXISTS `shop_type`;

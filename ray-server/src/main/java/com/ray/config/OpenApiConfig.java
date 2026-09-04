@@ -5,6 +5,9 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 import com.ray.dto.PostCreateDTO;
 import com.ray.dto.PostUpdateDTO;
 import com.ray.dto.CommentCreateDTO;
+import com.ray.dto.BusinessDayHoursDTO;
+import com.ray.dto.BusinessPeriodDTO;
+import com.ray.dto.MerchantApplicationSaveDTO;
 import com.ray.result.CursorPageResult;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
@@ -13,6 +16,8 @@ import com.ray.vo.HighlightCommentVO;
 import com.ray.vo.CommentThreadVO;
 import com.ray.vo.CommentVO;
 import com.ray.vo.CurrentMerchantVO;
+import com.ray.vo.BusinessMediaVO;
+import com.ray.vo.MerchantApplicationVO;
 import com.ray.vo.MerchantShopSummaryVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
@@ -133,6 +138,21 @@ public class OpenApiConfig {
                 if (method == HttpMethod.POST && path.equals("/v1/media/images")) {
                     addError(operation.getResponses(), "413", "文件过大");
                 }
+                if (path.startsWith("/v1/merchant/business-media/images")) {
+                    addError(operation.getResponses(), "403", "经营媒体不属于当前商户或账号不可编辑");
+                    addError(operation.getResponses(), "404", "经营媒体不存在");
+                    addError(operation.getResponses(), "409", "经营媒体已绑定或已过期");
+                    if (method == HttpMethod.POST) addError(operation.getResponses(), "413", "文件过大");
+                    if (method == HttpMethod.POST || method == HttpMethod.GET) {
+                        addError(operation.getResponses(), "503", "对象存储暂不可用");
+                    }
+                }
+                if (path.startsWith("/v1/merchant/application")) {
+                    addError(operation.getResponses(), "403", "当前商户角色无权访问入驻申请");
+                    if (method == HttpMethod.PUT || method == HttpMethod.POST) {
+                        addError(operation.getResponses(), "409", "入驻申请版本、状态或幂等键冲突");
+                    }
+                }
             }));
         };
     }
@@ -176,6 +196,11 @@ public class OpenApiConfig {
     private void registerMerchantSchemas(Components components) {
         registerSchema(components, "MerchantShopSummaryVO", MerchantShopSummaryVO.class);
         registerSchema(components, "CurrentMerchantVO", CurrentMerchantVO.class);
+        registerSchema(components, "BusinessPeriodDTO", BusinessPeriodDTO.class);
+        registerSchema(components, "BusinessDayHoursDTO", BusinessDayHoursDTO.class);
+        registerSchema(components, "MerchantApplicationSaveDTO", MerchantApplicationSaveDTO.class);
+        registerSchema(components, "BusinessMediaVO", BusinessMediaVO.class);
+        registerSchema(components, "MerchantApplicationVO", MerchantApplicationVO.class);
     }
 
     private void addError(ApiResponses responses, String status, String description) {

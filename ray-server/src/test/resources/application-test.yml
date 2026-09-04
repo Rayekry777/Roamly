@@ -18,3 +18,8 @@ ray:
     sms:
       mode: MOCK
       mock-code: ${SMS_MOCK_CODE:123456}
+  storage:
+    mode: LOCAL
+    local:
+      root: ${TEST_OBJECT_STORAGE_ROOT:./target/test-business-objects}
+      bucket: roamly-business-test

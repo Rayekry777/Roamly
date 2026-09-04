@@ -83,3 +83,13 @@ ray:
     temporary-retention-hours: ${MEDIA_TEMPORARY_RETENTION_HOURS:24}
     cleanup-initial-delay-ms: ${MEDIA_CLEANUP_INITIAL_DELAY_MS:60000}
     cleanup-interval-ms: ${MEDIA_CLEANUP_INTERVAL_MS:3600000}
+  storage:
+    mode: ${OBJECT_STORAGE_MODE:LOCAL}
+    temporary-retention-hours: ${BUSINESS_MEDIA_TEMPORARY_RETENTION_HOURS:24}
+    cleanup-initial-delay-ms: ${BUSINESS_MEDIA_CLEANUP_INITIAL_DELAY_MS:90000}
+    cleanup-interval-ms: ${BUSINESS_MEDIA_CLEANUP_INTERVAL_MS:3600000}
+    local:
+      root: ${OBJECT_STORAGE_LOCAL_ROOT:./business-objects}
+      bucket: ${OBJECT_STORAGE_LOCAL_BUCKET:roamly-business-local}
+    s3:
+      path-style-access: ${S3_PATH_STYLE_ACCESS:true}

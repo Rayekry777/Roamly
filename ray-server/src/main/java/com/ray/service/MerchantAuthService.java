@@ -1,6 +1,7 @@
 package com.ray.service;
 
 import com.ray.dto.LoginDTO;
+import com.ray.entity.MerchantAccount;
 import com.ray.vo.AuthTokenVO;
 import com.ray.vo.CurrentMerchantVO;
 
@@ -14,6 +15,9 @@ public interface MerchantAuthService {
 
     /** 返回当前登录商户账号、展示状态、门店摘要和固定权限。 */
     CurrentMerchantVO currentMerchant();
+
+    /** 返回当前商户会话对应的权威账号实体。 */
+    MerchantAccount requireCurrentAccount();
 
     /** 注销当前商户 Token。 */
     void logout();

@@ -111,7 +111,7 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
     /** 返回数据库中的权威身份，不为缺失门店生成占位信息。 */
     @Override
     public CurrentMerchantVO currentMerchant() {
-        MerchantAccount account = requireCurrentEntity();
+        MerchantAccount account = requireCurrentAccount();
         MerchantRole role = MerchantRole.valueOf(account.getRole());
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         MerchantShopSummaryVO shop = account.getShopId() == null ? null : shopSummary(account.getShopId());
@@ -138,19 +138,24 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
     /** 认证接口允许读取停用状态，其他经营请求必须为已激活账号。 */
     @Override
     public void assertRequestAllowed(String method, String path) {
-        MerchantAccount account = requireCurrentEntity();
+        MerchantAccount account = requireCurrentAccount();
         if (path.startsWith("/v1/merchant/auth/")) return;
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         if (status == MerchantAccountStatus.DISABLED) {
             merchantStpLogic.logout();
             throw BusinessException.forbidden("MERCHANT_ACCOUNT_DISABLED", "商户账号已停用");
         }
-        if (status != MerchantAccountStatus.ACTIVE && !path.startsWith("/v1/merchant/onboarding")) {
+        if (status != MerchantAccountStatus.ACTIVE
+                && !path.startsWith("/v1/merchant/application")
+                && !path.startsWith("/v1/merchant/business-media")
+                && !path.startsWith("/v1/merchant/reference")) {
             throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
         }
     }
 
-    private MerchantAccount requireCurrentEntity() {
+    /** 校验独立商户会话并读取数据库权威账号。 */
+    @Override
+    public MerchantAccount requireCurrentAccount() {
         merchantStpLogic.checkLogin();
         Long id = merchantStpLogic.getLoginIdAsLong();
         MerchantAccount account = mapper.selectById(id);

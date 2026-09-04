@@ -27,7 +27,7 @@ scope: 阶段顺序、依赖与跨端验收
 | [15](../stages/STAGE_15_FOUR_END_CONTRACT_AND_FOUNDATION.md) | 四端契约、仓库与设计基线 | 是 | 是 | 是 | 是 | 已实现 |
 | [16](../stages/STAGE_16_ADMIN_AUTH_ACCOUNT_AUDIT.md) | 兼容基础、管理员认证、账号和事务审计 | 是 | 否 | 否 | 是 | 已实现 |
 | [17](../stages/STAGE_17_MERCHANT_AUTH_PROFILE.md) | 商户认证、账号状态与“我的” | 是 | 否 | 是 | 否 | 已实现 |
-| [18](../stages/STAGE_18_BUSINESS_MEDIA_AND_ONBOARDING.md) | 经营媒体、对象存储和商户入驻 | 是 | 否 | 是 | 否 | 未实现 |
+| [18](../stages/STAGE_18_BUSINESS_MEDIA_AND_ONBOARDING.md) | 经营媒体、对象存储和商户入驻 | 是 | 否 | 是 | 否 | 已实现 |
 | [19](../stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md) | 商户审核、门店激活与停用 | 是 | 否 | 否 | 是 | 未实现 |
 | [20](../stages/STAGE_20_VOUCHER_AUTHORING.md) | 四类券模型、商户建券和草稿 | 是 | 否 | 是 | 否 | 未实现 |
 | [21](../stages/STAGE_21_VOUCHER_REVIEW_AND_CONSUMER_DISPLAY.md) | 券审核、上下架和消费者展示 | 是 | 是 | 是 | 是 | 未实现 |

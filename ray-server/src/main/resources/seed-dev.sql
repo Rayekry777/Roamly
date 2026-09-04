@@ -51,6 +51,18 @@ VALUES
   (4, '13900000004', '待修改商户', NULL, 'OWNER', 'REJECTED', NULL, 0),
   (5, '13900000005', '已停用商户', NULL, 'OWNER', 'DISABLED', 2, 0);
 
+INSERT INTO `business_media_asset`
+  (`id`, `uploader_merchant_account_id`, `purpose`, `status`, `bucket_name`, `object_key`, `original_filename`, `mime_type`, `byte_size`, `width`, `height`, `owner_type`, `owner_id`, `sort_order`, `bound_at`, `expires_at`)
+VALUES
+  (8001, 3, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-3-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9001, 0, '2026-09-04 10:00:00', NULL),
+  (8002, 4, 'LICENSE', 'BOUND', 'roamly-business-local', 'seed/merchant/application-4-license.png', '营业执照.png', 'image/png', 543, 400, 400, 'MERCHANT_APPLICATION', 9002, 0, '2026-09-03 10:00:00', NULL);
+
+INSERT INTO `merchant_application`
+  (`id`, `merchant_account_id`, `status`, `shop_name`, `license_number`, `legal_representative`, `contact_name`, `contact_phone`, `shop_type_id`, `city_code`, `district`, `address`, `longitude`, `latitude`, `business_hours_json`, `license_media_id`, `gallery_media_ids_json`, `settlement_account_name`, `settlement_bank_name`, `settlement_account_suffix`, `rejection_reason`, `submission_idempotency_key`, `submitted_at`, `reviewed_at`, `reviewer_admin_id`, `version`)
+VALUES
+  (9001, 3, 'PENDING', '审核中的漫游小馆', '91330100MA2DEMO003', '周小路', '周小路', '13900000003', 1, '330100', '拱墅区', '运河路 18 号', 120.149100, 30.316000, '[{\"dayOfWeek\":\"MONDAY\",\"closed\":false,\"periods\":[{\"open\":\"09:00\",\"close\":\"21:00\"}]},{\"dayOfWeek\":\"TUESDAY\",\"closed\":false,\"periods\":[{\"open\":\"09:00\",\"close\":\"21:00\"}]},{\"dayOfWeek\":\"WEDNESDAY\",\"closed\":false,\"periods\":[{\"open\":\"09:00\",\"close\":\"21:00\"}]},{\"dayOfWeek\":\"THURSDAY\",\"closed\":false,\"periods\":[{\"open\":\"09:00\",\"close\":\"21:00\"}]},{\"dayOfWeek\":\"FRIDAY\",\"closed\":false,\"periods\":[{\"open\":\"09:00\",\"close\":\"22:00\"}]},{\"dayOfWeek\":\"SATURDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"22:00\"}]},{\"dayOfWeek\":\"SUNDAY\",\"closed\":true,\"periods\":[]}]', 8001, '[]', '杭州漫游餐饮有限公司', 'Roamly Mock 银行', '0003', NULL, 'stage18-seed-pending', '2026-09-04 10:00:00', NULL, NULL, 1),
+  (9002, 4, 'REJECTED', '待修改的城市小店', '91330100MA2DEMO004', '陈小满', '陈小满', '13900000004', 2, '330100', '拱墅区', '丽水路 66 号', 120.146600, 30.312700, '[{\"dayOfWeek\":\"MONDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"20:00\"}]},{\"dayOfWeek\":\"TUESDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"20:00\"}]},{\"dayOfWeek\":\"WEDNESDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"20:00\"}]},{\"dayOfWeek\":\"THURSDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"20:00\"}]},{\"dayOfWeek\":\"FRIDAY\",\"closed\":false,\"periods\":[{\"open\":\"10:00\",\"close\":\"21:00\"}]},{\"dayOfWeek\":\"SATURDAY\",\"closed\":true,\"periods\":[]},{\"dayOfWeek\":\"SUNDAY\",\"closed\":true,\"periods\":[]}]', 8002, '[]', '陈小满', 'Roamly Mock 银行', '0004', '营业执照边缘不完整，请重新上传清晰图片', 'stage18-seed-rejected', '2026-09-03 10:00:00', '2026-09-03 15:00:00', 1, 2);
+
 INSERT INTO `section_follow` (`id`, `user_id`, `section_id`, `create_time`) VALUES
   (1, 1, 2, '2026-09-01 09:00:00'),
   (2, 1, 3, '2026-09-01 09:01:00'),
