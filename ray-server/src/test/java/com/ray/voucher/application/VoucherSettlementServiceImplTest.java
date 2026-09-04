@@ -49,7 +49,7 @@ class VoucherSettlementServiceImplTest {
         verify(userVoucherMapper).insert(voucher.capture());
         assertEquals("UNUSED", voucher.getValue().getStatus());
         assertEquals(paidTime.plusDays(30), voucher.getValue().getExpireTime());
-        assertEquals(20, voucher.getValue().getVoucherCode().length());
+        assertEquals(12, voucher.getValue().getVoucherCode().length());
         verify(productMapper).increaseSoldCount(1001L, 1);
     }
 

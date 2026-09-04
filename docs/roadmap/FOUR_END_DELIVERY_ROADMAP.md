@@ -2,7 +2,7 @@
 
 ```yaml
 roadmapVersion: 1
-updatedAt: 2026-09-04
+updatedAt: 2026-09-05
 status: 已冻结
 scope: 阶段顺序、依赖与跨端验收
 ```
@@ -32,14 +32,14 @@ scope: 阶段顺序、依赖与跨端验收
 | [20](../stages/STAGE_20_VOUCHER_AUTHORING.md) | 四类券模型、商户建券和草稿 | 是 | 否 | 是 | 否 | 已实现 |
 | [21](../stages/STAGE_21_VOUCHER_REVIEW_AND_CONSUMER_DISPLAY.md) | 券审核、上下架和消费者展示 | 是 | 是 | 是 | 是 | 已实现 |
 | [22](../stages/STAGE_22_CHECKOUT_PRICING_AND_STOCK_LOCK.md) | 确认订单、计价、限购和库存锁 | 是 | 是 | 否 | 否 | 已实现 |
-| [23](../stages/STAGE_23_ORDER_EXPIRY_MOCK_PAYMENT_AND_ISSUANCE.md) | SnailJob 关单、Mock 支付和多份发券 | 是 | 是 | 否 | 否 | 未实现 |
-| [24](../stages/STAGE_24_VOUCHER_REFUND.md) | 单券退款、财务异常退款和状态聚合 | 是 | 是 | 否 | 是 | 未实现 |
-| [25](../stages/STAGE_25_MERCHANT_STAFF.md) | 商户员工邀请、角色与停用 | 是 | 否 | 是 | 否 | 未实现 |
-| [26](../stages/STAGE_26_VOUCHER_REDEMPTION.md) | 手输券码、核销、撤销和审计 | 是 | 否 | 是 | 是 | 未实现 |
-| [27](../stages/STAGE_27_DYNAMIC_QR_AND_REALTIME_EVENTS.md) | 动态二维码、商户 WebSocket 和管理 SSE | 是 | 是 | 是 | 是 | 未实现 |
-| [28](../stages/STAGE_28_COMMISSION_AND_LEDGER.md) | 佣金规则、不可变账本和经营摘要 | 是 | 否 | 是 | 是 | 未实现 |
-| [29](../stages/STAGE_29_SETTLEMENT_AND_EXPORT.md) | T+1 Mock 结算、Fesod 导出和失败重试 | 是 | 否 | 是 | 是 | 未实现 |
-| [30](../stages/STAGE_30_FULL_ACCEPTANCE.md) | 四端全量回归、33 表和视觉验收 | 是 | 是 | 是 | 是 | 未实现 |
+| [23](../stages/STAGE_23_ORDER_EXPIRY_MOCK_PAYMENT_AND_ISSUANCE.md) | SnailJob 关单、Mock 支付和多份发券 | 是 | 是 | 否 | 否 | 已实现 |
+| [24](../stages/STAGE_24_VOUCHER_REFUND.md) | 单券退款、财务异常退款和状态聚合 | 是 | 是 | 否 | 是 | 已实现 |
+| [25](../stages/STAGE_25_MERCHANT_STAFF.md) | 商户员工邀请、角色与停用 | 是 | 否 | 是 | 否 | 已实现 |
+| [26](../stages/STAGE_26_VOUCHER_REDEMPTION.md) | 手输券码、核销、撤销和审计 | 是 | 否 | 是 | 是 | 已实现 |
+| [27](../stages/STAGE_27_DYNAMIC_QR_AND_REALTIME_EVENTS.md) | 动态二维码、商户 WebSocket 和管理 SSE | 是 | 是 | 是 | 是 | 已实现 |
+| [28](../stages/STAGE_28_COMMISSION_AND_LEDGER.md) | 佣金规则、不可变账本和经营摘要 | 是 | 否 | 是 | 是 | 已实现 |
+| [29](../stages/STAGE_29_SETTLEMENT_AND_EXPORT.md) | T+1 Mock 结算、Fesod 导出和失败重试 | 是 | 否 | 是 | 是 | 已实现 |
+| [30](../stages/STAGE_30_FULL_ACCEPTANCE.md) | 四端全量回归、33 表和视觉验收 | 是 | 是 | 是 | 是 | 已实现 |
 
 ## 阶段门禁
 

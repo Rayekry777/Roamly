@@ -1,20 +1,20 @@
 # Roamly 数据库结构契约
 
 ```yaml
-updatedAt: 2026-09-04
+updatedAt: 2026-09-05
 schemaMode: Demo 可重建快照
-businessTableCount: 25
+businessTableCount: 33
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 已验证（25 张当前业务表）
+runtimeVerification: 已验证（33 张当前业务表）
 targetBusinessTableCount: 33
 targetDesignVersion: 6
 targetDesignStatus: 已冻结
-targetImplementationStatus: 开发中
+targetImplementationStatus: 已实现
 ```
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 25 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log`、阶段 17 的 `merchant_account`，阶段 18 的 `merchant_application`、`business_media_asset`，以及阶段 20 新增的 `voucher_package_item` 和阶段 19/20 对业务字段的治理均已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
+当前源码快照为 33 表：已包含阶段 23-29 的支付交易、退款、员工邀请、核销、佣金账本、结算批次等业务表，目标 DDL 与种子保持可重建快照。
 
 ## 规则
 
@@ -144,11 +144,11 @@ targetImplementationStatus: 开发中
 - `disabled_reason` 最多 500 字，`disabled_at` 保存停用时间；非 `DISABLED`（已停用）账号必须清空三项。
 - 门店停用只条件更新当前 `ACTIVE`（已激活）账号并写 `SHOP_SUSPENSION`；门店恢复只条件恢复该来源账号，其他来源保持停用。
 
-阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 25 表纯种子状态。
+阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 33 表纯种子状态。
 
 ### 阶段 20 字段冻结
 
-阶段 20 直接重构 `voucher_product` 并新增 `voucher_package_item`，当前快照已由 24 表变为 25 表；目标 33 表总数不变。完整字段、索引、媒体同步、状态约束和种子规则以 [阶段 20 详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md) 为真源。
+阶段 20 直接重构 `voucher_product` 并新增 `voucher_package_item`，当前快照已由 24 表变为 25 表；阶段 23-29 已补齐至目标 33 表。完整字段、索引、媒体同步、状态约束和种子规则以 [阶段 20 详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md) 为真源。
 
 - `voucher_product` 删除 `cover`、`rules`、`pay_price`、`original_price`、`deduction_value`、`sale_type` 和旧单一 `status`，改为四类券专属字段、结构化时间/使用规则、`review_status`（审核状态）与 `sale_status`（销售状态）。
 - 商品索引固定为 `idx_voucher_product_shop_review(shop_id,review_status,update_time,id)`、`idx_voucher_product_public(shop_id,review_status,sale_status,sale_begin_time,sale_end_time,id)` 与 `idx_voucher_product_submission(submission_idempotency_key)`。
@@ -197,10 +197,10 @@ targetImplementationStatus: 开发中
 
 `DatabaseBusinessClosureIntegrationTest` 仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行。它在开始前重建当前快照，使用 Redis DB 15，完成真实 HTTP/Service/SQL 场景后再次重建种子并清空测试 Redis，确保日常开发环境回到纯种子状态。
 
-2026-09-05 已在 `.env` 当前指向且获授权的开发库完成 25 表 Demo 验收：
+2026-09-05 已在 `.env` 当前指向且获授权的开发库完成 33 表 Demo 快照验收：
 
-- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 25 张业务表、关键唯一索引、旧表退役和种子一致性。
-- `DatabaseBusinessClosureIntegrationTest` 8 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、发券、过期刷新和用户隔离。
-- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 98 个唯一 `operationId`、券审核与下架 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
+- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 33 张业务表、关键唯一索引、旧表退役和种子一致性。
+- `DatabaseBusinessClosureIntegrationTest` 9 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、支付、退款、员工、核销、账本、结算和用户隔离。
+- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 137 个唯一 `operationId`、阶段 23-29 新增 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 阶段 21 不新增业务表；阶段 22 仍不新增业务表，仅直接重构 `voucher_order` 字段与索引；目标 33 表仍只完成冻结设计，阶段 23 至 29 的新增表不得提前标记为已实现。
+- 阶段 21 不新增业务表；阶段 22 仍不新增业务表，仅直接重构 `voucher_order` 字段与索引；阶段 23 至 29 新增表已随本快照完成重建和集成验证。

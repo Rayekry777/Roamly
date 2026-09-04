@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(99, operationIds.size());
+        assertEquals(137, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
@@ -218,6 +218,7 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("VoucherOrderConfirmationVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("VoucherOrderDetailVO"));
         assertTrue(schemaNames.contains("UserVoucherVO"));
+        assertTrue(schemaNames.contains("AdminAuditLogVO"));
         assertTrue(schemaNames.contains("CurrentMerchantVO"));
         assertTrue(schemaNames.contains("MerchantShopSummaryVO"));
         assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
@@ -394,7 +395,45 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/orders/{orderId}",
                 "DELETE /v1/users/me/orders/{orderId}",
                 "GET /v1/users/me/vouchers",
-                "GET /v1/users/me/vouchers/{userVoucherId}");
+                "GET /v1/users/me/vouchers/{userVoucherId}",
+                "GET /v1/users/me/refunds",
+                "GET /v1/users/me/refunds/{id}",
+                "POST /v1/users/me/vouchers/{voucherId}/refunds",
+                "POST /v1/users/me/orders/{orderId}/payments",
+                "GET /v1/merchant/staff",
+                "POST /v1/merchant/staff-invitations",
+                "POST /v1/merchant/staff-invitations/acceptance",
+                "POST /v1/merchant/staff-invitations/{id}/revocation",
+                "POST /v1/merchant/staff/{id}/activation",
+                "POST /v1/merchant/staff/{id}/disablement",
+                "POST /v1/merchant/redemptions/previews/by-code",
+                "POST /v1/merchant/redemptions/previews/by-qr-token",
+                "POST /v1/merchant/redemptions",
+                "POST /v1/merchant/redemptions/{id}/reversal",
+                "GET /v1/merchant/redemptions",
+                "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
+                "GET /v1/admin/refunds",
+                "GET /v1/admin/refunds/{id}",
+                "POST /v1/admin/refunds/{id}/approval",
+                "POST /v1/admin/refunds/{id}/rejection",
+                "POST /v1/admin/refunds/{id}/retry",
+                "GET /v1/admin/redemptions",
+                "GET /v1/admin/redemptions/{id}",
+                "GET /v1/admin/commission-rules",
+                "PUT /v1/admin/commission-rules",
+                "GET /v1/admin/ledger-entries",
+                "GET /v1/merchant/finance/summary",
+                "GET /v1/admin/settlements",
+                "GET /v1/admin/settlements/{id}",
+                "POST /v1/admin/settlements/{id}/retry",
+                "GET /v1/merchant/settlements",
+                "GET /v1/merchant/settlements/{id}",
+                "POST /v1/admin/{resource}/export",
+                "POST /v1/admin/event-tickets",
+                "GET /v1/admin/events",
+                "GET /v1/admin/orders",
+                "GET /v1/admin/orders/{id}",
+                "GET /v1/admin/audit-logs");
     }
 
     @Test

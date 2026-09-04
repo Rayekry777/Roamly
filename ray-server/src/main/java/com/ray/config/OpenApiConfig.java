@@ -32,9 +32,15 @@ import com.ray.vo.ReviewMediaVO;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.ShopReviewVO;
 import com.ray.vo.VoucherOrderDetailVO;
+import com.ray.vo.VoucherOrderConfirmationVO;
 import com.ray.vo.VoucherOrderVO;
+import com.ray.vo.VoucherPaymentVO;
 import com.ray.vo.VoucherProductDetailVO;
 import com.ray.vo.VoucherProductVO;
+import com.ray.vo.VoucherQrTokenVO;
+import com.ray.vo.VoucherRedemptionPreviewVO;
+import com.ray.vo.VoucherRedemptionVO;
+import com.ray.vo.VoucherRefundVO;
 import com.ray.vo.UserVoucherVO;
 import com.ray.vo.AdminVoucherReviewDetailVO;
 import com.ray.vo.AdminVoucherReviewListItemVO;
@@ -42,9 +48,25 @@ import com.ray.vo.AdminVoucherReviewResultVO;
 import com.ray.vo.MerchantVoucherPackageItemVO;
 import com.ray.vo.MerchantVoucherProductVO;
 import com.ray.dto.VoucherOrderCreateDTO;
+import com.ray.dto.VoucherPaymentRequest;
+import com.ray.dto.VoucherRefundRequest;
+import com.ray.dto.MerchantStaffAcceptanceDTO;
+import com.ray.dto.MerchantStaffInvitationCreateDTO;
+import com.ray.dto.VoucherRedemptionConfirmRequest;
+import com.ray.dto.VoucherRedemptionPreviewRequest;
+import com.ray.dto.VoucherRedemptionReversalRequest;
 import com.ray.dto.VoucherReviewApprovalRequest;
 import com.ray.dto.VoucherReviewRejectionRequest;
 import com.ray.dto.MerchantVoucherProductOffSaleRequest;
+import com.ray.dto.CommissionRuleUpdateDTO;
+import com.ray.vo.AdminEventTicketVO;
+import com.ray.vo.AdminAuditLogVO;
+import com.ray.vo.CommissionRuleVO;
+import com.ray.vo.FundLedgerEntryVO;
+import com.ray.vo.MerchantFinanceSummaryVO;
+import com.ray.vo.MerchantStaffInvitationVO;
+import com.ray.vo.MerchantStaffVO;
+import com.ray.vo.SettlementBatchVO;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
@@ -89,6 +111,8 @@ public class OpenApiConfig {
         registerMerchantSchemas(components);
         registerAdminMerchantGovernanceSchemas(components);
         registerVoucherReviewSchemas(components);
+        registerStage23To29Schemas(components);
+        registerSchema(components, "AdminAuditLogVO", AdminAuditLogVO.class);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -112,6 +136,8 @@ public class OpenApiConfig {
             registerMerchantSchemas(openApi.getComponents());
             registerAdminMerchantGovernanceSchemas(openApi.getComponents());
             registerVoucherReviewSchemas(openApi.getComponents());
+            registerStage23To29Schemas(openApi.getComponents());
+            registerSchema(openApi.getComponents(), "AdminAuditLogVO", AdminAuditLogVO.class);
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -216,11 +242,35 @@ public class OpenApiConfig {
 
     private void registerVoucherSchemas(Components components) {
         registerSchema(components, "VoucherOrderCreateDTO", VoucherOrderCreateDTO.class);
+        registerSchema(components, "VoucherPaymentRequest", VoucherPaymentRequest.class);
+        registerSchema(components, "VoucherRefundRequest", VoucherRefundRequest.class);
         registerSchema(components, "VoucherProductVO", VoucherProductVO.class);
         registerSchema(components, "VoucherProductDetailVO", VoucherProductDetailVO.class);
+        registerSchema(components, "VoucherOrderConfirmationVO", VoucherOrderConfirmationVO.class);
         registerSchema(components, "VoucherOrderVO", VoucherOrderVO.class);
         registerSchema(components, "VoucherOrderDetailVO", VoucherOrderDetailVO.class);
+        registerSchema(components, "VoucherPaymentVO", VoucherPaymentVO.class);
+        registerSchema(components, "VoucherRefundVO", VoucherRefundVO.class);
+        registerSchema(components, "VoucherQrTokenVO", VoucherQrTokenVO.class);
         registerSchema(components, "UserVoucherVO", UserVoucherVO.class);
+    }
+
+    private void registerStage23To29Schemas(Components components) {
+        registerSchema(components, "MerchantStaffInvitationCreateDTO", MerchantStaffInvitationCreateDTO.class);
+        registerSchema(components, "MerchantStaffAcceptanceDTO", MerchantStaffAcceptanceDTO.class);
+        registerSchema(components, "MerchantStaffInvitationVO", MerchantStaffInvitationVO.class);
+        registerSchema(components, "MerchantStaffVO", MerchantStaffVO.class);
+        registerSchema(components, "VoucherRedemptionPreviewRequest", VoucherRedemptionPreviewRequest.class);
+        registerSchema(components, "VoucherRedemptionConfirmRequest", VoucherRedemptionConfirmRequest.class);
+        registerSchema(components, "VoucherRedemptionReversalRequest", VoucherRedemptionReversalRequest.class);
+        registerSchema(components, "VoucherRedemptionPreviewVO", VoucherRedemptionPreviewVO.class);
+        registerSchema(components, "VoucherRedemptionVO", VoucherRedemptionVO.class);
+        registerSchema(components, "CommissionRuleUpdateDTO", CommissionRuleUpdateDTO.class);
+        registerSchema(components, "CommissionRuleVO", CommissionRuleVO.class);
+        registerSchema(components, "FundLedgerEntryVO", FundLedgerEntryVO.class);
+        registerSchema(components, "MerchantFinanceSummaryVO", MerchantFinanceSummaryVO.class);
+        registerSchema(components, "SettlementBatchVO", SettlementBatchVO.class);
+        registerSchema(components, "AdminEventTicketVO", AdminEventTicketVO.class);
     }
 
     private void registerMerchantSchemas(Components components) {
@@ -308,6 +358,9 @@ public class OpenApiConfig {
         if (path.equals("/v1/voucher-products/{productId}/orders")) return method == HttpMethod.POST;
         if (path.equals("/v1/users/me/orders/{orderId}") || path.equals("/v1/users/me/vouchers/{userVoucherId}"))
             return true;
+        if (path.equals("/v1/admin/orders/{id}")) return method == HttpMethod.GET;
+        if (path.equals("/v1/admin/refunds/{id}") || path.equals("/v1/admin/redemptions/{id}")
+                || path.equals("/v1/admin/settlements/{id}")) return method == HttpMethod.GET || method == HttpMethod.POST;
         if (path.equals("/v1/users/{userId}/posts")) return method == HttpMethod.GET;
         return false;
     }

@@ -75,11 +75,11 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasTwentyFiveCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasThirtyThreeCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(25, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(33, tableNames.size(), "当前表=" + tableNames);
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -828,6 +828,22 @@ class DatabaseBusinessClosureIntegrationTest {
 
         logout(firstToken);
         logout(buyerToken);
+    }
+
+    @Test
+    @Order(10)
+    void adminReadModelsExposeOrdersAndAuditFacts() throws Exception {
+        String token = loginAdmin("admin", "AdminPass9");
+        ResponseEntity<String> orders = exchange("/v1/admin/orders?status=PAID&page=1&size=20", HttpMethod.GET, null, token);
+        assertEquals(HttpStatus.OK, orders.getStatusCode());
+        assertTrue(data(orders).path("items").isArray());
+        ResponseEntity<String> detail = exchange("/v1/admin/orders/6002", HttpMethod.GET, null, token);
+        assertEquals(HttpStatus.OK, detail.getStatusCode());
+        assertEquals("6002", data(detail).path("order").path("id").asText());
+        ResponseEntity<String> audit = exchange("/v1/admin/audit-logs?page=1&size=20", HttpMethod.GET, null, token);
+        assertEquals(HttpStatus.OK, audit.getStatusCode());
+        assertTrue(data(audit).path("items").isArray());
+        assertEquals(HttpStatus.NO_CONTENT, exchange("/v1/admin/auth/logout", HttpMethod.POST, null, token).getStatusCode());
     }
 
     private String login(String phone) throws Exception {

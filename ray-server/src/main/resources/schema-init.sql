@@ -3,6 +3,14 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
 DROP TABLE IF EXISTS `admin_user`;
+DROP TABLE IF EXISTS `settlement_item`;
+DROP TABLE IF EXISTS `settlement_batch`;
+DROP TABLE IF EXISTS `fund_ledger_entry`;
+DROP TABLE IF EXISTS `commission_rule`;
+DROP TABLE IF EXISTS `voucher_redemption`;
+DROP TABLE IF EXISTS `voucher_refund`;
+DROP TABLE IF EXISTS `payment_transaction`;
+DROP TABLE IF EXISTS `merchant_staff_invitation`;
 DROP TABLE IF EXISTS `business_media_asset`;
 DROP TABLE IF EXISTS `merchant_application`;
 DROP TABLE IF EXISTS `merchant_account`;
