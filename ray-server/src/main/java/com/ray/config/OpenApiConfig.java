@@ -97,7 +97,8 @@ public class OpenApiConfig {
                 if (mayReturnCommentConflict(method, path)) addError(operation.getResponses(), "409", "评论状态冲突");
                 if (mayReturnReviewConflict(method, path)) addError(operation.getResponses(), "409", "点评状态冲突或重复点评");
                 if (path.matches("/v1/voucher-products/\\{[^/]+}/orders") && method == HttpMethod.POST) {
-                    addError(operation.getResponses(), "409", "库存不足、超过限购或订单状态冲突");
+                    addError(operation.getResponses(), "409", "请求处理中、库存不足、超过限购或订单状态冲突");
+                    addError(operation.getResponses(), "503", "订单协调服务暂不可用");
                 }
                 if (path.matches("/v1/users/me/orders/\\{[^/]+}")
                         && method == HttpMethod.DELETE) addError(operation.getResponses(), "409", "订单状态不允许取消");

@@ -20,6 +20,7 @@ import com.ray.mapper.UserVoucherMapper;
 import com.ray.result.PageResult;
 import com.ray.service.CurrentUserProvider;
 import com.ray.service.MediaAssetService;
+import com.ray.service.ShopCacheService;
 import com.ray.service.ShopReviewService;
 import com.ray.service.UserService;
 import com.ray.utils.converter.IdUtils;
@@ -50,6 +51,7 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
     private final CurrentUserProvider currentUserProvider;
     private final UserService userService;
     private final UserVoucherMapper userVoucherMapper;
+    private final ShopCacheService shopCacheService;
 
     public ShopReviewServiceImpl(
             ShopMapper shopMapper,
@@ -57,13 +59,15 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
             MediaAssetService mediaAssetService,
             CurrentUserProvider currentUserProvider,
             UserService userService,
-            UserVoucherMapper userVoucherMapper) {
+            UserVoucherMapper userVoucherMapper,
+            ShopCacheService shopCacheService) {
         this.shopMapper = shopMapper;
         this.mediaRelationMapper = mediaRelationMapper;
         this.mediaAssetService = mediaAssetService;
         this.currentUserProvider = currentUserProvider;
         this.userService = userService;
         this.userVoucherMapper = userVoucherMapper;
+        this.shopCacheService = shopCacheService;
     }
 
     /** 按最新或高分排序查询商户正常点评。 */
@@ -277,5 +281,6 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
         if (shopMapper.recalculateReviewSummary(shopId) != 1) {
             log.warn("[商户点评] 商户评分聚合未更新，商户ID={}", shopId);
         }
+        shopCacheService.evictAfterCommit(shopId);
     }
 }

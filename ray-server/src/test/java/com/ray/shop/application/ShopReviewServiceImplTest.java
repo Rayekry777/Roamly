@@ -18,6 +18,7 @@ import com.ray.mapper.ShopReviewMediaMapper;
 import com.ray.mapper.UserVoucherMapper;
 import com.ray.service.CurrentUserProvider;
 import com.ray.service.MediaAssetService;
+import com.ray.service.ShopCacheService;
 import com.ray.service.UserService;
 import com.ray.service.impl.ShopReviewServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,19 +30,22 @@ class ShopReviewServiceImplTest {
     private ShopReviewMapper reviewMapper;
     private CurrentUserProvider currentUserProvider;
     private ShopReviewServiceImpl service;
+    private ShopCacheService shopCacheService;
 
     @BeforeEach
     void setUp() {
         shopMapper = mock(ShopMapper.class);
         reviewMapper = mock(ShopReviewMapper.class);
         currentUserProvider = mock(CurrentUserProvider.class);
+        shopCacheService = mock(ShopCacheService.class);
         service = new ShopReviewServiceImpl(
                 shopMapper,
                 mock(ShopReviewMediaMapper.class),
                 mock(MediaAssetService.class),
                 currentUserProvider,
                 mock(UserService.class),
-                mock(UserVoucherMapper.class));
+                mock(UserVoucherMapper.class),
+                shopCacheService);
         ReflectionTestUtils.setField(service, "baseMapper", reviewMapper);
         when(currentUserProvider.requireUserId()).thenReturn(7L);
         when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(1));
@@ -68,5 +72,19 @@ class ShopReviewServiceImplTest {
                 () -> service.create(4L, new ShopReviewCreateDTO(5, "很好", null)));
 
         assertEquals("SHOP_NOT_FOUND", exception.code());
+    }
+
+    @Test
+    void schedulesShopCacheEvictionAfterReviewCreation() {
+        when(reviewMapper.selectByShopAndUser(4L, 7L)).thenReturn(null);
+        when(reviewMapper.insert(any(ShopReview.class))).thenAnswer(invocation -> {
+            invocation.<ShopReview>getArgument(0).setId(11L);
+            return 1;
+        });
+        when(shopMapper.recalculateReviewSummary(4L)).thenReturn(1);
+
+        service.create(4L, new ShopReviewCreateDTO(5, "很好", null));
+
+        verify(shopCacheService).evictAfterCommit(4L);
     }
 }

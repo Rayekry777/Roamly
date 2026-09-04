@@ -1,0 +1,167 @@
+package com.ray.voucher.application;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.ray.config.OrderCoordinationProperties;
+import com.ray.dto.VoucherOrderCreateDTO;
+import com.ray.entity.Shop;
+import com.ray.entity.VoucherOrder;
+import com.ray.entity.VoucherProduct;
+import com.ray.exception.BusinessException;
+import com.ray.mapper.ShopMapper;
+import com.ray.mapper.UserVoucherMapper;
+import com.ray.mapper.VoucherOrderMapper;
+import com.ray.mapper.VoucherProductMapper;
+import com.ray.service.CurrentUserProvider;
+import com.ray.service.VoucherProductService;
+import com.ray.service.impl.VoucherTradeServiceImpl;
+import com.ray.utils.generator.RedisIdWorker;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/** 团购下单锁、限购数量和事务边界测试。 */
+class VoucherTradeServiceImplTest {
+    private VoucherProductMapper productMapper;
+    private VoucherOrderMapper orderMapper;
+    private ShopMapper shopMapper;
+    private RedisIdWorker idWorker;
+    private RedissonClient redissonClient;
+    private RLock lock;
+    private PlatformTransactionManager transactionManager;
+    private TransactionStatus transactionStatus;
+    private VoucherTradeServiceImpl service;
+
+    @BeforeEach
+    void setUp() throws InterruptedException {
+        productMapper = mock(VoucherProductMapper.class);
+        orderMapper = mock(VoucherOrderMapper.class);
+        shopMapper = mock(ShopMapper.class);
+        idWorker = mock(RedisIdWorker.class);
+        redissonClient = mock(RedissonClient.class);
+        lock = mock(RLock.class);
+        transactionManager = mock(PlatformTransactionManager.class);
+        transactionStatus = mock(TransactionStatus.class);
+        CurrentUserProvider currentUserProvider = mock(CurrentUserProvider.class);
+        when(currentUserProvider.requireUserId()).thenReturn(7L);
+        when(redissonClient.getLock("roamly:lock:voucher-order:7:1001")).thenReturn(lock);
+        when(lock.tryLock(1000, TimeUnit.MILLISECONDS)).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+        when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
+
+        service = new VoucherTradeServiceImpl(
+                productMapper,
+                mock(UserVoucherMapper.class),
+                shopMapper,
+                mock(VoucherProductService.class),
+                currentUserProvider,
+                idWorker,
+                redissonClient,
+                new OrderCoordinationProperties(),
+                new TransactionTemplate(transactionManager));
+        ReflectionTestUtils.setField(service, "baseMapper", orderMapper);
+    }
+
+    @Test
+    void sumsPurchasedQuantityAndReleasesLockAfterCommit() {
+        preparePurchasableProduct(3);
+        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, 4)).thenReturn(2L);
+        when(productMapper.deductStock(1001L, 1)).thenReturn(1);
+        when(idWorker.nextId("voucher-order")).thenReturn(9001L);
+        when(orderMapper.insert(any(VoucherOrder.class))).thenReturn(1);
+
+        service.createOrder(1001L, new VoucherOrderCreateDTO(1));
+
+        verify(orderMapper).sumNonCanceledQuantity(7L, 1001L, 4);
+        InOrder order = inOrder(transactionManager, lock);
+        order.verify(transactionManager).commit(transactionStatus);
+        order.verify(lock).isHeldByCurrentThread();
+        order.verify(lock).unlock();
+    }
+
+    @Test
+    void rejectsTotalQuantityAbovePurchaseLimit() {
+        preparePurchasableProduct(2);
+        when(orderMapper.sumNonCanceledQuantity(7L, 1001L, 4)).thenReturn(2L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+
+        assertEquals("VOUCHER_PURCHASE_LIMIT_REACHED", exception.code());
+        verify(productMapper, never()).deductStock(any(), any(Integer.class));
+        InOrder order = inOrder(transactionManager, lock);
+        order.verify(transactionManager).rollback(transactionStatus);
+        order.verify(lock).isHeldByCurrentThread();
+        order.verify(lock).unlock();
+    }
+
+    @Test
+    void returnsConflictWhenLockIsBusy() throws InterruptedException {
+        when(lock.tryLock(1000, TimeUnit.MILLISECONDS)).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+
+        assertEquals(409, exception.status());
+        assertEquals("ORDER_REQUEST_BUSY", exception.code());
+        verify(transactionManager, never()).getTransaction(any());
+        verify(lock, never()).unlock();
+    }
+
+    @Test
+    void returnsServiceUnavailableWhenCoordinationFails() throws InterruptedException {
+        when(lock.tryLock(1000, TimeUnit.MILLISECONDS)).thenThrow(new IllegalStateException("redis unavailable"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+
+        assertEquals(503, exception.status());
+        assertEquals("ORDER_COORDINATION_UNAVAILABLE", exception.code());
+        verify(lock, never()).unlock();
+    }
+
+    @Test
+    void restoresInterruptFlagWhenLockWaitIsInterrupted() throws InterruptedException {
+        when(lock.tryLock(1000, TimeUnit.MILLISECONDS)).thenThrow(new InterruptedException("interrupted"));
+        try {
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> service.createOrder(1001L, new VoucherOrderCreateDTO(1)));
+
+            assertEquals("ORDER_COORDINATION_UNAVAILABLE", exception.code());
+            assertTrue(Thread.currentThread().isInterrupted());
+            verify(lock, never()).unlock();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    private void preparePurchasableProduct(int purchaseLimit) {
+        when(productMapper.selectById(1001L)).thenReturn(new VoucherProduct()
+                .setId(1001L)
+                .setShopId(4L)
+                .setTitle("双人套餐")
+                .setPayPrice(9900L)
+                .setPurchaseLimit(purchaseLimit)
+                .setStatus("ON_SALE"));
+        when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(1));
+    }
+}

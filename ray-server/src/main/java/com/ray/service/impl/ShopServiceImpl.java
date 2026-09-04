@@ -1,8 +1,5 @@
 package com.ray.service.impl;
 
-import static com.ray.constant.RedisConstants.CACHE_SHOP_KEY;
-import static com.ray.constant.RedisConstants.CACHE_SHOP_TTL;
-
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.entity.City;
 import com.ray.entity.Shop;
@@ -12,24 +9,23 @@ import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.result.PageResult;
 import com.ray.service.CityService;
+import com.ray.service.ShopCacheService;
 import com.ray.service.ShopService;
-import com.ray.utils.cache.CacheClient;
 import com.ray.utils.converter.ViewMapper;
 import com.ray.vo.ShopVO;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /** 商户查询、地理排序与缓存一致性实现。 */
 @Service
 public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements ShopService {
-    private final CacheClient cacheClient;
+    private final ShopCacheService shopCacheService;
     private final CityService cityService;
 
-    public ShopServiceImpl(CacheClient cacheClient, CityService cityService) {
-        this.cacheClient = cacheClient;
+    public ShopServiceImpl(ShopCacheService shopCacheService, CityService cityService) {
+        this.shopCacheService = shopCacheService;
         this.cityService = cityService;
     }
 
@@ -37,8 +33,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
     @Override
     public ShopVO getShop(Long id, Double longitude, Double latitude) {
         validateCoordinates(longitude, latitude);
-        Shop shop = cacheClient.queryWithPassThrough(
-                CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        Shop shop = shopCacheService.findById(id);
         if (shop == null || !Integer.valueOf(EnableStatus.ENABLED.code()).equals(shop.getStatus())) {
             throw BusinessException.notFound("SHOP_NOT_FOUND", "商户不存在或已停用");
         }

@@ -3,6 +3,7 @@ package com.ray.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.ray.config.OrderCoordinationProperties;
 import com.ray.dto.VoucherOrderCreateDTO;
 import com.ray.entity.Shop;
 import com.ray.entity.UserVoucher;
@@ -29,10 +30,16 @@ import com.ray.vo.VoucherProductVO;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** 团购订单与用户券查询实现；真实支付回调在后续阶段接入。 */
+@Slf4j
 @Service
 public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder>
         implements VoucherTradeService {
@@ -42,23 +49,46 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private final VoucherProductService productService;
     private final CurrentUserProvider currentUserProvider;
     private final RedisIdWorker idWorker;
+    private final RedissonClient redissonClient;
+    private final OrderCoordinationProperties coordinationProperties;
+    private final TransactionTemplate transactionTemplate;
 
     public VoucherTradeServiceImpl(VoucherProductMapper productMapper, UserVoucherMapper userVoucherMapper,
             ShopMapper shopMapper, VoucherProductService productService, CurrentUserProvider currentUserProvider,
-            RedisIdWorker idWorker) {
+            RedisIdWorker idWorker, RedissonClient redissonClient,
+            OrderCoordinationProperties coordinationProperties, TransactionTemplate transactionTemplate) {
         this.productMapper = productMapper;
         this.userVoucherMapper = userVoucherMapper;
         this.shopMapper = shopMapper;
         this.productService = productService;
         this.currentUserProvider = currentUserProvider;
         this.idWorker = idWorker;
+        this.redissonClient = redissonClient;
+        this.coordinationProperties = coordinationProperties;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    /** 创建待支付订单并原子预扣库存。 */
-    @Transactional
+    /** 按用户和商品串行完成限购校验、库存预扣与订单事务。 */
     @Override
     public VoucherOrderVO createOrder(Long productId, VoucherOrderCreateDTO request) {
         Long userId = currentUserProvider.requireUserId();
+        RLock lock = getOrderLock(userId, productId);
+        if (!tryAcquire(lock)) {
+            throw BusinessException.conflict("ORDER_REQUEST_BUSY", "订单正在处理中，请稍后重试");
+        }
+        try {
+            VoucherOrderVO result = transactionTemplate.execute(
+                    status -> createOrderInTransaction(userId, productId, request));
+            if (result == null) throw new IllegalStateException("订单事务未返回结果");
+            return result;
+        } finally {
+            releaseQuietly(lock, userId, productId);
+        }
+    }
+
+    /** 在已持有用户商品锁时执行完整数据库事务。 */
+    private VoucherOrderVO createOrderInTransaction(
+            Long userId, Long productId, VoucherOrderCreateDTO request) {
         VoucherProduct product = productMapper.selectById(productId);
         if (product == null) throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购商品不存在");
         LocalDateTime now = LocalDateTime.now();
@@ -72,10 +102,9 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         int quantity = request.quantity();
         if (product.getPurchaseLimit() != null && quantity > product.getPurchaseLimit())
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
-        if (product.getPurchaseLimit() != null
-                && query().eq("user_id", userId).eq("product_id", productId)
-                                .ne("status", VoucherOrderStatus.CANCELED.code()).count()
-                        + quantity > product.getPurchaseLimit())
+        long purchasedQuantity = getBaseMapper().sumNonCanceledQuantity(
+                userId, productId, VoucherOrderStatus.CANCELED.code());
+        if (product.getPurchaseLimit() != null && purchasedQuantity + quantity > product.getPurchaseLimit())
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
         if (productMapper.deductStock(productId, quantity) != 1)
             throw BusinessException.conflict("VOUCHER_OUT_OF_STOCK", "商品库存不足或已下架");
@@ -87,6 +116,44 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .setStatus(VoucherOrderStatus.PENDING_PAYMENT.code()).setPayType(3);
         if (!save(order)) throw new BusinessException(500, "ORDER_CREATE_FAILED", "订单创建失败");
         return toOrderVO(order, null);
+    }
+
+    private boolean tryAcquire(RLock lock) {
+        try {
+            return lock.tryLock(coordinationProperties.getLockWait().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw coordinationUnavailable();
+        } catch (RuntimeException exception) {
+            log.warn("[团购下单] Redisson 获取订单锁失败，原因={}", exception.getMessage());
+            throw coordinationUnavailable();
+        }
+    }
+
+    private RLock getOrderLock(Long userId, Long productId) {
+        try {
+            return redissonClient.getLock(orderLockKey(userId, productId));
+        } catch (RuntimeException exception) {
+            log.warn("[团购下单] Redisson 创建订单锁失败，原因={}", exception.getMessage());
+            throw coordinationUnavailable();
+        }
+    }
+
+    private void releaseQuietly(RLock lock, Long userId, Long productId) {
+        try {
+            if (lock.isHeldByCurrentThread()) lock.unlock();
+        } catch (RuntimeException exception) {
+            log.warn("[团购下单] Redisson 释放订单锁失败，用户ID={}，商品ID={}，原因={}",
+                    userId, productId, exception.getMessage());
+        }
+    }
+
+    private String orderLockKey(Long userId, Long productId) {
+        return "roamly:lock:voucher-order:" + userId + ":" + productId;
+    }
+
+    private BusinessException coordinationUnavailable() {
+        return new BusinessException(503, "ORDER_COORDINATION_UNAVAILABLE", "订单协调服务暂不可用，请稍后重试");
     }
 
     /** 查询当前用户订单分页。 */

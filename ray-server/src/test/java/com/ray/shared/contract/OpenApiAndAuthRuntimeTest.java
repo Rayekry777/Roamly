@@ -3,6 +3,7 @@ package com.ray.shared.contract;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.dev33.satoken.SaManager;
@@ -12,17 +13,24 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.config.SmsProperties;
+import com.ray.exception.BusinessException;
+import com.ray.service.CityService;
+import com.ray.service.ShopService;
 import com.ray.shared.config.IntegrationTest;
+import com.ray.utils.cache.CacheNames;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -47,6 +55,18 @@ class OpenApiAndAuthRuntimeTest {
 
     @Autowired
     private SmsProperties smsProperties;
+
+    @Autowired
+    private CityService cityService;
+
+    @Autowired
+    private ShopService shopService;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Autowired
+    private StringRedisTemplate redis;
 
     @AfterEach
     void cleanTestLogin() {
@@ -107,6 +127,7 @@ class OpenApiAndAuthRuntimeTest {
                 document.at("/paths/~1v1~1shops~1{shopId}~1posts/get/responses/404").isObject());
         assertTrue(document.at("/paths/~1v1~1shops~1{shopId}~1reviews/post/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1voucher-products~1{productId}~1orders/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1voucher-products~1{productId}~1orders/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1users~1me~1orders~1{orderId}/delete/responses/409").isObject());
         assertParameterType(document, "/v1/shops/{shopId}", "get", "longitude", "number");
         java.util.List<String> schemaNames = new ArrayList<>();
@@ -310,6 +331,31 @@ class OpenApiAndAuthRuntimeTest {
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.AUTHORIZATION, authorization);
         return http.exchange(path, method, new HttpEntity<>(headers), String.class);
+    }
+
+    @Test
+    void springCacheUsesConfiguredRedisTtlAndRestoresCachedNull() {
+        long missingShopId = 9_999_999_999_999_999L;
+        cacheManager.getCache(CacheNames.CITIES).clear();
+        cacheManager.getCache(CacheNames.SHOP_BY_ID).evict(missingShopId);
+        try {
+            cityService.listEnabledCities();
+            Long dictionaryTtl = redis.getExpire("roamly:cache:v1:cities:all", TimeUnit.SECONDS);
+            assertTrue(dictionaryTtl != null && dictionaryTtl > 21_000 && dictionaryTtl <= 21_600);
+
+            assertEquals("SHOP_NOT_FOUND", assertThrows(
+                    BusinessException.class,
+                    () -> shopService.getShop(missingShopId, null, null)).code());
+            assertEquals("SHOP_NOT_FOUND", assertThrows(
+                    BusinessException.class,
+                    () -> shopService.getShop(missingShopId, null, null)).code());
+            Long nullTtl = redis.getExpire(
+                    "roamly:cache:v1:shop-by-id:" + missingShopId, TimeUnit.SECONDS);
+            assertTrue(nullTtl != null && nullTtl > 0 && nullTtl <= 120);
+        } finally {
+            cacheManager.getCache(CacheNames.CITIES).clear();
+            cacheManager.getCache(CacheNames.SHOP_BY_ID).evict(missingShopId);
+        }
     }
 
     @Test

@@ -71,6 +71,13 @@ sa-token:
   is-print: false
 
 ray:
+  cache:
+    shop-ttl: 30m
+    dictionary-ttl: 6h
+    null-ttl: 2m
+  order:
+    coordination:
+      lock-wait: 1s
   upload:
     image-dir: ${IMAGE_UPLOAD_DIR:./uploads}
     temporary-retention-hours: ${MEDIA_TEMPORARY_RETENTION_HOURS:24}

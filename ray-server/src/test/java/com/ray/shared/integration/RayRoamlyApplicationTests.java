@@ -1,12 +1,10 @@
 package com.ray.shared.integration;
 
-import static com.ray.constant.RedisConstants.CACHE_SHOP_KEY;
 import static com.ray.constant.RedisConstants.SHOP_GEO_KEY;
 
 import com.ray.entity.Shop;
 import com.ray.shared.config.IntegrationTest;
 import com.ray.service.impl.ShopServiceImpl;
-import com.ray.utils.cache.CacheClient;
 import com.ray.utils.generator.RedisIdWorker;
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
@@ -15,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
@@ -30,9 +27,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Slf4j
 @Disabled("需要独立 MySQL/Redis，避免默认测试修改开发数据")
 class RayRoamlyApplicationTests {
-
-    @Resource
-    private CacheClient cacheClient;
 
     @Resource
     private ShopServiceImpl shopService;
@@ -63,12 +57,6 @@ class RayRoamlyApplicationTests {
         latch.await();
         long end = System.currentTimeMillis();
         log.info("订单 ID 生成耗时={}ms", end - begin);
-    }
-
-    @Test
-    void testSaveShop() throws InterruptedException {
-        Shop shop = shopService.getById(1L);
-        cacheClient.setWithLogicalExpire(CACHE_SHOP_KEY + 1L, shop, 10L, TimeUnit.SECONDS);
     }
 
     @Test

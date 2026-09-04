@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.ray.controller.VoucherProductController;
 import com.ray.controller.VoucherTradeController;
+import com.ray.exception.BusinessException;
 import com.ray.result.PageResult;
 import com.ray.service.VoucherProductService;
 import com.ray.service.VoucherTradeService;
@@ -61,5 +62,23 @@ class VoucherTradeControllerTest {
         mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quantity\":1}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.productId").value("1001"));
+    }
+
+    @Test
+    void exposesOrderCoordinationErrors() throws Exception {
+        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any()))
+                .thenThrow(BusinessException.conflict("ORDER_REQUEST_BUSY", "订单正在处理中，请稍后重试"));
+        mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":1}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORDER_REQUEST_BUSY"));
+
+        when(tradeService.createOrder(org.mockito.ArgumentMatchers.eq(1001L), any()))
+                .thenThrow(new BusinessException(
+                        503, "ORDER_COORDINATION_UNAVAILABLE", "订单协调服务暂不可用，请稍后重试"));
+        mockMvc.perform(post("/v1/voucher-products/1001/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":1}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("ORDER_COORDINATION_UNAVAILABLE"));
     }
 }
