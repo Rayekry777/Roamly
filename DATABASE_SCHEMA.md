@@ -7,7 +7,7 @@ businessTableCount: 24
 database: MySQL / InnoDB / utf8mb4
 runtimeVerification: 已验证（24 张当前业务表）
 targetBusinessTableCount: 33
-targetDesignVersion: 5
+targetDesignVersion: 6
 targetDesignStatus: 已冻结
 targetImplementationStatus: 开发中
 ```
@@ -145,6 +145,16 @@ targetImplementationStatus: 开发中
 - 门店停用只条件更新当前 `ACTIVE`（已激活）账号并写 `SHOP_SUSPENSION`；门店恢复只条件恢复该来源账号，其他来源保持停用。
 
 阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 24 表纯种子状态。
+
+### 阶段 20 字段冻结
+
+阶段 20 直接重构 `voucher_product` 并新增 `voucher_package_item`，实现后当前快照应由 24 表变为 25 表；目标 33 表总数不变。完整字段、索引、媒体同步、状态约束和种子规则以 [阶段 20 详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md) 为真源。
+
+- `voucher_product` 删除 `cover`、`rules`、`pay_price`、`original_price`、`deduction_value`、`sale_type` 和旧单一 `status`，改为四类券专属字段、结构化时间/使用规则、`review_status`（审核状态）与 `sale_status`（销售状态）。
+- 商品索引固定为 `idx_voucher_product_shop_review(shop_id,review_status,update_time,id)`、`idx_voucher_product_public(shop_id,review_status,sale_status,sale_begin_time,sale_end_time,id)` 与 `idx_voucher_product_submission(submission_idempotency_key)`。
+- `voucher_package_item` 保存套餐券和次卡的有序明细，以 `product_id,sort_order` 唯一；代金券和折扣券不得存在明细。
+- 券媒体保存即绑定 `VOUCHER_PRODUCT`（券商品），封面恰好一张、详情图最多九张；复制创建独立对象键，删除在事务提交后清理。
+- 既有商品 3001/3002 直接转换为已审核在售种子，保持订单、库存、销量与消费者 Demo；新增四类草稿和一个审核中商品。
 
 ### 目标重构表
 
