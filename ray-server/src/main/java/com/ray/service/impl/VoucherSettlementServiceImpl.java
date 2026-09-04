@@ -68,8 +68,9 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
     private void ensureVoucherIssued(VoucherOrder order, LocalDateTime paidTime) {
         if (order.getProductId() == null || order.getShopId() == null)
             throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "旧优惠券订单不支持新券包发券");
-        UserVoucher existing = userVoucherMapper.selectOne(new QueryWrapper<UserVoucher>().eq("order_id", order.getId()));
-        if (existing != null) return;
+        long existingCount = userVoucherMapper.selectCount(new QueryWrapper<UserVoucher>().eq("order_id", order.getId()));
+        int quantity = order.getQuantity() == null || order.getQuantity() < 1 ? 1 : order.getQuantity();
+        if (existingCount >= quantity) return;
         VoucherProduct product = productMapper.selectById(order.getProductId());
         if (product == null) throw new BusinessException(500, "VOUCHER_PRODUCT_MISSING", "订单商品不存在");
         LocalDateTime validFrom;
@@ -86,20 +87,23 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
         } else {
             throw new BusinessException(500, "VOUCHER_VALIDITY_INVALID", "商品有效期配置无效");
         }
-        boolean issued = false;
-        for (int attempt = 0; attempt < 3 && !issued; attempt++) {
-            UserVoucher voucher = new UserVoucher().setUserId(order.getUserId()).setOrderId(order.getId())
-                    .setProductId(order.getProductId()).setShopId(order.getShopId()).setVoucherCode(nextVoucherCode())
-                    .setStatus(UserVoucherStatus.UNUSED.name()).setValidBeginTime(validFrom).setExpireTime(expireTime);
-            try {
-                issued = userVoucherMapper.insert(voucher) == 1;
-            } catch (DuplicateKeyException exception) {
-                // 同一订单的并发支付事件已完成发券；若只是极低概率券码冲突则换码重试。
-                if (userVoucherMapper.selectOne(new QueryWrapper<UserVoucher>().eq("order_id", order.getId())) != null) return;
+        for (int sequence = (int) existingCount + 1; sequence <= quantity; sequence++) {
+            boolean issued = false;
+            for (int attempt = 0; attempt < 3 && !issued; attempt++) {
+                UserVoucher voucher = new UserVoucher().setUserId(order.getUserId()).setOrderId(order.getId())
+                        .setSequenceNo(sequence).setProductId(order.getProductId()).setShopId(order.getShopId())
+                        .setVoucherCode(nextVoucherCode()).setStatus(UserVoucherStatus.UNUSED.name())
+                        .setValidBeginTime(validFrom).setExpireTime(expireTime);
+                try {
+                    issued = userVoucherMapper.insert(voucher) == 1;
+                } catch (DuplicateKeyException exception) {
+                    if (userVoucherMapper.selectOne(new QueryWrapper<UserVoucher>().eq("order_id", order.getId())
+                            .eq("sequence_no", sequence)) != null) { issued = true; }
+                }
             }
+            if (!issued) throw new BusinessException(500, "VOUCHER_ISSUE_FAILED", "用户券发放失败");
         }
-        if (!issued) throw new BusinessException(500, "VOUCHER_ISSUE_FAILED", "用户券发放失败");
-        if (productMapper.increaseSoldCount(order.getProductId(), order.getQuantity()) != 1)
+        if (productMapper.increaseSoldCount(order.getProductId(), quantity) != 1)
             throw new BusinessException(500, "VOUCHER_SOLD_COUNT_FAILED", "商品销量更新失败");
     }
 

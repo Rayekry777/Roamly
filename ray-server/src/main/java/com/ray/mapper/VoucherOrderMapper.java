@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ray.entity.VoucherOrder;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+import java.time.LocalDateTime;
+import java.util.List;
 
 /** 优惠券订单表的数据访问接口。 */
 public interface VoucherOrderMapper extends BaseMapper<VoucherOrder> {
@@ -19,4 +22,13 @@ public interface VoucherOrderMapper extends BaseMapper<VoucherOrder> {
     @Select("SELECT * FROM voucher_order WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey} LIMIT 1")
     VoucherOrder findByUserAndIdempotencyKey(
             @Param("userId") Long userId, @Param("idempotencyKey") String idempotencyKey);
+
+    @Select("SELECT * FROM voucher_order WHERE status = 'PENDING_PAYMENT' AND payment_expire_time IS NOT NULL "
+            + "AND payment_expire_time <= #{now} ORDER BY payment_expire_time ASC LIMIT #{limit}")
+    List<VoucherOrder> findExpiredPending(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
+    @Update("UPDATE voucher_order SET status = 'CANCELED', update_time = CURRENT_TIMESTAMP "
+            + "WHERE id = #{orderId} AND status = 'PENDING_PAYMENT' AND payment_expire_time IS NOT NULL "
+            + "AND payment_expire_time <= #{now}")
+    int closeIfExpired(@Param("orderId") Long orderId, @Param("now") LocalDateTime now);
 }

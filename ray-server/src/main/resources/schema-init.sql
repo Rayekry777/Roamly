@@ -512,10 +512,27 @@ CREATE TABLE `voucher_order`  (
   INDEX `idx_order_product_user` (`product_id`,`user_id`,`id`)
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
+CREATE TABLE `payment_transaction` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '支付交易ID',
+  `order_id` bigint NOT NULL COMMENT '订单ID',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '消费者ID',
+  `idempotency_key` varchar(128) NOT NULL COMMENT '支付幂等键',
+  `provider` varchar(16) NOT NULL COMMENT '支付渠道：MOCK模拟、WECHAT微信',
+  `status` varchar(16) NOT NULL COMMENT '支付状态：PENDING待支付、SUCCEEDED支付成功、FAILED支付失败、CLOSED已关闭',
+  `amount` bigint UNSIGNED NOT NULL COMMENT '支付金额，单位分',
+  `failure_reason` varchar(255) NULL COMMENT '失败原因',
+  `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_payment_transaction_order_key` (`order_id`,`idempotency_key`),
+  INDEX `idx_payment_transaction_order_status` (`order_id`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单支付交易';
+
 CREATE TABLE `user_voucher` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` bigint UNSIGNED NOT NULL,
   `order_id` bigint NOT NULL,
+  `sequence_no` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '订单内券序号',
   `product_id` bigint UNSIGNED NOT NULL,
   `shop_id` bigint UNSIGNED NOT NULL,
   `voucher_code` varchar(64) NOT NULL,
@@ -528,7 +545,7 @@ CREATE TABLE `user_voucher` (
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_user_voucher_code` (`voucher_code`),
-  UNIQUE INDEX `uk_user_voucher_order` (`order_id`),
+  UNIQUE INDEX `uk_user_voucher_order` (`order_id`,`sequence_no`),
   INDEX `idx_user_voucher_user_status_expire` (`user_id`,`status`,`expire_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户券实例';
 

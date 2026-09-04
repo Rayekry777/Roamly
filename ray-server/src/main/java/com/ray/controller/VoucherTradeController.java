@@ -1,6 +1,7 @@
 package com.ray.controller;
 
 import com.ray.dto.VoucherOrderCreateDTO;
+import com.ray.dto.VoucherPaymentRequest;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.VoucherTradeService;
@@ -9,6 +10,7 @@ import com.ray.vo.UserVoucherVO;
 import com.ray.vo.VoucherOrderDetailVO;
 import com.ray.vo.VoucherOrderVO;
 import com.ray.vo.VoucherOrderConfirmationVO;
+import com.ray.vo.VoucherPaymentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,8 +40,12 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "BearerAuth")
 public class VoucherTradeController {
     private final VoucherTradeService service;
+    private final com.ray.service.VoucherPaymentService paymentService;
 
-    public VoucherTradeController(VoucherTradeService service) { this.service = service; }
+    public VoucherTradeController(VoucherTradeService service, com.ray.service.VoucherPaymentService paymentService) {
+        this.service = service; this.paymentService = paymentService;
+    }
+    public VoucherTradeController(VoucherTradeService service) { this(service, null); }
 
     /** 读取服务端订单确认快照，不占用库存。 */
     @PostMapping("/v1/voucher-products/{productId}/order-confirmations")
@@ -89,6 +95,16 @@ public class VoucherTradeController {
     public ResponseEntity<Void> cancel(@PathVariable String orderId) {
         service.cancelOrder(IdUtils.parse(orderId, "orderId"));
         return ResponseEntity.noContent().build();
+    }
+
+    /** Mock 支付订单；真实渠道由后续微信支付适配器接入。 */
+    @PostMapping("/v1/users/me/orders/{orderId}/payments")
+    @Operation(summary = "支付团购订单", operationId = "payMyVoucherOrder")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "支付结果", useReturnTypeSchema = true),
+            @ApiResponse(responseCode = "503", description = "支付服务不可用")})
+    public Result<VoucherPaymentVO> pay(@PathVariable String orderId, @Valid @RequestBody VoucherPaymentRequest request,
+            @RequestHeader("Idempotency-Key") @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}") String idempotencyKey) {
+        return Result.ok(paymentService.pay(IdUtils.parse(orderId, "orderId"), request, idempotencyKey));
     }
 
     /** 查询当前用户券包。 */

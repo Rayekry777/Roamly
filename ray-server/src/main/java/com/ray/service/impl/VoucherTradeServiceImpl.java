@@ -225,7 +225,10 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         VoucherProduct orderedProduct = order.getProductId() == null ? null : productMapper.selectById(order.getProductId());
         VoucherProductVO product = orderedProduct == null ? null : toProductVO(orderedProduct);
         ShopSummaryVO shop = order.getShopId() == null ? null : shopSummary(shopMapper.selectById(order.getShopId()));
-        return new VoucherOrderDetailVO(toOrderVO(order, product), product, shop);
+        List<UserVoucherVO> vouchers = userVoucherMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<UserVoucher>()
+                .eq("order_id", orderId).orderByAsc("sequence_no")).stream().map(this::toVoucherVO).toList();
+        return new VoucherOrderDetailVO(toOrderVO(order, product), product, shop, LocalDateTime.now(),
+                order.getPaymentExpireTime(), vouchers.isEmpty() ? null : "SUCCEEDED", vouchers);
     }
 
     /** 取消当前用户未支付订单并返还库存。 */

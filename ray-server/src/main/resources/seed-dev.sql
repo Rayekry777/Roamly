@@ -191,8 +191,8 @@ VALUES
   (6003, 3, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 8000, 3, 'CANCELED', NULL, 'seed-order-6003', REPEAT('2', 64), '2026-09-03 11:00:00', NULL, '2026-09-03 11:05:00');
 
 INSERT INTO `user_voucher`
-  (`id`, `user_id`, `order_id`, `product_id`, `shop_id`, `voucher_code`, `status`, `valid_begin_time`, `expire_time`, `create_time`, `update_time`)
+  (`id`, `user_id`, `order_id`, `sequence_no`, `product_id`, `shop_id`, `voucher_code`, `status`, `valid_begin_time`, `expire_time`, `create_time`, `update_time`)
 VALUES
-  (7001, 2, 6002, 3001, 1, 'ROAMLYDEMO20260903001', 'UNUSED', '2026-09-03 10:02:00', '2026-10-03 10:02:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00');
+  (7001, 2, 6002, 1, 3001, 1, 'ROAMLYDEMO20260903001', 'UNUSED', '2026-09-03 10:02:00', '2026-10-03 10:02:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00');
 
 SET FOREIGN_KEY_CHECKS = 1;

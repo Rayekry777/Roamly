@@ -17,6 +17,8 @@ public class UserVoucher implements Serializable {
     private Long id;
     private Long userId;
     private Long orderId;
+    /** 同一订单内的券序号，从 1 开始。 */
+    private Integer sequenceNo;
     private Long productId;
     private Long shopId;
     private String voucherCode;
