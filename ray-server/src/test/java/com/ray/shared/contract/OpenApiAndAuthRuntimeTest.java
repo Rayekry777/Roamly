@@ -111,11 +111,15 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(65, operationIds.size());
+        assertEquals(69, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1users/get/responses/403").isObject());
+        assertEquals(0, document.at("/paths/~1v1~1merchant~1auth~1login/post/security").size());
+        assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1auth~1me/get/responses/401").isObject());
         assertTrue(document.at("/paths/~1v1~1auth~1sessions/post/security").isArray());
         assertEquals(
                 0, document.at("/paths/~1v1~1auth~1sessions/post/security").size());
@@ -164,6 +168,8 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("VoucherOrderCreateDTO"));
         assertTrue(schemaNames.contains("VoucherOrderDetailVO"));
         assertTrue(schemaNames.contains("UserVoucherVO"));
+        assertTrue(schemaNames.contains("CurrentMerchantVO"));
+        assertTrue(schemaNames.contains("MerchantShopSummaryVO"));
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -197,6 +203,10 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/admin/users/{adminUserId}/activation",
                 "POST /v1/admin/users/{adminUserId}/disablement",
                 "POST /v1/admin/users/{adminUserId}/password-reset",
+                "POST /v1/merchant/auth/sms-codes",
+                "POST /v1/merchant/auth/login",
+                "GET /v1/merchant/auth/me",
+                "POST /v1/merchant/auth/logout",
                 "GET /v1/cities",
                 "GET /v1/sections",
                 "GET /v1/sections/{sectionId}",
@@ -322,6 +332,12 @@ class OpenApiAndAuthRuntimeTest {
         assertEquals(
                 HttpStatus.UNAUTHORIZED,
                 exchange("/v1/users/me", "Bearer " + adminToken, HttpMethod.GET).getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", "Bearer " + consumerToken, HttpMethod.GET).getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", "Bearer " + adminToken, HttpMethod.GET).getStatusCode());
     }
 
     @Test
@@ -417,6 +433,14 @@ class OpenApiAndAuthRuntimeTest {
             assertEquals(
                     "SMS_SERVICE_UNAVAILABLE",
                     objectMapper.readTree(response.getBody()).path("code").asText());
+            ResponseEntity<String> merchantResponse = http.postForEntity(
+                    "/v1/merchant/auth/sms-codes",
+                    new HttpEntity<>("{\"phone\":\"13900000001\"}", headers),
+                    String.class);
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, merchantResponse.getStatusCode());
+            assertEquals(
+                    "SMS_SERVICE_UNAVAILABLE",
+                    objectMapper.readTree(merchantResponse.getBody()).path("code").asText());
         } finally {
             smsProperties.setMode(previous);
         }

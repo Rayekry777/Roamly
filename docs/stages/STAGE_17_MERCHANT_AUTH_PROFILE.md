@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 1
 designStatus: 已冻结
-implementationStatus: 未实现
+implementationStatus: 已实现
 dependsOn: 阶段 16 已实现
 affectedEnds: 后端、商户小程序
 ```
@@ -53,3 +53,10 @@ affectedEnds: 后端、商户小程序
 - 三类 Token 互斥、短信限流、五种状态映射、停用会话和跨账号隔离测试通过。
 - 商户小程序自动化覆盖登录、恢复、退出、所有状态和错误反馈。
 - 真实 HTTP/OpenAPI 与微信开发者工具流程通过后标记“已实现”。
+
+## 实现记录
+
+- 后端默认测试 120 项中 103 项通过、17 项按条件跳过且未重建数据库；数据库集成 5 项全部通过并恢复 22 表纯种子快照。
+- 真实 HTTP/OpenAPI 8 项通过，运行时发布 69 个唯一 `operationId`，三类 Token 互斥且全部 `$ref` 可解析。
+- 商户小程序 4 个 Vitest 文件共 19 项通过，TypeScript、ESLint、Stylelint、Prettier 和 npm 构建通过。
+- 微信开发者工具使用已授权小程序 AppID 完成 `build-npm`，最终复验耗时 10483 ms，无警告；Android/iOS 真机状态继续为“未确认”。

@@ -3,6 +3,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
 DROP TABLE IF EXISTS `admin_user`;
+DROP TABLE IF EXISTS `merchant_account`;
 
 CREATE TABLE `admin_user` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '管理员ID',
@@ -225,6 +226,26 @@ CREATE TABLE `shop`  (
   INDEX `foreign_key_type`(`type_id`) USING BTREE,
   INDEX `idx_shop_city_type_status`(`city_code`, `type_id`, `status`, `id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 15 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
+
+CREATE TABLE `merchant_account` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商户账号ID',
+  `phone` varchar(11) NOT NULL COMMENT '中国大陆手机号',
+  `nickname` varchar(64) NOT NULL COMMENT '商户端昵称',
+  `avatar_url` varchar(512) NULL DEFAULT NULL COMMENT '头像地址',
+  `role` varchar(16) NOT NULL DEFAULT 'OWNER' COMMENT '固定角色：OWNER店主、MANAGER店长、VERIFIER核销员',
+  `status` varchar(16) NOT NULL DEFAULT 'NOT_APPLIED' COMMENT '展示状态：NOT_APPLIED未入驻、PENDING审核中、ACTIVE已激活、REJECTED审核未通过、DISABLED已停用',
+  `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '绑定门店ID，逻辑关联shop.id',
+  `last_login_time` timestamp NULL DEFAULT NULL COMMENT '最近登录时间',
+  `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_merchant_account_phone` (`phone`),
+  INDEX `idx_merchant_account_shop_status_role` (`shop_id`, `status`, `role`, `id`),
+  CONSTRAINT `chk_merchant_account_role` CHECK (`role` IN ('OWNER','MANAGER','VERIFIER')),
+  CONSTRAINT `chk_merchant_account_status` CHECK (`status` IN ('NOT_APPLIED','PENDING','ACTIVE','REJECTED','DISABLED')),
+  CONSTRAINT `chk_merchant_active_shop` CHECK (`status` <> 'ACTIVE' OR `shop_id` IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户店主与员工账号';
 
 
 DROP TABLE IF EXISTS `shop_type`;

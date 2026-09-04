@@ -12,6 +12,8 @@ import com.ray.result.Result;
 import com.ray.vo.HighlightCommentVO;
 import com.ray.vo.CommentThreadVO;
 import com.ray.vo.CommentVO;
+import com.ray.vo.CurrentMerchantVO;
+import com.ray.vo.MerchantShopSummaryVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
@@ -65,6 +67,7 @@ public class OpenApiConfig {
         registerPostSchemas(components);
         registerReviewSchemas(components);
         registerVoucherSchemas(components);
+        registerMerchantSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -85,6 +88,7 @@ public class OpenApiConfig {
             registerPostSchemas(openApi.getComponents());
             registerReviewSchemas(openApi.getComponents());
             registerVoucherSchemas(openApi.getComponents());
+            registerMerchantSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -167,6 +171,11 @@ public class OpenApiConfig {
         registerSchema(components, "VoucherOrderVO", VoucherOrderVO.class);
         registerSchema(components, "VoucherOrderDetailVO", VoucherOrderDetailVO.class);
         registerSchema(components, "UserVoucherVO", UserVoucherVO.class);
+    }
+
+    private void registerMerchantSchemas(Components components) {
+        registerSchema(components, "MerchantShopSummaryVO", MerchantShopSummaryVO.class);
+        registerSchema(components, "CurrentMerchantVO", CurrentMerchantVO.class);
     }
 
     private void addError(ApiResponses responses, String status, String description) {

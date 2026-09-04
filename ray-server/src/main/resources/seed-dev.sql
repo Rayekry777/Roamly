@@ -42,6 +42,15 @@ VALUES
   (2, '漫游咖啡实验室', 1, '330100', 'https://example.com/images/coffee-lab.jpg', '运河上街', '台州路 2 号', 120.151954, 30.324970, 68, 0, 1, 50, '09:00-21:00', 1),
   (3, '周末放映厅', 2, '330100', 'https://example.com/images/cinema.jpg', '拱宸桥', '丽水路 58 号', 120.146659, 30.312742, 120, 0, 0, 0, '13:00-23:00', 1);
 
+INSERT INTO `merchant_account`
+  (`id`, `phone`, `nickname`, `avatar_url`, `role`, `status`, `shop_id`, `version`)
+VALUES
+  (1, '13900000001', '茶餐厅店主', NULL, 'OWNER', 'ACTIVE', 1, 0),
+  (2, '13900000002', '待入驻商户', NULL, 'OWNER', 'NOT_APPLIED', NULL, 0),
+  (3, '13900000003', '审核中商户', NULL, 'OWNER', 'PENDING', NULL, 0),
+  (4, '13900000004', '待修改商户', NULL, 'OWNER', 'REJECTED', NULL, 0),
+  (5, '13900000005', '已停用商户', NULL, 'OWNER', 'DISABLED', 2, 0);
+
 INSERT INTO `section_follow` (`id`, `user_id`, `section_id`, `create_time`) VALUES
   (1, 1, 2, '2026-09-01 09:00:00'),
   (2, 1, 3, '2026-09-01 09:01:00'),

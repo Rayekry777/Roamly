@@ -3,9 +3,9 @@
 ```yaml
 updatedAt: 2026-09-04
 schemaMode: Demo 可重建快照
-businessTableCount: 21
+businessTableCount: 22
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 已验证（21 张当前业务表）
+runtimeVerification: 已验证（22 张当前业务表）
 targetBusinessTableCount: 33
 targetDesignVersion: 3
 targetDesignStatus: 已冻结
@@ -14,7 +14,7 @@ targetImplementationStatus: 未实现
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 21 表：原 19 表与阶段 16 的 `admin_user`、`operation_audit_log` 已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
+当前源码快照为 22 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log` 与阶段 17 的 `merchant_account` 已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
 
 ## 规则
 
@@ -30,6 +30,7 @@ targetImplementationStatus: 未实现
 |---|---|---|---|
 | `admin_user` | 管理员账号与固定角色 | 平台级 | 用户名唯一；固定角色；启停状态与乐观锁 |
 | `operation_audit_log` | 敏感操作审计 | 平台级 | 操作者、对象、动作和时间索引；只追加 |
+| `merchant_account` | 店主及员工账号 | 商户/门店级 | 手机号唯一；激活账号必须绑定门店；角色、状态与乐观锁 |
 | `city` | 城市字典 | 平台级 | `code` 唯一 |
 | `content_section` | 官方内容分区 | 平台级 | `code` 唯一 |
 | `section_follow` | 用户关注分区 | 用户级 | `user_id,section_id` 唯一 |
@@ -63,7 +64,7 @@ targetImplementationStatus: 未实现
 
 ## 开发种子
 
-种子包含：1 个城市、5 个官方分区、3 个商户分类、3 个用户及资料、3 个商户、分区关注和用户关注、已绑定动态/点评媒体、3 条动态及其点赞、根评论/回复及点赞、3 条点评、2 个团购商品、待支付/已支付/已取消订单，以及与已支付订单一一对应的未使用券。
+种子包含：1 个城市、5 个官方分区、3 个商户分类、3 个用户及资料、3 个商户、5 个覆盖全部账号状态的商户账号、分区关注和用户关注、已绑定动态/点评媒体、3 条动态及其点赞、根评论/回复及点赞、3 条点评、2 个团购商品、待支付/已支付/已取消订单，以及与已支付订单一一对应的未使用券。
 
 种子聚合可由 SQL 事实复核：
 
@@ -142,9 +143,9 @@ targetImplementationStatus: 未实现
 
 `DatabaseBusinessClosureIntegrationTest` 仅在 `RUN_DATABASE_INTEGRATION_TESTS=true` 时运行。它在开始前重建当前快照，使用 Redis DB 15，完成真实 HTTP/Service/SQL 场景后再次重建种子并清空测试 Redis，确保日常开发环境回到纯种子状态。
 
-2026-09-04 已在 `.env` 当前指向且获授权的开发库完成 21 表 Demo 验收：
+2026-09-04 已在 `.env` 当前指向且获授权的开发库完成 22 表 Demo 验收：
 
-- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 21 张业务表、关键唯一索引、旧表退役和种子一致性。
-- `DatabaseBusinessClosureIntegrationTest` 4 项全部通过，覆盖管理员登录/改密/创建/重置/启停/并发保护/审计，以及媒体、社区、点评、订单、发券、过期刷新和用户隔离。
+- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 22 张业务表、关键唯一索引、旧表退役和种子一致性。
+- `DatabaseBusinessClosureIntegrationTest` 5 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计，以及媒体、社区、点评、订单、发券、过期刷新和用户隔离。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 目标 33 表仍只完成冻结设计，阶段 17 至 29 的新增表不得提前标记为已实现。
+- 目标 33 表仍只完成冻结设计，阶段 18 至 29 的新增表不得提前标记为已实现。

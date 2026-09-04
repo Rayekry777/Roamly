@@ -66,11 +66,11 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasTwentyOneCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasTwentyTwoCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(21, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(22, tableNames.size(), "当前表=" + tableNames);
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -81,8 +81,11 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("user_voucher", "uk_user_voucher_order"));
         assertEquals(1, indexCount("admin_user", "uk_admin_user_username"));
         assertEquals(1, indexCount("operation_audit_log", "idx_audit_actor_time"));
+        assertEquals(1, indexCount("merchant_account", "uk_merchant_account_phone"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
                 + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=1"));
+        assertEquals(5, count("select count(distinct status) from merchant_account"));
+        assertEquals(0, count("select count(*) from merchant_account where status='ACTIVE' and shop_id is null"));
 
         assertEquals(0, count("select count(*) from post p where p.liked_count <> "
                 + "(select count(*) from post_like pl where pl.post_id=p.id)"));
@@ -101,6 +104,61 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(2)
+    void realMerchantFlowClosesCreationStatusIsolationRateLimitAndLogout() throws Exception {
+        String consumerToken = login("13686869696");
+
+        ResponseEntity<String> code = exchange(
+                "/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", "13900000001"), null);
+        assertEquals(HttpStatus.NO_CONTENT, code.getStatusCode());
+        ResponseEntity<String> limited = exchange(
+                "/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", "13900000001"), null);
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, limited.getStatusCode());
+        assertEquals("SMS_SEND_TOO_FREQUENT", objectMapper.readTree(limited.getBody()).path("code").asText());
+
+        String activeToken = loginMerchant("13900000001");
+        ResponseEntity<String> activeMe = exchange("/v1/merchant/auth/me", HttpMethod.GET, null, activeToken);
+        assertEquals(HttpStatus.OK, activeMe.getStatusCode());
+        assertEquals("ACTIVE", data(activeMe).path("status").asText());
+        assertEquals("已激活", data(activeMe).path("statusLabel").asText());
+        assertEquals("1", data(activeMe).path("shop").path("id").asText());
+        assertEquals("139****0001", data(activeMe).path("maskedPhone").asText());
+        assertFalse(data(activeMe).path("permissions").isEmpty());
+
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, consumerToken).getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/users/me", HttpMethod.GET, null, activeToken).getStatusCode());
+
+        String newToken = loginMerchantWithCode("13900000009");
+        ResponseEntity<String> newMe = exchange("/v1/merchant/auth/me", HttpMethod.GET, null, newToken);
+        assertEquals("NOT_APPLIED", data(newMe).path("status").asText());
+        assertEquals("OWNER", data(newMe).path("role").asText());
+        assertTrue(data(newMe).path("shop").isMissingNode());
+        assertEquals(1, count("select count(*) from merchant_account where phone='13900000009' "
+                + "and status='NOT_APPLIED' and role='OWNER' and shop_id is null"));
+
+        String disabledToken = loginMerchantWithCode("13900000005");
+        assertEquals("DISABLED", data(exchange(
+                        "/v1/merchant/auth/me", HttpMethod.GET, null, disabledToken))
+                .path("status")
+                .asText());
+        ResponseEntity<String> disabledAccess = exchange(
+                "/v1/merchant/orders", HttpMethod.GET, null, disabledToken);
+        assertEquals(HttpStatus.FORBIDDEN, disabledAccess.getStatusCode());
+        assertEquals("MERCHANT_ACCOUNT_DISABLED",
+                objectMapper.readTree(disabledAccess.getBody()).path("code").asText());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, disabledToken).getStatusCode());
+
+        assertEquals(HttpStatus.NO_CONTENT,
+                exchange("/v1/merchant/auth/logout", HttpMethod.POST, null, activeToken).getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, activeToken).getStatusCode());
+        logout(consumerToken);
+    }
+
+    @Test
+    @Order(3)
     void realAdminFlowClosesPasswordAccountSessionProtectionAndAudit() throws Exception {
         String consumerToken = login("13686869696");
         String initialAdminToken = loginAdmin("admin", "Roamly123");
@@ -216,7 +274,7 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void realHttpClosesAuthSectionPostCommentAndThreeFeedFlows() throws Exception {
         String authorToken = login("13686869696");
         String readerToken = login("13838411438");
@@ -280,7 +338,7 @@ class DatabaseBusinessClosureIntegrationTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void realTradeFlowClosesShopReviewStockSettlementWalletExpiryAndIsolation() throws Exception {
         String firstToken = login("13686869696");
         String buyerToken = login("13456789011");
@@ -370,6 +428,25 @@ class DatabaseBusinessClosureIntegrationTest {
         String token = data(response).path("token").asText();
         assertFalse(token.isBlank());
         return token;
+    }
+
+    private String loginMerchant(String phone) throws Exception {
+        ResponseEntity<String> session = exchange(
+                "/v1/merchant/auth/login",
+                HttpMethod.POST,
+                Map.of("phone", phone, "code", "123456"),
+                null);
+        assertEquals(HttpStatus.OK, session.getStatusCode());
+        String token = data(session).path("accessToken").asText();
+        assertFalse(token.isBlank());
+        return token;
+    }
+
+    private String loginMerchantWithCode(String phone) throws Exception {
+        assertEquals(HttpStatus.NO_CONTENT,
+                exchange("/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", phone), null)
+                        .getStatusCode());
+        return loginMerchant(phone);
     }
 
     private HttpStatus concurrentRoleChange(

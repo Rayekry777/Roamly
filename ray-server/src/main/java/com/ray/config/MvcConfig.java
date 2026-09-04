@@ -4,6 +4,7 @@ import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.stp.StpUtil;
 import com.ray.service.AdminAuthService;
+import com.ray.service.MerchantAuthService;
 import java.nio.file.Path;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,11 +20,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class MvcConfig implements WebMvcConfigurer {
     private final String uploadDir;
     private final AdminAuthService adminAuthService;
+    private final MerchantAuthService merchantAuthService;
 
     public MvcConfig(
-            @Value("${ray.upload.image-dir}") String uploadDir, AdminAuthService adminAuthService) {
+            @Value("${ray.upload.image-dir}") String uploadDir,
+            AdminAuthService adminAuthService,
+            MerchantAuthService merchantAuthService) {
         this.uploadDir = uploadDir;
         this.adminAuthService = adminAuthService;
+        this.merchantAuthService = merchantAuthService;
     }
 
     @Override
@@ -41,6 +46,8 @@ public class MvcConfig implements WebMvcConfigurer {
                     String path = SaHolder.getRequest().getRequestPath();
                     if (path.startsWith("/v1/admin/")) {
                         if (!isAdminPublic(method, path)) adminAuthService.assertRequestAllowed(method, path);
+                    } else if (path.startsWith("/v1/merchant/")) {
+                        if (!isMerchantPublic(method, path)) merchantAuthService.assertRequestAllowed(method, path);
                     } else if (isOptionalAuthentication(method, path)) {
                         if (StringUtils.hasText(SaHolder.getRequest().getHeader("Authorization"))) {
                             StpUtil.checkLogin();
@@ -54,6 +61,7 @@ public class MvcConfig implements WebMvcConfigurer {
 
     static boolean isPublic(String method, String path) {
         if (isAdminPublic(method, path)) return true;
+        if (isMerchantPublic(method, path)) return true;
         if ("POST".equals(method) && ("/v1/auth/sms-codes".equals(path) || "/v1/auth/sessions".equals(path)))
             return true;
         if (!"GET".equals(method)) return false;
@@ -73,6 +81,11 @@ public class MvcConfig implements WebMvcConfigurer {
 
     static boolean isAdminPublic(String method, String path) {
         return "POST".equals(method) && "/v1/admin/auth/login".equals(path);
+    }
+
+    static boolean isMerchantPublic(String method, String path) {
+        return "POST".equals(method)
+                && ("/v1/merchant/auth/sms-codes".equals(path) || "/v1/merchant/auth/login".equals(path));
     }
 
     static boolean isOptionalAuthentication(String method, String path) {
