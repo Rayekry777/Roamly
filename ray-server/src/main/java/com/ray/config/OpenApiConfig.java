@@ -36,7 +36,15 @@ import com.ray.vo.VoucherOrderVO;
 import com.ray.vo.VoucherProductDetailVO;
 import com.ray.vo.VoucherProductVO;
 import com.ray.vo.UserVoucherVO;
+import com.ray.vo.AdminVoucherReviewDetailVO;
+import com.ray.vo.AdminVoucherReviewListItemVO;
+import com.ray.vo.AdminVoucherReviewResultVO;
+import com.ray.vo.MerchantVoucherPackageItemVO;
+import com.ray.vo.MerchantVoucherProductVO;
 import com.ray.dto.VoucherOrderCreateDTO;
+import com.ray.dto.VoucherReviewApprovalRequest;
+import com.ray.dto.VoucherReviewRejectionRequest;
+import com.ray.dto.MerchantVoucherProductOffSaleRequest;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
@@ -80,6 +88,7 @@ public class OpenApiConfig {
         registerVoucherSchemas(components);
         registerMerchantSchemas(components);
         registerAdminMerchantGovernanceSchemas(components);
+        registerVoucherReviewSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -102,6 +111,7 @@ public class OpenApiConfig {
             registerVoucherSchemas(openApi.getComponents());
             registerMerchantSchemas(openApi.getComponents());
             registerAdminMerchantGovernanceSchemas(openApi.getComponents());
+            registerVoucherReviewSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
@@ -160,6 +170,18 @@ public class OpenApiConfig {
                     if (method == HttpMethod.PUT || method == HttpMethod.POST) {
                         addError(operation.getResponses(), "409", "入驻申请版本、状态或幂等键冲突");
                     }
+                }
+                if (path.startsWith("/v1/merchant/voucher-products")) {
+                    addError(operation.getResponses(), "403", "当前商户角色无权管理团购券");
+                    addError(operation.getResponses(), "404", "团购券不存在");
+                    if (method == HttpMethod.POST && (path.endsWith("/submission") || path.endsWith("/off-sale"))) {
+                        addError(operation.getResponses(), "409", "团购券版本、状态或幂等键冲突");
+                    }
+                }
+                if (path.startsWith("/v1/admin/voucher-reviews")) {
+                    addError(operation.getResponses(), "403", "无团购券审核权限");
+                    addError(operation.getResponses(), "404", "团购券不存在");
+                    if (method == HttpMethod.POST) addError(operation.getResponses(), "409", "团购券审核状态、版本或幂等键冲突");
                 }
             }));
         };
@@ -230,6 +252,17 @@ public class OpenApiConfig {
                 components,
                 "AdminShopGovernanceResultVO",
                 AdminShopGovernanceResultVO.class);
+    }
+
+    private void registerVoucherReviewSchemas(Components components) {
+        registerSchema(components, "VoucherReviewApprovalRequest", VoucherReviewApprovalRequest.class);
+        registerSchema(components, "VoucherReviewRejectionRequest", VoucherReviewRejectionRequest.class);
+        registerSchema(components, "MerchantVoucherProductOffSaleRequest", MerchantVoucherProductOffSaleRequest.class);
+        registerSchema(components, "MerchantVoucherPackageItemVO", MerchantVoucherPackageItemVO.class);
+        registerSchema(components, "MerchantVoucherProductVO", MerchantVoucherProductVO.class);
+        registerSchema(components, "AdminVoucherReviewListItemVO", AdminVoucherReviewListItemVO.class);
+        registerSchema(components, "AdminVoucherReviewDetailVO", AdminVoucherReviewDetailVO.class);
+        registerSchema(components, "AdminVoucherReviewResultVO", AdminVoucherReviewResultVO.class);
     }
 
     private void addError(ApiResponses responses, String status, String description) {

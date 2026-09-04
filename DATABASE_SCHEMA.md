@@ -3,9 +3,9 @@
 ```yaml
 updatedAt: 2026-09-04
 schemaMode: Demo 可重建快照
-businessTableCount: 24
+businessTableCount: 25
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 已验证（24 张当前业务表）
+runtimeVerification: 已验证（25 张当前业务表）
 targetBusinessTableCount: 33
 targetDesignVersion: 6
 targetDesignStatus: 已冻结
@@ -14,7 +14,7 @@ targetImplementationStatus: 开发中
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 24 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log`、阶段 17 的 `merchant_account`，阶段 18 的 `merchant_application`、`business_media_asset`，以及阶段 19 对申请、门店与商户账号的治理字段均已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
+当前源码快照为 25 表：原 19 表、阶段 16 的 `admin_user`、`operation_audit_log`、阶段 17 的 `merchant_account`，阶段 18 的 `merchant_application`、`business_media_asset`，以及阶段 20 新增的 `voucher_package_item` 和阶段 19/20 对业务字段的治理均已完成真实重建和业务场景验证。本文后部其余“阶段 15 至 30 目标结构”仍是冻结设计；在目标 DDL、种子和集成测试全部通过前，禁止把目标 33 表写成已实现。
 
 ## 规则
 
@@ -201,6 +201,6 @@ targetImplementationStatus: 开发中
 
 - 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 25 张业务表、关键唯一索引、旧表退役和种子一致性。
 - `DatabaseBusinessClosureIntegrationTest` 8 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、发券、过期刷新和用户隔离。
-- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 93 个唯一 `operationId`、新增券视图 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
+- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 98 个唯一 `operationId`、券审核与下架 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
-- 目标 33 表仍只完成冻结设计，阶段 21 至 29 的新增表不得提前标记为已实现。
+- 阶段 21 不新增业务表；目标 33 表仍只完成冻结设计，阶段 22 至 29 的新增表不得提前标记为已实现。

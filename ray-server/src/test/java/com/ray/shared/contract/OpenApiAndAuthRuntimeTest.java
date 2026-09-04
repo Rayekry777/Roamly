@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(93, operationIds.size());
+        assertEquals(98, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
@@ -125,6 +125,10 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}/get/responses/404").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}~1suspension/post/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1shops~1{shopId}~1activation/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1voucher-reviews/get/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1voucher-reviews~1{productId}/get/responses/404").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1voucher-reviews~1{productId}~1approval/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1admin~1voucher-reviews~1{productId}~1rejection/post/responses/409").isObject());
         assertRequiredParameter(
                 document,
                 "/v1/admin/merchant-applications/{applicationId}/approval",
@@ -139,6 +143,10 @@ class OpenApiAndAuthRuntimeTest {
                 document, "/v1/admin/shops/{shopId}/suspension", "post", "Idempotency-Key");
         assertRequiredParameter(
                 document, "/v1/admin/shops/{shopId}/activation", "post", "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/admin/voucher-reviews/{productId}/approval", "post", "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/admin/voucher-reviews/{productId}/rejection", "post", "Idempotency-Key");
         assertEquals(0, document.at("/paths/~1v1~1merchant~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
@@ -152,6 +160,7 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}/put/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}~1copies/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}~1submission/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1voucher-products~1{productId}~1off-sale/post/responses/409").isObject());
         assertRequiredParameter(
                 document,
                 "/v1/merchant/voucher-products/{productId}/submission",
@@ -225,6 +234,12 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("AdminShopDetailVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminShopListItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminShopGovernanceResultVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("VoucherReviewApprovalRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("VoucherReviewRejectionRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductOffSaleRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminVoucherReviewListItemVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminVoucherReviewDetailVO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("AdminVoucherReviewResultVO"), "schemas=" + schemaNames);
         assertFalse(schemaNames.contains("PostCreateRequest"));
         assertFalse(schemaNames.contains("PostUpdateRequest"));
         assertFalse(schemaNames.contains("ApiResponse"));
@@ -269,6 +284,9 @@ class OpenApiAndAuthRuntimeTest {
                         "operatedByAdminName",
                         "operatedAt",
                         "affectedAccountCount"));
+        assertSchemaProperties(document, "VoucherReviewApprovalRequest", Set.of("version"));
+        assertSchemaProperties(document, "VoucherReviewRejectionRequest", Set.of("version", "reason"));
+        assertSchemaProperties(document, "MerchantVoucherProductOffSaleRequest", Set.of("version", "reason"));
         assertRefsResolve(document, document, schemaNames);
     }
 
@@ -297,6 +315,10 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/admin/shops/{shopId}",
                 "POST /v1/admin/shops/{shopId}/suspension",
                 "POST /v1/admin/shops/{shopId}/activation",
+                "GET /v1/admin/voucher-reviews",
+                "GET /v1/admin/voucher-reviews/{productId}",
+                "POST /v1/admin/voucher-reviews/{productId}/approval",
+                "POST /v1/admin/voucher-reviews/{productId}/rejection",
                 "POST /v1/merchant/auth/sms-codes",
                 "POST /v1/merchant/auth/login",
                 "GET /v1/merchant/auth/me",
@@ -311,6 +333,7 @@ class OpenApiAndAuthRuntimeTest {
                 "DELETE /v1/merchant/voucher-products/{productId}",
                 "POST /v1/merchant/voucher-products/{productId}/copies",
                 "POST /v1/merchant/voucher-products/{productId}/submission",
+                "POST /v1/merchant/voucher-products/{productId}/off-sale",
                 "GET /v1/merchant/application",
                 "PUT /v1/merchant/application",
                 "POST /v1/merchant/application/submission",

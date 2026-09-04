@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.dto.MerchantVoucherProductCreateRequest;
+import com.ray.dto.MerchantVoucherProductOffSaleRequest;
 import com.ray.dto.MerchantVoucherProductSubmitRequest;
 import com.ray.dto.MerchantVoucherProductUpdateRequest;
 import com.ray.entity.MerchantAccount;
@@ -165,6 +166,39 @@ class MerchantVoucherProductServiceImplTest {
         assertEquals(1, result.version());
         verify(auditService).record(
                 1L, "MERCHANT_VOUCHER_SUBMITTED", "VOUCHER_PRODUCT", "3102", "SUCCEEDED", null);
+    }
+
+    @Test
+    void offSaleApprovedVoucherIsIdempotentAndReturnsOffSaleFact() {
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.OWNER));
+        VoucherProduct product = new VoucherProduct()
+                .setId(3103L)
+                .setShopId(10L)
+                .setProductType(VoucherProductType.CASH.name())
+                .setTitle("代金券")
+                .setDetailMediaIdsJson("[]")
+                .setUsageRulesJson("[]")
+                .setExcludedDatesJson("[]")
+                .setTotalStock(10)
+                .setAvailableStock(10)
+                .setSoldCount(0)
+                .setPurchaseLimit(1)
+                .setReviewStatus(VoucherReviewStatus.APPROVED.name())
+                .setSaleStatus("ON_SALE")
+                .setVersion(2);
+        when(productMapper.selectByIdForUpdate(3103L)).thenReturn(product);
+        when(productMapper.update(eq(null), any())).thenReturn(1);
+        when(productMapper.selectById(3103L)).thenAnswer(invocation -> product.setSaleStatus("OFF_SALE").setVersion(3));
+
+        var result = service.offSale(
+                3103L,
+                "off-sale-key",
+                new MerchantVoucherProductOffSaleRequest(2, "库存调整"));
+
+        assertEquals("OFF_SALE", result.saleStatus().name());
+        assertEquals(3, result.version());
+        verify(auditService).record(
+                1L, "MERCHANT_VOUCHER_OFF_SALE", "VOUCHER_PRODUCT", "3103", "SUCCEEDED", "库存调整");
     }
 
     private MerchantAccount account(MerchantRole role) {

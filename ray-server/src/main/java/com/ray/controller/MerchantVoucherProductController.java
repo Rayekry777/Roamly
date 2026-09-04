@@ -1,6 +1,7 @@
 package com.ray.controller;
 
 import com.ray.dto.MerchantVoucherProductCreateRequest;
+import com.ray.dto.MerchantVoucherProductOffSaleRequest;
 import com.ray.dto.MerchantVoucherProductSubmitRequest;
 import com.ray.dto.MerchantVoucherProductUpdateRequest;
 import com.ray.result.ErrorResult;
@@ -167,5 +168,26 @@ public class MerchantVoucherProductController {
                     String idempotencyKey,
             @Valid @RequestBody MerchantVoucherProductSubmitRequest request) {
         return Result.ok(service.submit(IdUtils.parse(productId, "productId"), idempotencyKey, request));
+    }
+
+    /** 下架已审核商品，修改规则前必须重新审核。 */
+    @PostMapping("/{productId}/off-sale")
+    @Operation(summary = "下架团购券", operationId = "offSaleMerchantVoucherProduct")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "下架成功或同键重放", useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "400", description = "请求参数无效", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "401", description = "未登录", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "403", description = "账号或角色无权操作", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "404", description = "商品不存在", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "409", description = "版本、状态或幂等冲突", content = @Content(schema = @Schema(implementation = ErrorResult.class)))
+    })
+    public Result<MerchantVoucherProductVO> offSale(
+            @PathVariable String productId,
+            @Parameter(description = "8至128位下架幂等键", required = true)
+                    @RequestHeader("Idempotency-Key")
+                    @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
+                    String idempotencyKey,
+            @Valid @RequestBody MerchantVoucherProductOffSaleRequest request) {
+        return Result.ok(service.offSale(IdUtils.parse(productId, "productId"), idempotencyKey, request));
     }
 }

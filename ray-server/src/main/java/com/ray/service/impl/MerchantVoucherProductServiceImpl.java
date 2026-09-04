@@ -10,6 +10,7 @@ import com.ray.dto.BusinessDayHoursDTO;
 import com.ray.dto.BusinessPeriodDTO;
 import com.ray.dto.MerchantVoucherPackageItemRequest;
 import com.ray.dto.MerchantVoucherProductCreateRequest;
+import com.ray.dto.MerchantVoucherProductOffSaleRequest;
 import com.ray.dto.MerchantVoucherProductSubmitRequest;
 import com.ray.dto.MerchantVoucherProductUpdateRequest;
 import com.ray.entity.MerchantAccount;
@@ -273,6 +274,36 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 account.getId(), "MERCHANT_VOUCHER_SUBMITTED", AUDIT_OBJECT,
                 productId.toString(), SUCCEEDED, null);
         log.info("[商户建券] 团购券提交审核成功，merchantAccountId={}，productId={}", account.getId(), productId);
+        return toView(account, requireProduct(account, productId));
+    }
+
+    /** 商户主动下架已审核商品，后续规则修改必须重新提交审核。 */
+    @Override
+    @Transactional
+    public MerchantVoucherProductVO offSale(
+            Long productId, String idempotencyKey, MerchantVoucherProductOffSaleRequest request) {
+        MerchantAccount account = requireVoucherManager();
+        VoucherProduct product = requireProductForUpdate(account, productId);
+        String reason = request.reason() == null ? null : request.reason().trim();
+        String fingerprint = fingerprint(productId, request.version()) + "|OFF_SALE|" + (reason == null ? "" : reason);
+        if (VoucherSaleStatus.OFF_SALE.name().equals(product.getSaleStatus())) {
+            if (idempotencyKey.equals(product.getReviewIdempotencyKey()) && fingerprint.equals(product.getReviewRequestFingerprint())) {
+                return toView(account, product);
+            }
+            throw BusinessException.conflict("VOUCHER_PRODUCT_IDEMPOTENCY_CONFLICT", "下架幂等键已用于其他请求");
+        }
+        if (!VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())
+                || (product.getSaleStatus() != null && !Set.of(VoucherSaleStatus.ON_SALE.name(), VoucherSaleStatus.SCHEDULED.name()).contains(product.getSaleStatus()))) {
+            throw BusinessException.conflict("VOUCHER_PRODUCT_STATE_CONFLICT", "团购券当前状态不可下架");
+        }
+        if (!product.getVersion().equals(request.version())) throw versionConflict();
+        if (productMapper.update(null, new UpdateWrapper<VoucherProduct>()
+                .eq("id", productId).eq("shop_id", account.getShopId()).eq("review_status", VoucherReviewStatus.APPROVED.name())
+                .eq("version", request.version()).set("sale_status", VoucherSaleStatus.OFF_SALE.name())
+                .set("review_idempotency_key", idempotencyKey).set("review_request_fingerprint", fingerprint).setSql("version=version+1")) != 1) {
+            throw versionConflict();
+        }
+        merchantAuditService.record(account.getId(), "MERCHANT_VOUCHER_OFF_SALE", AUDIT_OBJECT, productId.toString(), SUCCEEDED, reason);
         return toView(account, requireProduct(account, productId));
     }
 

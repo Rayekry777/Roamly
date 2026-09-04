@@ -302,6 +302,23 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         return List.copyOf(views);
     }
 
+    /** 管理端仅读取已绑定券媒体，不依赖商户登录域。 */
+    @Override
+    public List<BusinessMediaVO> adminViewsForVoucherProduct(
+            Long productId, Long coverId, List<Long> detailIds) {
+        List<MediaReference> references = voucherReferences(coverId, detailIds);
+        if (references.isEmpty()) return List.of();
+        Map<Long, BusinessMediaAsset> assets = loadAssets(references, false);
+        List<BusinessMediaVO> views = new ArrayList<>();
+        for (MediaReference reference : references) {
+            BusinessMediaAsset asset = assets.get(reference.id());
+            requirePurpose(asset, reference.purpose());
+            assertVoucherBound(asset, productId);
+            views.add(toView(asset));
+        }
+        return List.copyOf(views);
+    }
+
     /** 复制每一个私有对象与媒体记录，目标商品不共享源 object_key。 */
     @Override
     public VoucherMediaCopy copyVoucherProductReferences(

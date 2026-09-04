@@ -1,6 +1,7 @@
 package com.ray.service;
 
 import com.ray.dto.MerchantVoucherProductCreateRequest;
+import com.ray.dto.MerchantVoucherProductOffSaleRequest;
 import com.ray.dto.MerchantVoucherProductSubmitRequest;
 import com.ray.dto.MerchantVoucherProductUpdateRequest;
 import com.ray.result.PageResult;
@@ -30,4 +31,7 @@ public interface MerchantVoucherProductService {
     /** 校验完整性并幂等提交审核。 */
     MerchantVoucherProductVO submit(
             Long productId, String idempotencyKey, MerchantVoucherProductSubmitRequest request);
+
+    MerchantVoucherProductVO offSale(
+            Long productId, String idempotencyKey, MerchantVoucherProductOffSaleRequest request);
 }

@@ -36,6 +36,9 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
     List<BusinessMediaVO> viewsForVoucherProduct(
             Long accountId, Long shopId, Long productId, Long coverId, List<Long> detailIds);
 
+    /** 为已授权管理端返回指定券的已绑定媒体摘要。 */
+    List<BusinessMediaVO> adminViewsForVoucherProduct(Long productId, Long coverId, List<Long> detailIds);
+
     /** 将源商品媒体复制为目标商品独享的私有对象与媒体记录。 */
     VoucherMediaCopy copyVoucherProductReferences(
             Long accountId, Long shopId, Long sourceProductId, Long targetProductId,
