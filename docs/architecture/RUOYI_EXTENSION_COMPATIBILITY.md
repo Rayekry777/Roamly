@@ -1,13 +1,17 @@
 # Roamly 若依后端扩展技术决策
 
 ```yaml
-decisionVersion: 2
+decisionVersion: 3
 decisionStatus: 已冻结
 frozenAt: 2026-09-04
-implementationStatus: 开发中
+implementationStatus: 已实现
+extensionImplementationStatus: 开发中
+updatedAt: 2026-09-05
 referenceBackend: RuoYi-Vue-Plus v5.6.2
 referenceCommit: 8136a0191a2258c0e1b36a8146a1c5ebc070c139
 ```
+
+阶段 16 至 30 所采用的若依兼容能力已在 Demo 范围完成；`extensionImplementationStatus`（扩展实现状态）仅表示生产短信、WarmFlow、Spring Boot Admin、SkyWalking 等后续或部署扩展仍按各自接入计划推进，不影响当前阶段验收。
 
 ## 文档职责
 
