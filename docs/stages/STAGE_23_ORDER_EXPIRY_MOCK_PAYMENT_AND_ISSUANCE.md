@@ -36,12 +36,12 @@ affectedEnds: 后端、消费者小程序、商户小程序
 
 - 订单从 `PENDING_PAYMENT`（待支付）进入 `PAID`（已支付）或 `CANCELED`（已取消）；支付从 `PENDING`（待支付）进入 `SUCCEEDED`（支付成功）、`FAILED`（支付失败）或 `CLOSED`（已关闭）。
 - 新增 `payment_transaction`，按订单数量生成多行 `user_voucher`，并更新订单、库存和销量；字段、组合唯一约束与快照以数据库契约为准。
-- 只有订单所属消费者可支付和查看逐份券；SnailJob 使用受控内部身份执行关单，不能绕过业务条件更新。
+- 只有订单所属消费者可支付和查看逐份券；Demo 的 Spring Scheduling 任务使用受控内部服务边界执行关单，不能绕过业务条件更新，后续可替换为 SnailJob 执行器。
 
 ## 后端
 
 - `paymentExpireTime` 与创建时间由同一 `Clock` 生成并固定相差 15 分钟；查询和支付执行惰性关单。
-- SnailJob 分页扫描过期 `PENDING_PAYMENT`（待支付）订单；条件更新取得唯一关单权并只返还一次库存。
+- 内置任务执行器分页扫描过期 `PENDING_PAYMENT`（待支付）订单；条件更新取得唯一关单权并只返还一次库存，任务入口保持 SnailJob 可替换的幂等边界。
 - 支付网关模式为 `MOCK`（模拟）、`DISABLED`（禁用），预留 `WECHAT`（微信支付）；prod 未配置真实支付返回 503。
 - 支付成功原子写入 `payment_transaction`、更新订单、增加销量并按数量生成 `user_voucher`；`order_id,sequence_no` 唯一。
 - 单券实付按整数分摊，无法整除的分差按顺序分配，合计严格等于订单实付。
@@ -70,7 +70,7 @@ affectedEnds: 后端、消费者小程序、商户小程序
 
 - 可注入时钟覆盖 14:59、15:00、重复扫描、支付/关单竞态和只返库一次。
 - Mock 成功、失败、延迟、重放、销量和逐份发券数据库测试通过。
-- SnailJob 真实执行器、惰性关单、消费者倒计时和运行时 OpenAPI 通过。
+- 内置任务执行器、惰性关单、消费者倒计时和运行时 OpenAPI 通过；SnailJob 生产执行器接入未启用，不阻塞 Demo 阶段状态。
 
 ## 实施记录
 

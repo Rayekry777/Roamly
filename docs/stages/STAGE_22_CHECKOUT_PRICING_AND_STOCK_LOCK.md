@@ -27,7 +27,7 @@ affectedEnds: 后端、消费者小程序
 
 - 确认接口重新读取可售商品并返回单价、数量上下限、门市总价、优惠、实付和服务端时间；客户端价格不参与计算。
 - 下单数量范围为 `1..min(purchaseLimit,99,availableStock)`，限购汇总当前用户同商品全部未取消订单。
-- Lock4j 2.2.7 以用户加商品构造锁键，等待失败返回 409 `ORDER_REQUEST_BUSY`（订单请求繁忙），Redis 不可用返回 503 `ORDER_COORDINATION_UNAVAILABLE`（订单协调服务不可用）。
+- Demo 使用 Redisson 原生 `RLock` 以用户加商品构造锁键，等待失败返回 409 `ORDER_REQUEST_BUSY`（订单请求繁忙），Redis 不可用返回 503 `ORDER_COORDINATION_UNAVAILABLE`（订单协调服务不可用）；Lock4j 2.2.7 保留为生产适配器候选。
 - 创建订单固化商品、门店、规则、退款和佣金快照，条件扣减库存；数据库条件更新与事务是最终事实。
 
 ## 接口

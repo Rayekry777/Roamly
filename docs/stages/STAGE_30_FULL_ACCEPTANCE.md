@@ -32,9 +32,9 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 ## 数据与运行时
 
 - 再次解析 `.env` 并确认仅操作获授权的 Demo 开发库，完整执行快照与种子，核对恰好 33 张 Roamly 业务表且无 `sys_*`、旧表或兼容视图。
-- SnailJob 使用独立测试数据库，Redis 集成测试使用 DB 15；测试结束清理任务、缓存、Token 和临时对象。
+- Redis 集成测试使用 DB 15；当前 Demo 内置调度器不创建任务数据库，测试结束清理缓存、Token 和临时对象。未来启用 SnailJob 适配器时，另行使用隔离任务库。
 - 启动真实后端验证 `/doc.html`、`/v3/api-docs`、Swagger UI 禁用、全部 `$ref`、唯一 `operationId`、三类安全声明和真实错误响应。
-- 验证本地/S3 关闭模式、Mock/禁用短信与支付、Lock4j、SnailJob、SSE、WebSocket 和 XLSX 下载。
+- 验证本地/S3 关闭模式、Mock/禁用短信与支付、Redisson 分布式锁等价实现、内置任务执行器、SSE、WebSocket 和 XLSX 下载；Lock4j、SnailJob、Fesod 生产适配器按后续扩展记录，不伪造已接入结果。
 
 ## 四端回归
 

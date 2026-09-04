@@ -7,7 +7,7 @@ scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
 designStatus: 已冻结
 demoImplementationStatus: 已实现
-extensionImplementationStatus: 开发中
+extensionImplementationStatus: 未实现
 deviceAcceptanceStatus: 不适用
 ```
 
@@ -32,7 +32,8 @@ deviceAcceptanceStatus: 不适用
 - 阶段 16 已完成兼容基线对齐并通过依赖树与真实运行时验证；Java 21、Sa-Token、Jackson、Knife4j 和 Redisson 保持现有选择。
 - Maven 模块当前为 `ray-common`、`ray-pojo`、`ray-server`，依赖方向为 `ray-server -> ray-common + ray-pojo`。
 - `ray-common` 只保存稳定结果、错误码、权限码和通用类型；`ray-pojo` 保存 DTO、VO、实体和枚举；第三方 SDK 类型不得进入公共 DTO。
-- 后续可选适配器使用 `ray-integration-*` 边界，SnailJob 执行器使用独立 `ray-job` 边界；未启用模块不得进入默认运行时依赖树。
+- Demo 已实现的基础设施能力通过稳定端口保留可替换边界：分布式锁使用 Redisson 原生实现，后台扫描使用 Spring Scheduling，XLSX 使用自有 OOXML writer；后续生产适配器可分别替换为 Lock4j、SnailJob 和 Fesod。
+- 后续可选适配器使用 `ray-integration-*` 边界，SnailJob 执行器使用独立 `ray-job` 边界；未启用模块不得进入默认运行时依赖树。`extensionImplementationStatus` 只描述这些生产适配器，不影响 Demo 已实现状态。
 
 ## 已实现范围
 
@@ -108,10 +109,10 @@ deviceAcceptanceStatus: 不适用
 - 短信模式为 `MOCK`（模拟）、`DISABLED`（禁用），生产扩展增加 `SMS4J`（真实供应商）；prod 无供应商时返回 `SMS_SERVICE_UNAVAILABLE`（短信服务不可用）。
 - 支付模式为 `MOCK`（模拟）、`DISABLED`（禁用），预留 `WECHAT`（微信支付）；prod 未配置真实支付时返回 `PAYMENT_SERVICE_UNAVAILABLE`（支付服务不可用）。
 - 存储通过自有端口隔离，dev/test 默认 `LOCAL`（本地存储），prod 使用 `S3`（S3 兼容对象存储）且无安全默认凭据。
-- Lock4j 统一分布式锁注解和异常映射，底层使用 Redisson；数据库条件更新与唯一约束仍是最终事实。
-- SnailJob 负责关单、券过期、定时上下架、媒体清理、退款重试和 T+1 结算；查询与支付保留惰性关单。
+- Demo 使用 Redisson 原生 `RLock` 完成订单并发协调，并保留 Lock4j 适配边界；数据库条件更新与唯一约束仍是最终事实。
+- Demo 使用 Spring Scheduling 驱动关单、券过期、定时上下架、媒体清理、退款重试和 T+1 结算；任务服务保持幂等并保留 SnailJob 执行器适配边界，查询与支付继续保留惰性关单。
 - 管理 SSE 和商户 WebSocket 只发送资源失效事件，客户端收到后回查权威接口；Redis 负责多实例会话分发。
-- Fesod 提供受权限控制的同步 XLSX 导出；Spring Boot Admin、SkyWalking 与 WarmFlow 保持后续扩展。
+- Demo 使用自有 OOXML writer 提供受权限控制的同步 XLSX 导出，字段与权限边界兼容 Fesod 适配；Spring Boot Admin、SkyWalking 与 WarmFlow 保持后续扩展。
 
 ## 阶段 18 服务端冻结设计
 
