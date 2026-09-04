@@ -1,7 +1,7 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 9
+version: 10
 updatedAt: 2026-09-04
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
@@ -124,6 +124,18 @@ deviceAcceptanceStatus: 不适用
 - 上传先写对象存储再建临时记录，建档失败补偿删除对象；草稿保存只引用并续期临时媒体；提交事务按 ID 加锁并原子绑定媒体、迁移申请与商户账号状态。事务失败不得留下已绑定媒体。
 - 存储端口使用 `LOCAL`（本地存储）与 `S3`（S3 兼容对象存储）两种模式；S3 采用冻结的 AWS SDK S3 2.28.22，生产缺少 endpoint、region、bucket 或凭据时启动失败，不回退本地目录。
 - 阶段 18 新增错误码：`MERCHANT_APPLICATION_NOT_EDITABLE`（申请不可编辑）、`MERCHANT_APPLICATION_INCOMPLETE`（申请资料不完整）、`MERCHANT_APPLICATION_VERSION_CONFLICT`（申请版本冲突）、`MERCHANT_APPLICATION_STATE_CONFLICT`（申请状态冲突）、`MERCHANT_APPLICATION_IDEMPOTENCY_CONFLICT`（提交幂等键冲突）、`BUSINESS_MEDIA_NOT_FOUND`（经营媒体不存在）、`BUSINESS_MEDIA_NOT_OWNED`（经营媒体不属于当前商户）、`BUSINESS_MEDIA_INVALID_TYPE`（经营媒体类型不支持）、`BUSINESS_MEDIA_INVALID_DIMENSIONS`（经营媒体尺寸不合规）、`BUSINESS_MEDIA_EXPIRED`（临时经营媒体已过期）、`BUSINESS_MEDIA_ALREADY_BOUND`（经营媒体已绑定）、`OBJECT_STORAGE_UNAVAILABLE`（对象存储不可用）。
+
+## 阶段 19 服务端冻结设计
+
+- 阶段 19 的完整接口、字段、事务和测试真源为 [商户审核与门店治理详细设计](./docs/stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md)，当前仅完成设计冻结，能力状态仍为“未实现”。
+- 新增申请列表、详情、申请私有媒体、通过、驳回、门店列表、详情、停用和恢复共 9 个管理操作；全部使用 `ADMIN`（管理端）Bearer Token，其中审核与治理命令要求 8 至 128 位 `Idempotency-Key`。
+- 申请审核权限为 `admin:merchant-application:review`（商户申请审核），门店治理权限为 `admin:shop:govern`（门店治理）；`PLATFORM_ADMIN`（平台超级管理员）与 `MERCHANT_REVIEWER`（商户审核员）可用，`FINANCE`（财务管理员）拒绝。
+- 审核通过在一个事务中取得申请行锁、创建唯一来源门店、迁移申请、激活 `OWNER`（店主）账号并写审计；驳回在一个事务中迁移申请和账号并保存规范化原因。审核采用版本条件更新、幂等键和 SHA-256 请求指纹，禁止覆盖先完成的决定。
+- 门店停用只把当前 `ACTIVE`（已激活）账号迁移为 `DISABLED`（已停用）并记录 `SHOP_SUSPENSION`（门店停用联动）；恢复只恢复该来源账号，不误激活 `ACCOUNT_GOVERNANCE`（平台账号治理）或 `STAFF_MANAGEMENT`（员工管理）停用的账号。
+- 审核通过、驳回、停用和恢复提交后注销受影响商户会话并失效身份缓存；提交后清理失败只记录告警，后续经营鉴权仍实时拒绝非活动账号或已停用门店。
+- 管理员私有媒体读取只允许申请已绑定的营业执照与经营图片，不暴露对象键或永久公网 URL；申请敏感详情成功读取写入 `MERCHANT_APPLICATION_SENSITIVE_VIEWED`（查看商户申请敏感资料）审计。
+- 阶段 19 新增错误码：`MERCHANT_APPLICATION_NOT_FOUND`（商户申请不存在）、`MERCHANT_APPLICATION_ALREADY_REVIEWED`（商户申请已审核）、`MERCHANT_APPLICATION_REVIEW_VERSION_CONFLICT`（商户申请审核版本冲突）、`MERCHANT_APPLICATION_REVIEW_IDEMPOTENCY_CONFLICT`（商户申请审核幂等键冲突）、`SHOP_STATUS_CONFLICT`（门店经营状态冲突）、`SHOP_VERSION_CONFLICT`（门店版本冲突）、`SHOP_GOVERNANCE_IDEMPOTENCY_CONFLICT`（门店治理幂等键冲突）、`MERCHANT_SHOP_SUSPENDED`（所属门店已停用）；对象读取复用 `OBJECT_STORAGE_UNAVAILABLE`（对象存储不可用）。
+- 本阶段不新增业务表，设计完成后仍为 24 张；实现验收目标为 86 个唯一 `operationId`，不得在源码和运行时完成前提前修改当前 77 个操作事实。
 
 ## 后端阶段
 

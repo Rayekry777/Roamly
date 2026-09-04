@@ -7,7 +7,7 @@ businessTableCount: 24
 database: MySQL / InnoDB / utf8mb4
 runtimeVerification: 已验证（24 张当前业务表）
 targetBusinessTableCount: 33
-targetDesignVersion: 4
+targetDesignVersion: 5
 targetDesignStatus: 已冻结
 targetImplementationStatus: 开发中
 ```
@@ -120,6 +120,31 @@ targetImplementationStatus: 开发中
 - 绑定事实为 `owner_type`、`owner_id`、`sort_order`、`bound_at`；生命周期为 `expires_at`、`deleted_at`、`create_time`、`update_time`。
 - 上传者清理索引为 `idx_business_media_uploader_status_expiry(uploader_merchant_account_id,status,expires_at,id)`；业务读取索引为 `idx_business_media_owner(owner_type,owner_id,purpose,sort_order,id)`。
 - `purpose` 允许 `LICENSE`（营业执照）、`GALLERY`（经营图片）、`VOUCHER_COVER`（券封面）、`VOUCHER_DETAIL`（券详情图）；阶段 18 只开放前两种。`status` 允许 `TEMPORARY`（临时）、`BOUND`（已绑定）、`DELETED`（已删除）；临时记录不得带业务归属，已绑定记录必须同时具备归属类型与 ID。
+
+### 阶段 19 字段冻结
+
+阶段 19 不新增业务表，仍直接覆盖 24 表完整快照；只重构 `merchant_application`、`shop` 与 `merchant_account`。完整事务与接口设计见 [阶段 19 详细设计](./docs/stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md)。
+
+`merchant_application` 在阶段 18 字段基础上新增或收紧：
+
+- `review_decision` 只允许 `APPROVAL`（通过）、`REJECTION`（驳回）或空；`review_idempotency_key` 保存首个成功命令的 8 至 128 字符幂等键；`review_request_fingerprint` 保存 64 位小写十六进制 SHA-256 指纹。
+- `reviewer_admin_id`、`reviewed_at`、`rejection_reason` 和 `approved_shop_id` 必须与审核状态及决定组合一致；通过必须有唯一门店且无驳回原因，驳回必须有规范化原因且无门店。
+- 新增唯一索引 `uk_merchant_application_approved_shop(approved_shop_id)`；MySQL 允许多个空值，仅非空门店 ID 唯一。审核成功使 `version` 自增 1。
+
+`shop` 直接把旧数字启停字段重构为经营事实：
+
+- `status` 只允许 `PENDING`（待激活）、`ACTIVE`（营业中）、`SUSPENDED`（已停用）、`CLOSED`（已关闭）；本阶段审核通过创建的门店直接为 `ACTIVE`。
+- 新增唯一非空 `source_application_id`、`business_hours_json`、`activated_at`、`suspended_at`、`suspension_reason`、`status_changed_by_admin_id`、`status_command_type`、`status_idempotency_key`、`status_request_fingerprint` 和 `version`。
+- `status_command_type` 只允许 `SUSPENSION`（停用）、`ACTIVATION`（恢复）或空；相同幂等键和指纹只重放结果，不重复联动账号或写审计。
+- 新增唯一索引 `uk_shop_source_application(source_application_id)` 与列表索引 `idx_shop_status_city_type(status,city_code,shop_type_id,id)`；既有 `images` 只保留消费者摘要，不保存证照或审核治理事实。
+
+`merchant_account` 新增选择性恢复事实：
+
+- `disabled_source` 只允许 `SHOP_SUSPENSION`（门店停用联动）、`ACCOUNT_GOVERNANCE`（平台账号治理）、`STAFF_MANAGEMENT`（员工管理）或空。
+- `disabled_reason` 最多 500 字，`disabled_at` 保存停用时间；非 `DISABLED`（已停用）账号必须清空三项。
+- 门店停用只条件更新当前 `ACTIVE`（已激活）账号并写 `SHOP_SUSPENSION`；门店恢复只条件恢复该来源账号，其他来源保持停用。
+
+阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 24 表纯种子状态。
 
 ### 目标重构表
 
