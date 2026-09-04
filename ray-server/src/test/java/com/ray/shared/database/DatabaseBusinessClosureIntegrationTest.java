@@ -145,6 +145,9 @@ class DatabaseBusinessClosureIntegrationTest {
     @Order(2)
     void merchantVoucherAuthoringClosesMediaVersionCopySubmissionAndRoleIsolation() throws Exception {
         String ownerToken = loginMerchantWithCode("13900000001");
+        assertEquals(HttpStatus.OK, exchange(
+                        "/v1/merchant/orders", HttpMethod.GET, null, ownerToken)
+                .getStatusCode());
         ResponseEntity<String> seeded = exchange(
                 "/v1/merchant/voucher-products?page=1&size=20", HttpMethod.GET, null, ownerToken);
         assertEquals(HttpStatus.OK, seeded.getStatusCode());
