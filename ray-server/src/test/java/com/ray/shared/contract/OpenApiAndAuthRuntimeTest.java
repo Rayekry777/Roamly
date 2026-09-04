@@ -428,6 +428,7 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/admin/settlements/{id}/retry",
                 "GET /v1/merchant/settlements",
                 "GET /v1/merchant/settlements/{id}",
+                "GET /v1/merchant/orders",
                 "POST /v1/admin/{resource}/export",
                 "POST /v1/admin/event-tickets",
                 "GET /v1/admin/events",
