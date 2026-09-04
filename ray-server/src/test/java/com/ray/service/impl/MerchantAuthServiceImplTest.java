@@ -87,6 +87,33 @@ class MerchantAuthServiceImplTest {
     }
 
     @Test
+    void verifierCannotReadMerchantOrders() {
+        MerchantAccount account = account(MerchantAccountStatus.ACTIVE)
+                .setRole(MerchantRole.VERIFIER.name())
+                .setShopId(3L);
+        when(stpLogic.getLoginIdAsLong()).thenReturn(8L);
+        when(mapper.selectById(8L)).thenReturn(account);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.requirePermission(MerchantPermissionCatalog.ORDER_READ));
+
+        assertEquals(403, exception.status());
+        assertEquals("MERCHANT_FORBIDDEN", exception.code());
+    }
+
+    @Test
+    void activeOwnerCanReadMerchantOrders() {
+        MerchantAccount account = account(MerchantAccountStatus.ACTIVE)
+                .setRole(MerchantRole.OWNER.name())
+                .setShopId(3L);
+        when(stpLogic.getLoginIdAsLong()).thenReturn(8L);
+        when(mapper.selectById(8L)).thenReturn(account);
+
+        service.requirePermission(MerchantPermissionCatalog.ORDER_READ);
+    }
+
+    @Test
     void repeatedSmsSendReturnsStableRateLimitError() {
         when(values.setIfAbsent(
                         org.mockito.ArgumentMatchers.anyString(),

@@ -23,6 +23,7 @@ public class MerchantOrderServiceImpl implements MerchantOrderService {
     public MerchantOrderServiceImpl(VoucherOrderMapper orders, MerchantAuthService merchant) { this.orders = orders; this.merchant = merchant; }
     @Override public PageResult<VoucherOrderVO> list(String status, int page, int size) {
         if (page < 1 || size < 1 || size > 100) throw BusinessException.badRequest("INVALID_PAGE", "page 必须大于等于1，size 必须在1到100之间");
+        merchant.requirePermission(MerchantPermissionCatalog.ORDER_READ);
         MerchantAccount account = merchant.requireCurrentAccount();
         if (account.getShopId() == null) throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
         QueryWrapper<VoucherOrder> query = new QueryWrapper<VoucherOrder>().eq("shop_id", account.getShopId());

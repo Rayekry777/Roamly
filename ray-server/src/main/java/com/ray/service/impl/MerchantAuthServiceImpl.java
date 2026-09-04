@@ -170,6 +170,17 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         }
     }
 
+    /** 使用数据库中的角色和状态计算权限，拒绝仅靠前端隐藏按钮的越权请求。 */
+    @Override
+    public void requirePermission(String permission) {
+        MerchantAccount account = requireCurrentAccount();
+        MerchantRole role = MerchantRole.valueOf(account.getRole());
+        MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
+        if (!MerchantPermissionCatalog.permissionsFor(role, status).contains(permission)) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "当前角色无权执行该操作");
+        }
+    }
+
     /** 校验独立商户会话并读取数据库权威账号。 */
     @Override
     public MerchantAccount requireCurrentAccount() {
