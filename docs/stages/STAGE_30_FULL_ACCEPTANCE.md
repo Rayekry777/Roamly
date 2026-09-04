@@ -58,7 +58,7 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 ## 实施记录
 
 - 阶段 23-29 的后端、消费者、商户和管理端交付均已分别提交，四端契约状态完成收口。
-- 后端 `mvn -q test`（153 项，0 失败、22 项按环境门禁跳过）、`mvn -q -DskipTests compile`；消费者 `npm run verify`（122 项）、商户 `npm run verify`（42 项）及两端 `npm run build:npm`；管理 Web `pnpm verify`（28 项）和 `pnpm test:e2e`（16 通过、2 跳过）均通过。
-- 真实运行时 OpenAPI 验收确认 137 个唯一 `operationId`、全部 `$ref`、Bearer 安全声明和关键错误响应；数据库集成验收 9 项通过并在结束后恢复 33 表纯种子。
+- 后端 `mvn -q test`（159 项，0 失败、22 项按环境门禁跳过）、`mvn -q -DskipTests compile`；消费者 `npm run verify`（122 项）、商户 `npm run verify`（42 项）及两端 `npm run build:npm`；管理 Web `pnpm verify`（28 项）和 `pnpm test:e2e`（16 通过、2 跳过）均通过。
+- 真实运行时 OpenAPI 验收确认 138 个唯一 `operationId`、全部 `$ref`、Bearer 安全声明和关键错误响应；数据库集成验收 9 项通过并在结束后恢复 33 表纯种子。
 - 数据库快照 DDL 已包含 33 张业务表，支付、退款、员工、核销、账本和结算链路均有持久化事实。
 - 真机扫码、微信支付真实供应商、SnailJob/S3 生产配置和 WebSocket 多实例仍按契约记录为未确认或后续扩展，不伪造验收结果。

@@ -201,6 +201,6 @@ targetImplementationStatus: 已实现
 
 - 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 33 张业务表、关键唯一索引、旧表退役和种子一致性。
 - `DatabaseBusinessClosureIntegrationTest` 9 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、支付、退款、员工、核销、账本、结算和用户隔离。
-- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 137 个唯一 `operationId`、阶段 23-29 新增 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
+- `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 138 个唯一 `operationId`、阶段 23-29 新增 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
 - 阶段 21 不新增业务表；阶段 22 仍不新增业务表，仅直接重构 `voucher_order` 字段与索引；阶段 23 至 29 新增表已随本快照完成重建和集成验证。
