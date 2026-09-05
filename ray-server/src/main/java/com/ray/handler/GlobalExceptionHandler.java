@@ -7,6 +7,8 @@ import com.ray.result.FieldErrorDetail;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Objects;
+import java.io.IOException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,8 +32,13 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NotLoginException.class)
-    public ResponseEntity<ErrorResult> notLoggedIn(NotLoginException exception) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResult.of("UNAUTHORIZED", "登录已失效，请重新登录"));
+    public void notLoggedIn(NotLoginException exception, HttpServletResponse response) throws IOException {
+        // 鉴权异常可能来自图片、SSE 等只接受非 JSON 的请求；直接写入固定 JSON，避免再次触发内容协商异常。
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().write(
+                "{\"code\":\"UNAUTHORIZED\",\"message\":\"登录已失效，请重新登录\",\"fieldErrors\":[]}");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

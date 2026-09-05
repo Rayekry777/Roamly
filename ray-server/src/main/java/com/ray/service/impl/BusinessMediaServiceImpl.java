@@ -148,6 +148,29 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         }
     }
 
+    /** 校验审核、归属、用途和生命周期后公开读取券展示媒体。 */
+    @Override
+    public BusinessMediaContent readPublicVoucherContent(Long productId, Long mediaId) {
+        VoucherProduct product = voucherProductMapper.selectById(productId);
+        BusinessMediaAsset asset = getById(mediaId);
+        boolean productVisible = product != null && "APPROVED".equals(product.getReviewStatus());
+        boolean mediaVisible = asset != null
+                && BusinessMediaStatus.BOUND.name().equals(asset.getStatus())
+                && VOUCHER_PRODUCT_OWNER.equals(asset.getOwnerType())
+                && productId.equals(asset.getOwnerId())
+                && (BusinessMediaPurpose.VOUCHER_COVER.name().equals(asset.getPurpose())
+                    || BusinessMediaPurpose.VOUCHER_DETAIL.name().equals(asset.getPurpose()));
+        if (!productVisible || !mediaVisible) {
+            throw BusinessException.notFound("VOUCHER_MEDIA_NOT_FOUND", "团购商品图片不存在");
+        }
+        try {
+            ObjectStoragePort.StoredObject object = storage.get(asset.getObjectKey());
+            return new BusinessMediaContent(object.content(), asset.getMimeType(), asset.getOriginalFilename());
+        } catch (ObjectStorageException exception) {
+            throw unavailable(exception);
+        }
+    }
+
     /** 验证草稿引用、用途和归属，并延长临时媒体有效期。 */
     @Override
     public void validateAndRenewDraftReferences(

@@ -155,7 +155,9 @@ public class OpenApiConfig {
                 }
                 if (path.matches("/v1/users/me/orders/\\{[^/]+}")
                         && method == HttpMethod.DELETE) addError(operation.getResponses(), "409", "订单状态不允许取消");
-                if (path.startsWith("/v1/admin/") && !path.equals("/v1/admin/auth/login")) {
+                if (path.startsWith("/v1/admin/")
+                        && !path.equals("/v1/admin/auth/login")
+                        && !path.equals("/v1/admin/events")) {
                     addError(operation.getResponses(), "403", "管理员权限不足或必须先修改密码");
                 }
                 if (path.equals("/v1/admin/auth/login")) {
@@ -353,7 +355,10 @@ public class OpenApiConfig {
         if (path.equals("/v1/shops/{shopId}/reviews")) return method == HttpMethod.GET || method == HttpMethod.POST;
         if (path.equals("/v1/shops/{shopId}/posts")) return method == HttpMethod.GET;
         if (path.equals("/v1/shops/{shopId}/reviews/me")) return method == HttpMethod.PUT || method == HttpMethod.DELETE;
-        if (path.equals("/v1/shops/{shopId}/voucher-products") || path.equals("/v1/voucher-products/{productId}"))
+        if (path.equals("/v1/shops/{shopId}/voucher-products")
+                || path.equals("/v1/voucher-products")
+                || path.equals("/v1/voucher-products/{productId}")
+                || path.equals("/v1/voucher-products/{productId}/media/{mediaId}/content"))
             return method == HttpMethod.GET;
         if (path.equals("/v1/voucher-products/{productId}/orders")) return method == HttpMethod.POST;
         if (path.equals("/v1/users/me/orders/{orderId}") || path.equals("/v1/users/me/vouchers/{userVoucherId}"))
@@ -366,6 +371,7 @@ public class OpenApiConfig {
     }
 
     private boolean mayReturnForbidden(HttpMethod method, String path) {
+        if (path.equals("/v1/admin/events") && method == HttpMethod.GET) return true;
         if (method == HttpMethod.DELETE && path.equals("/v1/media/images/{mediaId}")) return true;
         if (method == HttpMethod.POST && path.equals("/v1/posts")) return true;
         if (method == HttpMethod.DELETE && path.equals("/v1/comments/{commentId}")) return true;

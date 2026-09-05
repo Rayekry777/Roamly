@@ -18,6 +18,9 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
     /** 鉴权读取当前商户拥有且仍有效的私有内容。 */
     BusinessMediaContent readContent(Long mediaId);
 
+    /** 读取审核通过商品拥有的已绑定券媒体，不依赖商户会话。 */
+    BusinessMediaContent readPublicVoucherContent(Long productId, Long mediaId);
+
     /** 校验草稿引用并续期仍为临时状态的媒体。 */
     void validateAndRenewDraftReferences(Long accountId, Long applicationId, Long licenseId, List<Long> galleryIds);
 

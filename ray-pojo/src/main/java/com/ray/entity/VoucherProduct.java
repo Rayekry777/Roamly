@@ -1,6 +1,7 @@
 package com.ray.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
@@ -59,4 +60,17 @@ public class VoucherProduct implements Serializable {
     private Integer version;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+
+    @TableField(exist = false)
+    private String shopName;
+    @TableField(exist = false)
+    private Long shopTypeId;
+    @TableField(exist = false)
+    private String shopCover;
+    @TableField(exist = false)
+    private String shopAddress;
+    @TableField(exist = false)
+    private Integer shopScore;
+    @TableField(exist = false)
+    private Double distance;
 }

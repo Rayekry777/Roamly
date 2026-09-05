@@ -73,14 +73,17 @@ public class MvcConfig implements WebMvcConfigurer {
                 || path.matches("/v1/comments/[^/]+/replies")) return true;
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/reviews")) return true;
         if ("GET".equals(method) && (path.matches("/v1/shops/[^/]+/voucher-products")
-                || path.matches("/v1/voucher-products/[^/]+"))) return true;
+                || path.equals("/v1/voucher-products")
+                || path.matches("/v1/voucher-products/[^/]+")
+                || path.matches("/v1/voucher-products/[^/]+/media/[^/]+/content"))) return true;
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/posts")) return true;
         return path.matches("/v1/users/(?!me$)[^/]+")
                 || path.matches("/v1/users/(?!me/)[^/]+/profile");
     }
 
     static boolean isAdminPublic(String method, String path) {
-        return "POST".equals(method) && "/v1/admin/auth/login".equals(path);
+        return ("POST".equals(method) && "/v1/admin/auth/login".equals(path))
+                || ("GET".equals(method) && "/v1/admin/events".equals(path));
     }
 
     static boolean isMerchantPublic(String method, String path) {

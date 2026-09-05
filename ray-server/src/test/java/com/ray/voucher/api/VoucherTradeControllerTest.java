@@ -15,6 +15,7 @@ import com.ray.controller.VoucherTradeController;
 import com.ray.exception.BusinessException;
 import com.ray.result.PageResult;
 import com.ray.service.VoucherProductService;
+import com.ray.service.BusinessMediaService;
 import com.ray.service.VoucherTradeService;
 import com.ray.shared.config.MockMvcTestConfiguration;
 import com.ray.vo.VoucherOrderVO;
@@ -35,7 +36,8 @@ class VoucherTradeControllerTest {
     void setUp() {
         tradeService = mock(VoucherTradeService.class);
         mockMvc = MockMvcTestConfiguration.standalone(
-                new VoucherProductController(mock(VoucherProductService.class)),
+                new VoucherProductController(
+                        mock(VoucherProductService.class), mock(BusinessMediaService.class)),
                 new VoucherTradeController(tradeService));
     }
 
