@@ -139,6 +139,9 @@ public class OpenApiConfig {
             registerStage23To29Schemas(openApi.getComponents());
             registerSchema(openApi.getComponents(), "AdminAuditLogVO", AdminAuditLogVO.class);
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
+                if (path.equals("/v1/admin/events") && method == HttpMethod.GET) {
+                    operation.setSecurity(List.of());
+                }
                 addError(operation.getResponses(), "400", "请求参数错误");
                 addError(operation.getResponses(), "500", "服务器内部错误");
                 if ((operation.getSecurity() != null && !operation.getSecurity().isEmpty())

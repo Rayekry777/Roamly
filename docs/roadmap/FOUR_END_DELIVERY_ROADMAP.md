@@ -39,8 +39,9 @@ reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依�
 | [26](../stages/STAGE_26_VOUCHER_REDEMPTION.md) | 手输券码、核销、撤销和审计 | 是 | 否 | 是 | 是 | 已实现 |
 | [27](../stages/STAGE_27_DYNAMIC_QR_AND_REALTIME_EVENTS.md) | 动态二维码、商户 WebSocket 和管理 SSE | 是 | 是 | 是 | 是 | 已实现 |
 | [28](../stages/STAGE_28_COMMISSION_AND_LEDGER.md) | 佣金规则、不可变账本和经营摘要 | 是 | 否 | 是 | 是 | 已实现 |
-| [29](../stages/STAGE_29_SETTLEMENT_AND_EXPORT.md) | T+1 Mock 结算、同步 XLSX 导出和失败重试 | 是 | 否 | 是 | 是 | 已实现 |
-| [30](../stages/STAGE_30_FULL_ACCEPTANCE.md) | 四端全量回归、33 表和视觉验收 | 是 | 是 | 是 | 是 | 已实现 |
+| [29](../stages/STAGE_29_SETTLEMENT_AND_EXPORT.md) | T+1 Mock 结算、同步 XLSX 导出和失败重试 | 是 | 否 | 是 | 是 | 开发中 |
+| [30](../stages/STAGE_30_FULL_ACCEPTANCE.md) | 四端全量回归、33 表和视觉验收 | 是 | 是 | 是 | 是 | 开发中 |
+| [31](../stages/STAGE_31_OFFLINE_REDEMPTION_BOUNDARY.md) | 核销与线下收款解耦、订单实付金额分摊和结算边界 | 是 | 是 | 是 | 是 | 已实现 |
 
 ## 阶段门禁
 
@@ -62,6 +63,7 @@ reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依�
 | 28 | 阶段 27 已实现 | 费率快照、整数分、账本幂等、次卡分摊和两端摘要通过 |
 | 29 | 阶段 28 已实现 | T+1 批次、失败重试、负向调整、XLSX 权限和两端页面通过 |
 | 30 | 阶段 29 已实现 | 四端自动化、真实 OpenAPI、33 张业务表、运行时、截图和工作区检查通过 |
+| 31 | 阶段 26-30 设计解冻并同步切换 | 核销接口无线下金额；订单实付金额、佣金和次卡分摊守恒；撤销冲回、T+1 生成、四端和 OpenAPI 验收通过 |
 
 ## 交付顺序
 

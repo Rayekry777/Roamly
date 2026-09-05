@@ -112,14 +112,14 @@ demoDataClosureStatus: 已实现
 | 券商品 | 14 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
 | 订单与支付 | 14 笔订单，覆盖 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
 | 券包与退款 | 12 张用户券，覆盖 `UNUSED/PARTIALLY_USED/USED/EXPIRED/REFUNDING/REFUNDED`；5 条退款覆盖全部退款状态 |
-| 核销与资金 | 5 条核销/撤销、2 条佣金规则、9 条七类账本分录、3 个结算批次覆盖 `PROCESSING/SUCCEEDED/FAILED`、4 条结算明细、9 条审计记录 |
+| 核销与资金 | 5 条核销/撤销、2 条佣金规则、14 条八类账本分录、4 个结算批次覆盖 `PROCESSING/SUCCEEDED/FAILED`、10 条结算明细、9 条审计记录 |
 
 可复核的代表性闭环如下：
 
 - 消费履约：订单 `6012` → 成功支付 `80013` → 用户券 `7010` → 成功核销 `9204` → 消费认证点评 `4004`。
 - 退款：订单 `6007` → 成功支付 `80008` → 用户券 `7005` → 成功退款 `9101` → 退款冲回账本 `110004`。
 - 核销结算：订单 `6006` → 用户券 `7004` → 核销 `9203` → 收入/佣金分录 `110005/110006` → 结算批次 `120001` 与明细 `130001/130002`。
-- 次卡：订单 `6005` → 五次卡 `7003` → 两次成功核销 `9201/9202` → 剩余三次且状态为 `PARTIALLY_USED`。
+- 次卡：订单 `6005` → 五次卡 `7003` → 两次成功核销 `9201/9202` → 每次收入 2560 分、佣金 128 分，剩余三次且状态为 `PARTIALLY_USED`。
 - 员工：店主账号 `1` → 已接受邀请 `10001` → 店长账号 `31`；另有待接受、已撤销和已过期邀请。
 
 种子聚合可由 SQL 事实复核：
@@ -152,10 +152,10 @@ demoDataClosureStatus: 已实现
 | `voucher_package_item` | 20 | 套餐券和次卡服务明细 | 商品内顺序唯一 |
 | `payment_transaction` | 23 | Mock/微信支付尝试与幂等结果 | 支付单号、订单幂等键唯一 |
 | `voucher_refund` | 24 | 单券退款申请和结果 | 退款单号唯一；券级活动记录 |
-| `voucher_redemption` | 26 | 核销、按次使用和撤销记录 | 核销幂等键唯一；记录门店和操作人快照 |
+| `voucher_redemption` | 26、31 | 核销、按次使用和撤销记录 | 核销幂等键唯一；记录门店和操作人快照；不保存线下消费金额 |
 | `commission_rule` | 28 | 平台默认及门店覆盖佣金 | 生效区间内规则不可重叠 |
-| `fund_ledger_entry` | 28 | 冻结、确认、佣金、退款和调整流水 | 业务事件加分录类型唯一；只追加不更新 |
-| `settlement_batch` | 29 | T+1 结算批次 | 结算日和门店唯一 |
+| `fund_ledger_entry` | 28、31 | 冻结、线上订单核销确认、佣金、退款和调整流水 | 业务事件加分录类型唯一；只追加不更新；不接收线下微信支付 |
+| `settlement_batch` | 29、31 | T+1 结算批次 | 结算日和门店唯一；每日 02:00 幂等生成 |
 | `settlement_item` | 29 | 结算批次与账本明细关系 | 批次和分录唯一 |
 | `operation_audit_log` | 16-29 | 管理、商户和资金操作审计 | 操作者、对象、动作和时间索引 |
 
@@ -234,14 +234,14 @@ demoDataClosureStatus: 已实现
 - 用户券状态：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - 退款状态：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）。
 - 结算金额状态：`FROZEN`（冻结中）、`SETTLEABLE`（待结算）、`SETTLED`（已结算）、`ADJUSTMENT`（调整项）。
-- 账本事件：`PAYMENT_FROZEN`（支付资金冻结）、`REDEMPTION_RECOGNIZED`（核销收入确认）、`COMMISSION_RECOGNIZED`（平台佣金确认）、`REFUND_REVERSED`（退款冲回）、`REDEMPTION_REVERSED`（核销撤销）、`SETTLEMENT_POSTED`（结算入账）、`SETTLEMENT_ADJUSTMENT`（结算调整）。
+- 账本事件：`PAYMENT_FROZEN`（线上订单支付冻结）、`REDEMPTION_RECOGNIZED`（按线上订单实付金额确认核销收入）、`COMMISSION_RECOGNIZED`（平台佣金确认）、`REFUND_REVERSED`（退款冲回）、`REDEMPTION_REVERSED`（核销撤销）、`COMMISSION_REVERSED`（佣金冲回）、`SETTLEMENT_POSTED`（结算入账）、`SETTLEMENT_ADJUSTMENT`（结算调整）。
 
 ### 目标一致性
 
 - 待支付订单占用库存；15 分钟关单通过条件更新只返库一次；支付成功后销量按数量累计并逐份发券。
 - 手输券码只通过 HMAC 索引定位，动态二维码 60 秒过期；核销预览不改变状态，确认核销使用唯一幂等键。
 - 次卡每次核销扣减一次，最后一次转为已使用；核销撤销必须在进入结算前完成并追加反向记录。
-- 支付成功记冻结账本，核销后按 5% 默认佣金或门店覆盖费率确认，次日 02:00 生成 T+1 Mock 结算。
+- 支付成功记冻结账本，核销后按团购券订单线上实付金额及 5% 默认佣金或门店覆盖费率确认；次日 02:00 按门店生成幂等 T+1 Mock 结算批次和明细。到店额外消费由顾客和商户线下微信支付，不进入任何平台表。
 - 所有资金表只追加事实或显式状态迁移，不覆盖历史金额；已结算退款通过负向调整进入后续结算。
 
 ### 设计冻结门禁

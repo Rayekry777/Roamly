@@ -255,6 +255,12 @@ class OpenApiAndAuthRuntimeTest {
         assertFalse(schemaNames.contains("ApiErrorResponse"));
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));
         assertSchemaProperties(document, "ErrorResult", Set.of("code", "message", "fieldErrors"));
+        assertSchemaProperties(document, "VoucherRedemptionPreviewRequest", Set.of("code"));
+        assertSchemaProperties(document, "VoucherRedemptionPreviewVO", Set.of("previewToken", "voucherId", "codeLast4",
+                "productTitle", "productType", "productTypeLabel", "benefitText", "validityText", "usageRules",
+                "remainingUseCount", "expiresAt"));
+        assertSchemaProperties(document, "VoucherRedemptionVO", Set.of("id", "voucherId", "shopId", "operatorId",
+                "status", "useCount", "remainingUseCount", "redeemedTime", "reversedTime", "reversalReason"));
         assertSchemaProperties(document, "PageResult", Set.of("items", "page", "size", "total"));
         assertSchemaProperties(
                 document,

@@ -3,7 +3,7 @@
 ```yaml
 designVersion: 3
 designStatus: 已冻结
-implementationStatus: 已实现
+implementationStatus: 开发中
 dependsOn: 阶段 28 已实现
 affectedEnds: 后端、商户小程序、管理 Web
 ```
@@ -42,7 +42,7 @@ affectedEnds: 后端、商户小程序、管理 Web
 - 新增 `settlement_batch` 与 `settlement_item`；批次以门店和结算日唯一，明细以批次和账本分录唯一。
 - Demo 内置调度器按 Asia/Shanghai 每日 02:00 汇总前一自然日可结算分录；重复执行返回同一批次，后续可替换为 SnailJob。
 - Mock 批次从 `PROCESSING`（处理中）进入 `SUCCEEDED`（结算成功）或 `FAILED`（结算失败）；财务重试原批次，不创建重复批次。
-- 已结算后的退款和撤销不修改历史批次，在下一可结算日追加负向调整。
+- 已结算后的退款和撤销不修改历史批次，在下一可结算日追加负向调整；结算金额只来源于团购券线上订单账本，不包含线下微信支付。
 - 自有同步 XLSX 导出复用列表筛选与权限，字符串 ID 按文本写入，金额同时提供分值和格式化列；导出字段保持 Fesod 适配兼容。
 
 ## 接口

@@ -164,9 +164,12 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(6, count("select count(distinct status) from user_voucher"));
         assertEquals(2, count("select count(distinct status) from voucher_redemption"));
         assertEquals(2, count("select count(*) from commission_rule"));
-        assertEquals(7, count("select count(distinct entry_type) from fund_ledger_entry"));
+        assertEquals(8, count("select count(distinct entry_type) from fund_ledger_entry"));
+        assertEquals(0, count("select count(*) from information_schema.columns where table_schema=database() "
+                + "and table_name='voucher_redemption' and column_name in ('consumption_amount','discount_amount')"));
         assertEquals(3, count("select count(distinct status) from settlement_batch"));
-        assertEquals(4, count("select count(*) from settlement_item"));
+        assertEquals(10, count("select count(*) from settlement_item"));
+        assertEquals(1, count("select count(*) from settlement_batch where id=120002 and total_amount=-935"));
         assertTrue(count("select count(*) from operation_audit_log") >= 9);
         assertEquals(1, count("select count(*) from voucher_order o join payment_transaction p on p.order_id=o.id "
                 + "join user_voucher v on v.order_id=o.id join voucher_redemption r on r.voucher_id=v.id "
@@ -179,6 +182,8 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(2, count("select count(*) from settlement_batch b join settlement_item i on i.batch_id=b.id "
                 + "join fund_ledger_entry l on l.id=i.ledger_entry_id where b.id=120001 "
                 + "group by b.id, b.total_amount having b.total_amount=sum(i.amount)"));
+        assertEquals(2, count("select count(*) from settlement_batch b join settlement_item i on i.batch_id=b.id "
+                + "where b.id=120002 group by b.id, b.total_amount having b.total_amount=sum(i.amount)"));
         assertEquals(1, count("select count(*) from post_media pm join media_asset m on m.id=pm.media_asset_id "
                 + "where pm.post_id=1001 and m.status=1 and m.bound_type=1 and m.bound_id=1001"));
     }

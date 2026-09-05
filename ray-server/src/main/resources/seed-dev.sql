@@ -333,14 +333,14 @@ VALUES
   (9105, 7009, 6011, 3, 1000, 'REJECTED', '该券不符合异常退款条件', 'seed-refund-9105', '2026-09-04 17:00:00', '2026-09-04 17:05:00', '2026-09-04 17:00:00', '2026-09-04 17:05:00');
 
 INSERT INTO `voucher_redemption`
-  (`id`, `voucher_id`, `shop_id`, `merchant_account_id`, `use_count`, `consumption_amount`, `discount_amount`,
+  (`id`, `voucher_id`, `shop_id`, `merchant_account_id`, `use_count`,
    `status`, `idempotency_key`, `reversal_reason`, `reversed_by_account_id`, `redeemed_time`, `reversed_time`)
 VALUES
-  (9201, 7003, 1, 32, 1, 3000, 3000, 'SUCCEEDED', 'seed-redemption-9201', NULL, NULL, '2026-09-04 10:00:00', NULL),
-  (9202, 7003, 1, 32, 1, 3000, 3000, 'SUCCEEDED', 'seed-redemption-9202', NULL, NULL, '2026-09-04 11:00:00', NULL),
-  (9203, 7004, 1, 31, 1, 10000, 1500, 'SUCCEEDED', 'seed-redemption-9203', NULL, NULL, '2026-09-04 12:00:00', NULL),
-  (9204, 7010, 2, 6, 1, 8800, 2000, 'SUCCEEDED', 'seed-redemption-9204', NULL, NULL, '2026-09-04 18:00:00', NULL),
-  (9205, 7012, 1, 31, 1, 10000, 1500, 'REVERSED', 'seed-redemption-9205', '顾客与门店确认撤销', 1, '2026-09-04 18:30:00', '2026-09-04 19:00:00');
+  (9201, 7003, 1, 32, 1, 'SUCCEEDED', 'seed-redemption-9201', NULL, NULL, '2026-09-04 10:00:00', NULL),
+  (9202, 7003, 1, 32, 1, 'SUCCEEDED', 'seed-redemption-9202', NULL, NULL, '2026-09-04 11:00:00', NULL),
+  (9203, 7004, 1, 31, 1, 'SUCCEEDED', 'seed-redemption-9203', NULL, NULL, '2026-09-04 12:00:00', NULL),
+  (9204, 7010, 2, 6, 1, 'SUCCEEDED', 'seed-redemption-9204', NULL, NULL, '2026-09-04 18:00:00', NULL),
+  (9205, 7012, 1, 31, 1, 'REVERSED', 'seed-redemption-9205', '顾客与门店确认撤销', 1, '2026-09-04 18:30:00', '2026-09-04 19:00:00');
 
 INSERT INTO `commission_rule`
   (`id`, `shop_id`, `rate_bps`, `effective_from`, `effective_to`, `version`)
@@ -358,7 +358,12 @@ VALUES
   (110004, 1, 6007, 7005, 'REFUND-9101', 'REFUND_REVERSED', 'DEBIT', -1000, 650, '2026-09-04 13:00:00'),
   (110005, 1, 6006, 7004, 'REDEMPTION-9203', 'REDEMPTION_RECOGNIZED', 'CREDIT', 1000, 650, '2026-09-04 12:00:00'),
   (110006, 1, 6006, 7004, 'REDEMPTION-9203', 'COMMISSION_RECOGNIZED', 'DEBIT', 65, 650, '2026-09-04 12:00:00'),
-  (110007, 1, 6014, 7012, 'REDEMPTION-9205', 'REDEMPTION_REVERSED', 'DEBIT', -1000, 650, '2026-09-04 19:00:00'),
+  (110007, 1, 6014, 7012, 'REDEMPTION-REVERSAL-9205', 'REDEMPTION_REVERSED', 'DEBIT', -1000, 650, '2026-09-04 19:00:00'),
+  (110010, 1, 6014, 7012, 'REDEMPTION-REVERSAL-9205', 'COMMISSION_REVERSED', 'CREDIT', -65, 650, '2026-09-04 19:00:00'),
+  (110011, 3, 6005, 7003, 'REDEMPTION-9201', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2560, 500, '2026-09-04 10:00:00'),
+  (110012, 3, 6005, 7003, 'REDEMPTION-9201', 'COMMISSION_RECOGNIZED', 'DEBIT', 128, 500, '2026-09-04 10:00:00'),
+  (110013, 3, 6005, 7003, 'REDEMPTION-9202', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2560, 500, '2026-09-04 11:00:00'),
+  (110014, 3, 6005, 7003, 'REDEMPTION-9202', 'COMMISSION_RECOGNIZED', 'DEBIT', 128, 500, '2026-09-04 11:00:00'),
   (110008, 1, NULL, NULL, 'SETTLEMENT-120001', 'SETTLEMENT_POSTED', 'DEBIT', 935, 650, '2026-09-05 02:00:00'),
   (110009, 1, 6007, 7005, 'SETTLEMENT-ADJUSTMENT-9101', 'SETTLEMENT_ADJUSTMENT', 'DEBIT', -1000, 650, '2026-09-05 02:05:00');
 
@@ -366,14 +371,21 @@ INSERT INTO `settlement_batch`
   (`id`, `shop_id`, `settlement_date`, `status`, `total_amount`, `failure_reason`, `version`, `processed_time`)
 VALUES
   (120001, 1, '2026-09-03', 'SUCCEEDED', 935, NULL, 0, '2026-09-04 02:00:00'),
-  (120002, 1, '2026-09-04', 'FAILED', -1000, '模拟结算渠道不可用，可在管理端重试', 0, '2026-09-05 02:00:00'),
-  (120003, 2, '2026-09-04', 'PROCESSING', 6460, NULL, 0, NULL);
+  (120002, 1, '2026-09-04', 'FAILED', -935, '模拟结算渠道不可用，可在管理端重试', 0, '2026-09-05 02:00:00'),
+  (120003, 2, '2026-09-04', 'PROCESSING', 6460, NULL, 0, NULL),
+  (120004, 3, '2026-09-05', 'SUCCEEDED', 4864, NULL, 0, '2026-09-06 02:00:00');
 
 INSERT INTO `settlement_item` (`id`, `batch_id`, `ledger_entry_id`, `amount`) VALUES
   (130001, 120001, 110005, 1000),
   (130002, 120001, 110006, -65),
   (130003, 120003, 110002, 6800),
-  (130004, 120003, 110003, -340);
+  (130004, 120003, 110003, -340),
+  (130009, 120002, 110007, -1000),
+  (130010, 120002, 110010, 65),
+  (130005, 120004, 110011, 2560),
+  (130006, 120004, 110012, -128),
+  (130007, 120004, 110013, 2560),
+  (130008, 120004, 110014, -128);
 
 INSERT INTO `operation_audit_log`
   (`id`, `actor_type`, `actor_id`, `action`, `object_type`, `object_id`, `result`, `reason`, `trace_id`, `create_time`)
