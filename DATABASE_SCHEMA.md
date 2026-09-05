@@ -23,7 +23,7 @@ demoDataClosureStatus: 已实现
 - 不声明物理外键，跨表关系由 Service 在事务内校验和维护。
 - 金额以分存储；Java 内部 ID 为 `Long`，HTTP 业务 ID 为字符串。
 - 已退役 `blog`、`blog_comments`、`voucher`、`seckill_voucher`，不保留兼容表或转换脚本。
-- `schema-init.sql` 包含 `DROP TABLE`，不得用于非 Demo 数据库或生产环境。
+- `schema-init.sql` 在文件开头按依赖逆序集中执行全部 33 张业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
 
 ## 表目录
 

@@ -2,18 +2,38 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
-DROP TABLE IF EXISTS `admin_user`;
 DROP TABLE IF EXISTS `settlement_item`;
 DROP TABLE IF EXISTS `settlement_batch`;
 DROP TABLE IF EXISTS `fund_ledger_entry`;
 DROP TABLE IF EXISTS `commission_rule`;
 DROP TABLE IF EXISTS `voucher_redemption`;
+DROP TABLE IF EXISTS `user_voucher`;
 DROP TABLE IF EXISTS `voucher_refund`;
 DROP TABLE IF EXISTS `payment_transaction`;
+DROP TABLE IF EXISTS `voucher_order`;
+DROP TABLE IF EXISTS `voucher_package_item`;
+DROP TABLE IF EXISTS `voucher_product`;
 DROP TABLE IF EXISTS `merchant_staff_invitation`;
 DROP TABLE IF EXISTS `business_media_asset`;
 DROP TABLE IF EXISTS `merchant_application`;
 DROP TABLE IF EXISTS `merchant_account`;
+DROP TABLE IF EXISTS `shop_review_media`;
+DROP TABLE IF EXISTS `shop_review`;
+DROP TABLE IF EXISTS `user_info`;
+DROP TABLE IF EXISTS `user`;
+DROP TABLE IF EXISTS `shop_type`;
+DROP TABLE IF EXISTS `shop`;
+DROP TABLE IF EXISTS `follow`;
+DROP TABLE IF EXISTS `post_comment_like`;
+DROP TABLE IF EXISTS `post_comment`;
+DROP TABLE IF EXISTS `post_like`;
+DROP TABLE IF EXISTS `post_media`;
+DROP TABLE IF EXISTS `post`;
+DROP TABLE IF EXISTS `media_asset`;
+DROP TABLE IF EXISTS `section_follow`;
+DROP TABLE IF EXISTS `content_section`;
+DROP TABLE IF EXISTS `city`;
+DROP TABLE IF EXISTS `admin_user`;
 
 CREATE TABLE `admin_user` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '管理员ID',
@@ -50,7 +70,6 @@ CREATE TABLE `operation_audit_log` (
   INDEX `idx_audit_action_time` (`action`, `create_time`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='敏感操作审计日志';
 
-DROP TABLE IF EXISTS `city`;
 CREATE TABLE `city` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code` varchar(16) NOT NULL COMMENT '稳定城市编码',
@@ -65,7 +84,6 @@ CREATE TABLE `city` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '城市字典' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `content_section`;
 CREATE TABLE `content_section` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code` varchar(32) NOT NULL COMMENT '稳定分区编码',
@@ -84,7 +102,6 @@ CREATE TABLE `content_section` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '官方内容分区' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `section_follow`;
 CREATE TABLE `section_follow` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` bigint UNSIGNED NOT NULL COMMENT '用户ID，逻辑关联user.id',
@@ -96,7 +113,6 @@ CREATE TABLE `section_follow` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户关注分区关系' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `media_asset`;
 CREATE TABLE `media_asset` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `owner_user_id` bigint UNSIGNED NOT NULL COMMENT '上传用户ID，逻辑关联user.id',
@@ -119,7 +135,6 @@ CREATE TABLE `media_asset` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '媒体资产' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `post`;
 CREATE TABLE `post` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` bigint UNSIGNED NOT NULL COMMENT '发布用户ID，逻辑关联user.id',
@@ -142,7 +157,6 @@ CREATE TABLE `post` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '统一社区动态' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `post_media`;
 CREATE TABLE `post_media` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
@@ -155,7 +169,6 @@ CREATE TABLE `post_media` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态媒体关系' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `post_like`;
 CREATE TABLE `post_like` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
@@ -167,7 +180,6 @@ CREATE TABLE `post_like` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态点赞事实' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `post_comment`;
 CREATE TABLE `post_comment` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `post_id` bigint UNSIGNED NOT NULL COMMENT '动态ID，逻辑关联post.id',
@@ -189,7 +201,6 @@ CREATE TABLE `post_comment` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论与追加回复' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `post_comment_like`;
 CREATE TABLE `post_comment_like` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `comment_id` bigint UNSIGNED NOT NULL COMMENT '评论ID，逻辑关联post_comment.id',
@@ -201,7 +212,6 @@ CREATE TABLE `post_comment_like` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论点赞事实' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `follow`;
 CREATE TABLE `follow`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
@@ -213,7 +223,6 @@ CREATE TABLE `follow`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `shop`;
 CREATE TABLE `shop`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺名称',
@@ -370,7 +379,6 @@ CREATE TABLE `business_media_asset` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='经营与团购私有媒体';
 
 
-DROP TABLE IF EXISTS `shop_type`;
 CREATE TABLE `shop_type`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '类型名称',
@@ -382,8 +390,6 @@ CREATE TABLE `shop_type`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `shop_review_media`;
-DROP TABLE IF EXISTS `shop_review`;
 CREATE TABLE `shop_review` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `shop_id` bigint UNSIGNED NOT NULL COMMENT '商户ID，逻辑关联shop.id',
@@ -412,7 +418,6 @@ CREATE TABLE `shop_review_media` (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '商户点评媒体关系' ROW_FORMAT = Dynamic;
 
 
-DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `phone` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '手机号码',
@@ -426,7 +431,6 @@ CREATE TABLE `user`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 1010 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `user_info`;
 CREATE TABLE `user_info`  (
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '主键，用户id',
   `city` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '城市名称',
@@ -444,10 +448,6 @@ CREATE TABLE `user_info`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-DROP TABLE IF EXISTS `user_voucher`;
-DROP TABLE IF EXISTS `voucher_package_item`;
-DROP TABLE IF EXISTS `voucher_product`;
-DROP TABLE IF EXISTS `voucher_order`;
 CREATE TABLE `voucher_product` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `shop_id` bigint UNSIGNED NOT NULL,
