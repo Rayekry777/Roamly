@@ -11,6 +11,9 @@ class MvcConfigTest {
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/cities"));
         assertTrue(MvcConfig.isPublic("GET", "/v1/shops/1"));
+        assertTrue(MvcConfig.isPublic("GET", "/v1/voucher-products"));
+        assertTrue(MvcConfig.isPublic("GET", "/v1/voucher-products/1"));
+        assertTrue(MvcConfig.isPublic("GET", "/v1/voucher-products/1/media/2/content"));
         assertTrue(MvcConfig.isPublic("POST", "/v1/auth/sessions"));
         assertTrue(MvcConfig.isPublic("POST", "/v1/admin/auth/login"));
         assertTrue(MvcConfig.isPublic("POST", "/v1/merchant/auth/sms-codes"));
@@ -18,6 +21,7 @@ class MvcConfigTest {
         assertFalse(MvcConfig.isPublic("GET", "/v1/admin/auth/me"));
         assertFalse(MvcConfig.isPublic("GET", "/v1/merchant/auth/me"));
         assertTrue(MvcConfig.isAdminPublic("POST", "/v1/admin/auth/login"));
+        assertTrue(MvcConfig.isAdminPublic("GET", "/v1/admin/events"));
         assertFalse(MvcConfig.isAdminPublic("GET", "/v1/admin/auth/login"));
         assertTrue(MvcConfig.isMerchantPublic("POST", "/v1/merchant/auth/login"));
         assertFalse(MvcConfig.isMerchantPublic("GET", "/v1/merchant/auth/login"));

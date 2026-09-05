@@ -111,8 +111,12 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(138, operationIds.size());
+        assertEquals(140, operationIds.size());
+        assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
+        assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
+        assertEquals(0, document.at("/paths/~1v1~1admin~1events/get/security").size());
+        assertTrue(document.at("/paths/~1v1~1admin~1events/get/responses/403").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1auth~1login/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1admin~1users/get/responses/403").isObject());
@@ -388,7 +392,9 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/shop-types",
                 "GET /v1/feeds/following",
                 "GET /v1/shops/{shopId}/voucher-products",
+                "GET /v1/voucher-products",
                 "GET /v1/voucher-products/{productId}",
+                "GET /v1/voucher-products/{productId}/media/{mediaId}/content",
                 "POST /v1/voucher-products/{productId}/order-confirmations",
                 "POST /v1/voucher-products/{productId}/orders",
                 "GET /v1/users/me/orders",

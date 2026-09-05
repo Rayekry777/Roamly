@@ -3,6 +3,6 @@ import com.ray.vo.AdminEventTicketVO;
 public interface EventTicketService {
     AdminEventTicketVO issue();
 
-    /** 原子消费绑定当前管理员的短期票据。 */
-    boolean consume(String ticket, Long adminId);
+    /** 原子消费短期票据并返回票据绑定的管理员 ID。 */
+    Long consume(String ticket);
 }

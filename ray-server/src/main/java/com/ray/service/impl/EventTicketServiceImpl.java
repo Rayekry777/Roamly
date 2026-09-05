@@ -31,9 +31,14 @@ public class EventTicketServiceImpl implements EventTicketService {
     }
 
     @Override
-    public boolean consume(String token, Long adminId) {
-        if (token == null || token.isBlank() || adminId == null) return false;
+    public Long consume(String token) {
+        if (token == null || token.isBlank()) return null;
         String value = redis.opsForValue().getAndDelete(PREFIX + token);
-        return adminId.toString().equals(value);
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 }

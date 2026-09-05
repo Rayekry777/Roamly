@@ -24,10 +24,14 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
 /** 基于独立 Sa-Token 登录域、BCrypt 和 Redis 限流的管理员认证实现。 */
 @Service
 public class AdminAuthServiceImpl implements AdminAuthService {
+    private static final String REQUEST_ADMIN_ENTITY_ATTRIBUTE =
+            AdminAuthServiceImpl.class.getName() + ".currentAdminEntity";
     private static final String LOGIN_FAILURE_PREFIX = "roamly:admin:login-failure:";
     private static final int MAX_LOGIN_FAILURES = 5;
     private static final long FAILURE_WINDOW_MINUTES = 15;
@@ -118,6 +122,19 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         return requireCurrentEntity().getId();
     }
 
+    /** 按管理员 ID 校验账号状态并返回固定权限集合。 */
+    @Override
+    public CurrentAdminVO currentAdminById(Long adminId) {
+        if (adminId == null) {
+            throw new BusinessException(401, "UNAUTHORIZED", "登录已失效，请重新登录");
+        }
+        AdminUser admin = mapper.selectById(adminId);
+        if (admin == null || !AdminStatus.ACTIVE.name().equals(admin.getStatus())) {
+            throw new BusinessException(401, "UNAUTHORIZED", "登录已失效，请重新登录");
+        }
+        return toCurrentAdmin(admin);
+    }
+
     /** 只注销当前请求携带的管理端 Token。 */
     @Override
     public void logout() {
@@ -187,12 +204,38 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private AdminUser requireCurrentEntity() {
         adminStpLogic.checkLogin();
         Long adminId = adminStpLogic.getLoginIdAsLong();
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        if (requestAttributes != null) {
+            Object cached = requestAttributes.getAttribute(REQUEST_ADMIN_ENTITY_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+            if (cached instanceof AdminUser cachedAdmin && adminId.equals(cachedAdmin.getId())) {
+                return cachedAdmin;
+            }
+        }
         AdminUser admin = mapper.selectById(adminId);
         if (admin == null || !AdminStatus.ACTIVE.name().equals(admin.getStatus())) {
             adminStpLogic.logout();
             throw new BusinessException(401, "UNAUTHORIZED", "登录已失效，请重新登录");
         }
+        if (requestAttributes != null) {
+            requestAttributes.setAttribute(
+                    REQUEST_ADMIN_ENTITY_ATTRIBUTE, admin, RequestAttributes.SCOPE_REQUEST);
+        }
         return admin;
+    }
+
+    private CurrentAdminVO toCurrentAdmin(AdminUser admin) {
+        AdminRole role = AdminRole.valueOf(admin.getRole());
+        AdminStatus status = AdminStatus.valueOf(admin.getStatus());
+        return new CurrentAdminVO(
+                admin.getId().toString(),
+                admin.getUsername(),
+                admin.getDisplayName(),
+                role,
+                role.label(),
+                status,
+                status.label(),
+                AdminPermissionCatalog.permissions(role),
+                Boolean.TRUE.equals(admin.getForcePasswordChange()));
     }
 
     private Long registerFailure(String key) {

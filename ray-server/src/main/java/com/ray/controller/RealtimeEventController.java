@@ -10,6 +10,7 @@ import com.ray.vo.AdminEventTicketVO;
 import com.ray.vo.VoucherQrTokenVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -57,12 +58,13 @@ public class RealtimeEventController {
 
     @GetMapping(value = "/v1/admin/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "订阅管理事件", operationId = "subscribeAdminEvents")
+    @SecurityRequirements
     public SseEmitter events(@RequestParam String ticket) {
-        Long adminId = admin.currentAdminId();
-        if (!tickets.consume(ticket, adminId)) {
+        Long adminId = tickets.consume(ticket);
+        if (adminId == null) {
             throw com.ray.exception.BusinessException.forbidden("EVENT_TICKET_INVALID", "事件票据无效或已过期");
         }
-        var current = admin.currentAdmin();
+        var current = admin.currentAdminById(adminId);
         SseEmitter emitter = adminSessions.register(current.permissions());
         try {
             emitter.send(SseEmitter.event().name("connected").data(Map.of("type", "CONNECTED")));

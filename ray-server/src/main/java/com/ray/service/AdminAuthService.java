@@ -16,6 +16,9 @@ public interface AdminAuthService {
     /** 返回当前管理员 ID。 */
     Long currentAdminId();
 
+    /** 按已验证的管理员 ID 返回当前启用管理员，用于无 Header 的 SSE 票据连接。 */
+    CurrentAdminVO currentAdminById(Long adminId);
+
     /** 注销当前管理员 Token。 */
     void logout();
 

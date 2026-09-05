@@ -24,6 +24,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 class AdminAuthServiceImplTest {
     private AdminUserMapper mapper;
@@ -55,6 +58,20 @@ class AdminAuthServiceImplTest {
         assertEquals("平台超级管理员", current.roleLabel());
         assertTrue(current.permissions().contains(ADMIN_USER_MANAGE));
         assertFalse(current.forcePasswordChange());
+    }
+
+    @Test
+    void currentAdminReusesEntityWithinOneHttpRequest() {
+        when(stpLogic.getLoginIdAsLong()).thenReturn(9L);
+        when(mapper.selectById(9L)).thenReturn(admin(9L, AdminRole.PLATFORM_ADMIN));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        try {
+            service.currentAdmin();
+            service.currentAdmin();
+            verify(mapper).selectById(9L);
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     @Test
