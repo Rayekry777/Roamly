@@ -18,7 +18,7 @@ public class PaymentTransaction {
     private Long userId;
     private String idempotencyKey;
     private String provider;
-    /** PENDING待支付、SUCCEEDED支付成功、FAILED支付失败、CLOSED已关闭。 */
+    /** PENDING待支付、SUCCEEDED支付成功、FAILED支付失败、CLOSED已关闭、PARTIALLY_REFUNDED部分退款、REFUNDED已退款。 */
     private String status;
     private Long amount;
     private String failureReason;

@@ -10,6 +10,7 @@ targetBusinessTableCount: 33
 targetDesignVersion: 6
 targetDesignStatus: 已冻结
 targetImplementationStatus: 已实现
+demoDataClosureStatus: 已实现
 ```
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
@@ -52,6 +53,15 @@ targetImplementationStatus: 已实现
 | `voucher_product` | 团购商品 | 商户级 | 商户状态与销售期索引 |
 | `voucher_order` | 团购订单 | 用户级 | 用户状态时间、商品用户索引 |
 | `user_voucher` | 用户券实例 | 用户级 | 券码唯一、订单唯一 |
+| `voucher_package_item` | 套餐券与次卡明细 | 商品级 | `product_id,sort_order` 唯一 |
+| `payment_transaction` | 支付尝试与支付结果 | 用户/订单级 | `order_id,idempotency_key` 唯一 |
+| `voucher_refund` | 单券退款申请与处理结果 | 用户/订单级 | `voucher_id,idempotency_key` 唯一 |
+| `merchant_staff_invitation` | 店主员工邀请 | 商户/门店级 | 邀请摘要唯一；状态和过期时间索引 |
+| `voucher_redemption` | 核销与撤销记录 | 商户/门店级 | `shop_id,idempotency_key` 唯一 |
+| `commission_rule` | 平台默认与门店佣金规则 | 平台/门店级 | 费率及生效区间索引 |
+| `fund_ledger_entry` | 支付、核销、退款和结算账本 | 平台/门店级 | 业务事件、分录类型和账户方向唯一；只追加 |
+| `settlement_batch` | T+1 结算批次 | 商户/门店级 | `shop_id,settlement_date` 唯一 |
+| `settlement_item` | 结算批次账本明细 | 商户/门店级 | `batch_id,ledger_entry_id` 唯一 |
 
 ## 业务约束
 
@@ -62,18 +72,63 @@ targetImplementationStatus: 已实现
 - 用户对同一商户最多一条点评；`shop.comments` 和 `shop.score` 由正常点评重算。
 - 商品库存满足总库存、有效占用与可售库存之间的一致性；用户限购按未取消订单的 `quantity` 汇总，并由应用层用户加商品锁串行校验；`sold_count` 只在支付确认成功后累计。
 - 订单状态码映射为 1 待支付、2 已支付、4 已取消、5 退款中、6 已退款；对外名称使用 `CANCELED`（已取消）。
-- `user_voucher.order_id` 唯一保证支付确认幂等；状态为 `UNUSED`（未使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDED`（已退款）。
+- `user_voucher.order_id` 唯一保证支付确认幂等；状态为 `UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 
-## 开发种子
+## 开发测试账号
 
-种子包含：1 个城市、5 个官方分区、3 个商户分类、3 个用户及资料、3 个商户、5 个覆盖全部账号状态的商户账号、2 条审核中/驳回入驻申请及其已绑定私有营业执照、分区关注和用户关注、已绑定动态/点评媒体、3 条动态及其点赞、根评论/回复及点赞、3 条点评、2 个团购商品、待支付/已支付/已取消订单，以及与已支付订单一一对应的未使用券。
+以下账号只存在于 `dev` Profile 每次可重建的 Demo 数据库，禁止复制到生产。消费者端和商户端登录前先获取短信验证码，默认 Mock 验证码由 `SMS_MOCK_CODE` 控制，未覆盖时为 `123456`。
+
+| 端 | 推荐测试账号 | 凭据 | 可验证范围 |
+|---|---|---|---|
+| 消费者小程序 | `13456789011`（用户 ID `3`） | 短信验证码 `123456` | 社区、关注、探店、订单各状态、六种券状态、退款与动态二维码 |
+| 商户小程序 | `13900000001`（店主，账号 ID `1`） | 短信验证码 `123456` | 工作台、商品、订单、员工、核销、财务与结算 |
+| 管理 Web | `admin`（平台超级管理员，ID `1`） | 密码 `Roamly123` | 全部管理菜单和操作；无需首次改密 |
+| 后端/Knife4j | 无独立账号 | 使用上述三类登录接口取得对应 Bearer Token | 验证三登录域及全部受保护接口 |
+
+角色隔离附加账号：
+
+| 登录域 | 账号 | 凭据 | 角色/状态 |
+|---|---|---|---|
+| 管理端 | `reviewer.demo` | `Roamly123` | `MERCHANT_REVIEWER`（商户审核员），已启用 |
+| 管理端 | `finance.demo` | `Roamly123` | `FINANCE`（财务管理员），已启用 |
+| 管理端 | `reviewer.disabled` | `Roamly123` | 商户审核员，已停用，用于登录拒绝 |
+| 商户端 | `13900000031` | `123456` | `MANAGER`（店长），已激活 |
+| 商户端 | `13900000032` | `123456` | `VERIFIER`（核销员），已激活 |
+| 商户端 | `13900000033` | `123456` | 店长，被店主停用 |
+| 商户端 | `13900000034` | `123456` | 未入驻，关联一条待接受核销员邀请 |
+
+待接受邀请的原始令牌为 `roamly-demo-pending`，数据库只保存其 SHA-256 摘要；接受邀请会把 `13900000034` 绑定到门店 1，因此需要重复演示时重新执行完整 Demo 快照。
+
+## 开发种子闭环
+
+当前种子保证 33 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
+
+| 领域 | 数量与状态覆盖 |
+|---|---|
+| 账号与字典 | 4 个管理员、10 个商户账号、3 个消费者、1 个城市、5 个分区、3 个门店分类 |
+| 入驻与门店 | 5 条入驻申请，覆盖 `PENDING/REJECTED/APPROVED`；3 家活动门店；6 条绑定经营媒体 |
+| 商户员工 | 4 条邀请，完整覆盖 `PENDING/ACCEPTED/REVOKED/EXPIRED`；店主、店长、核销员和员工停用样例 |
+| 社区与点评 | 3 条动态、5 个动态点赞、3 条评论/回复、5 个评论点赞、3 个关注、3 个分区关注、4 条点评和已核销消费点评 |
+| 券商品 | 14 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
+| 订单与支付 | 14 笔订单，覆盖 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
+| 券包与退款 | 12 张用户券，覆盖 `UNUSED/PARTIALLY_USED/USED/EXPIRED/REFUNDING/REFUNDED`；5 条退款覆盖全部退款状态 |
+| 核销与资金 | 5 条核销/撤销、2 条佣金规则、9 条七类账本分录、3 个结算批次覆盖 `PROCESSING/SUCCEEDED/FAILED`、4 条结算明细、9 条审计记录 |
+
+可复核的代表性闭环如下：
+
+- 消费履约：订单 `6012` → 成功支付 `80013` → 用户券 `7010` → 成功核销 `9204` → 消费认证点评 `4004`。
+- 退款：订单 `6007` → 成功支付 `80008` → 用户券 `7005` → 成功退款 `9101` → 退款冲回账本 `110004`。
+- 核销结算：订单 `6006` → 用户券 `7004` → 核销 `9203` → 收入/佣金分录 `110005/110006` → 结算批次 `120001` 与明细 `130001/130002`。
+- 次卡：订单 `6005` → 五次卡 `7003` → 两次成功核销 `9201/9202` → 剩余三次且状态为 `PARTIALLY_USED`。
+- 员工：店主账号 `1` → 已接受邀请 `10001` → 店长账号 `31`；另有待接受、已撤销和已过期邀请。
 
 种子聚合可由 SQL 事实复核：
 
 - `post.liked_count = count(post_like)`；评论点赞同理。
 - `shop.comments = 正常点评数`；`shop.score = round(avg(review.score) * 10)`。
 - 商品 3001 的 200 份库存中，一份由待支付订单占用、一份已支付，`available_stock=198`、`sold_count=1`。
-- 已支付订单 6002 只对应用户券 7001；已取消订单不占库存、不发券。
+- 商品 3002 已售一份，`available_stock=79`、`sold_count=1`；商品 3003 已售九份，`available_stock=91`、`sold_count=9`；商品 3004 已售一份，`available_stock=49`、`sold_count=1`。
+- 每个已支付订单按购买数量关联用户券；待支付与已取消订单不发券。退款、核销、点评、账本和结算样例均能沿业务 ID 反向追踪。
 
 ## 阶段 15 至 30 目标结构
 
@@ -201,6 +256,8 @@ targetImplementationStatus: 已实现
 
 - 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 33 张业务表、关键唯一索引、旧表退役和种子一致性。
 - `DatabaseBusinessClosureIntegrationTest` 9 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、支付、退款、员工、核销、账本、结算和用户隔离。
+- 快照断言确认 33 张业务表全部非空，并覆盖三端推荐账号、附加权限账号、四类券、五种订单状态、六种支付状态、六种用户券状态、五种退款状态、邀请/核销/账本/结算状态及四条代表性跨表业务链路。
 - `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 138 个唯一 `operationId`、阶段 23-29 新增 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
+- 后端默认 `mvn test` 共执行 159 项，其中 137 项通过、22 项按环境开关跳过，0 失败、0 错误；默认测试未重建数据库。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。
 - 阶段 21 不新增业务表；阶段 22 仍不新增业务表，仅直接重构 `voucher_order` 字段与索引；阶段 23 至 29 新增表已随本快照完成重建和集成验证。

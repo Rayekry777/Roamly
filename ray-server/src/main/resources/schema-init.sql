@@ -547,7 +547,7 @@ CREATE TABLE `payment_transaction` (
   `user_id` bigint UNSIGNED NOT NULL COMMENT '消费者ID',
   `idempotency_key` varchar(128) NOT NULL COMMENT '支付幂等键',
   `provider` varchar(16) NOT NULL COMMENT '支付渠道：MOCK模拟、WECHAT微信',
-  `status` varchar(16) NOT NULL COMMENT '支付状态：PENDING待支付、SUCCEEDED支付成功、FAILED支付失败、CLOSED已关闭',
+  `status` varchar(32) NOT NULL COMMENT '支付状态：PENDING待支付、SUCCEEDED支付成功、FAILED支付失败、CLOSED已关闭、PARTIALLY_REFUNDED部分退款、REFUNDED已退款',
   `amount` bigint UNSIGNED NOT NULL COMMENT '支付金额，单位分',
   `failure_reason` varchar(255) NULL COMMENT '失败原因',
   `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -80,6 +80,17 @@ class DatabaseBusinessClosureIntegrationTest {
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
         assertEquals(33, tableNames.size(), "当前表=" + tableNames);
+        List<String> seededTables = List.of(
+                "admin_user", "operation_audit_log", "city", "content_section", "section_follow",
+                "media_asset", "post", "post_media", "post_like", "post_comment", "post_comment_like",
+                "follow", "shop", "merchant_account", "merchant_staff_invitation", "merchant_application",
+                "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_info",
+                "voucher_product", "voucher_package_item", "voucher_order", "payment_transaction",
+                "voucher_refund", "user_voucher", "voucher_redemption", "commission_rule", "fund_ledger_entry",
+                "settlement_batch", "settlement_item");
+        assertEquals(tableNames, seededTables.stream().sorted().toList());
+        seededTables.forEach(table -> assertTrue(
+                count("select count(*) from `" + table + "`") > 0, "开发种子不得留下空表：" + table));
         Integer legacyCount = jdbc.queryForObject(
                 "select count(*) from information_schema.tables where table_schema = database() "
                         + "and table_name in ('blog','blog_comments','voucher','seckill_voucher')",
@@ -101,7 +112,9 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("shop", "uk_shop_source_application"));
         assertEquals(1, indexCount("shop", "idx_shop_status_city_type"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
-                + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=1"));
+                + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=0"));
+        assertEquals(3, count("select count(*) from admin_user where status='ACTIVE'"));
+        assertEquals(3, count("select count(distinct role) from admin_user where status='ACTIVE'"));
         assertEquals(5, count("select count(distinct status) from merchant_account"));
         assertEquals(0, count("select count(*) from merchant_account where status='ACTIVE' and shop_id is null"));
         assertEquals(1, count("select count(*) from merchant_application where merchant_account_id=3 and status='PENDING'"));
@@ -128,15 +141,44 @@ class DatabaseBusinessClosureIntegrationTest {
                 + "(select round(avg(r.score)*10) from shop_review r where r.shop_id=s.id and r.status=0)"));
         assertEquals(198, count("select available_stock from voucher_product where id=3001"));
         assertEquals(1, count("select sold_count from voucher_product where id=3001"));
+        assertEquals(79, count("select available_stock from voucher_product where id=3002"));
+        assertEquals(1, count("select sold_count from voucher_product where id=3002"));
+        assertEquals(91, count("select available_stock from voucher_product where id=3003"));
+        assertEquals(9, count("select sold_count from voucher_product where id=3003"));
+        assertEquals(49, count("select available_stock from voucher_product where id=3004"));
+        assertEquals(1, count("select sold_count from voucher_product where id=3004"));
         assertEquals(4, count("select count(distinct product_type) from voucher_product"));
-        assertEquals(2, count("select count(*) from voucher_product "
+        assertEquals(4, count("select count(*) from voucher_product "
                 + "where review_status='APPROVED' and sale_status='ON_SALE'"));
         assertEquals(1, count("select count(*) from voucher_product where id=3105 "
                 + "and review_status='PENDING' and sale_status is null and cover_media_id=8201"));
         assertEquals(0, count("select count(*) from voucher_product where review_status<>'APPROVED' "
                 + "and sale_status is not null"));
-        assertEquals(7, count("select count(*) from voucher_package_item"));
+        assertEquals(8, count("select count(*) from voucher_package_item"));
         assertEquals(1, count("select count(*) from user_voucher where order_id=6002 and status='UNUSED'"));
+        assertEquals(3, count("select count(*) from merchant_account where shop_id=1 and status='ACTIVE'"));
+        assertEquals(3, count("select count(distinct role) from merchant_account where shop_id=1 and status='ACTIVE'"));
+        assertEquals(4, count("select count(distinct status) from merchant_staff_invitation"));
+        assertEquals(6, count("select count(distinct status) from payment_transaction"));
+        assertEquals(5, count("select count(distinct status) from voucher_refund"));
+        assertEquals(6, count("select count(distinct status) from user_voucher"));
+        assertEquals(2, count("select count(distinct status) from voucher_redemption"));
+        assertEquals(2, count("select count(*) from commission_rule"));
+        assertEquals(7, count("select count(distinct entry_type) from fund_ledger_entry"));
+        assertEquals(3, count("select count(distinct status) from settlement_batch"));
+        assertEquals(4, count("select count(*) from settlement_item"));
+        assertTrue(count("select count(*) from operation_audit_log") >= 9);
+        assertEquals(1, count("select count(*) from voucher_order o join payment_transaction p on p.order_id=o.id "
+                + "join user_voucher v on v.order_id=o.id join voucher_redemption r on r.voucher_id=v.id "
+                + "join shop_review sr on sr.verified_user_voucher_id=v.id "
+                + "where o.id=6012 and o.status='PAID' and p.status='SUCCEEDED' and v.status='USED' "
+                + "and r.status='SUCCEEDED' and sr.status=0"));
+        assertEquals(1, count("select count(*) from voucher_order o join user_voucher v on v.order_id=o.id "
+                + "join voucher_refund r on r.voucher_id=v.id where o.id=6007 and o.status='REFUNDED' "
+                + "and v.status='REFUNDED' and r.status='SUCCEEDED'"));
+        assertEquals(2, count("select count(*) from settlement_batch b join settlement_item i on i.batch_id=b.id "
+                + "join fund_ledger_entry l on l.id=i.ledger_entry_id where b.id=120001 "
+                + "group by b.id, b.total_amount having b.total_amount=sum(i.amount)"));
         assertEquals(1, count("select count(*) from post_media pm join media_asset m on m.id=pm.media_asset_id "
                 + "where pm.post_id=1001 and m.status=1 and m.bound_type=1 and m.bound_id=1001"));
     }
@@ -151,7 +193,7 @@ class DatabaseBusinessClosureIntegrationTest {
         ResponseEntity<String> seeded = exchange(
                 "/v1/merchant/voucher-products?page=1&size=20", HttpMethod.GET, null, ownerToken);
         assertEquals(HttpStatus.OK, seeded.getStatusCode());
-        assertEquals(6, data(seeded).path("items").size());
+        assertEquals(13, data(seeded).path("items").size());
 
         String coverId = uploadBusinessImage(ownerToken, "VOUCHER_COVER", "voucher-cover.png");
         String detailId = uploadBusinessImage(ownerToken, "VOUCHER_DETAIL", "voucher-detail.png");
@@ -390,31 +432,17 @@ class DatabaseBusinessClosureIntegrationTest {
     @Order(4)
     void realAdminFlowClosesPasswordAccountSessionProtectionAndAudit() throws Exception {
         String consumerToken = login("13686869696");
-        String initialAdminToken = loginAdmin("admin", "Roamly123");
+        String adminToken = loginAdmin("admin", "Roamly123");
 
         assertEquals(HttpStatus.UNAUTHORIZED,
                 exchange("/v1/admin/auth/me", HttpMethod.GET, null, consumerToken).getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED,
-                exchange("/v1/users/me", HttpMethod.GET, null, initialAdminToken).getStatusCode());
-        ResponseEntity<String> forced = exchange(
-                "/v1/admin/users", HttpMethod.GET, null, initialAdminToken);
-        assertEquals(HttpStatus.FORBIDDEN, forced.getStatusCode());
-        assertEquals("PASSWORD_CHANGE_REQUIRED", objectMapper.readTree(forced.getBody()).path("code").asText());
-
-        assertEquals(HttpStatus.NO_CONTENT, exchange(
-                        "/v1/admin/auth/password",
-                        HttpMethod.PUT,
-                        Map.of("currentPassword", "Roamly123", "newPassword", "AdminPass9"),
-                        initialAdminToken)
-                .getStatusCode());
-        assertEquals(HttpStatus.UNAUTHORIZED,
-                exchange("/v1/admin/auth/me", HttpMethod.GET, null, initialAdminToken).getStatusCode());
-
-        String adminToken = loginAdmin("admin", "AdminPass9");
+                exchange("/v1/users/me", HttpMethod.GET, null, adminToken).getStatusCode());
+        assertEquals(HttpStatus.OK, exchange("/v1/admin/users", HttpMethod.GET, null, adminToken).getStatusCode());
         ResponseEntity<String> lastPlatformAdmin = exchange(
                 "/v1/admin/users/1",
                 HttpMethod.PUT,
-                Map.of("displayName", "Roamly 管理员", "role", "FINANCE", "version", 1),
+                Map.of("displayName", "Roamly 管理员", "role", "FINANCE", "version", 0),
                 adminToken);
         assertEquals(HttpStatus.CONFLICT, lastPlatformAdmin.getStatusCode());
         assertEquals("LAST_PLATFORM_ADMIN_REQUIRED", objectMapper.readTree(lastPlatformAdmin.getBody()).path("code").asText());
@@ -432,20 +460,33 @@ class DatabaseBusinessClosureIntegrationTest {
         String reviewerId = data(created).path("id").asText();
         String reviewerToken = loginAdmin("reviewer.one", "Reviewer8");
 
+        ResponseEntity<String> forced = exchange("/v1/admin/users", HttpMethod.GET, null, reviewerToken);
+        assertEquals(HttpStatus.FORBIDDEN, forced.getStatusCode());
+        assertEquals("PASSWORD_CHANGE_REQUIRED", objectMapper.readTree(forced.getBody()).path("code").asText());
         assertEquals(HttpStatus.NO_CONTENT, exchange(
-                        "/v1/admin/users/" + reviewerId + "/password-reset",
-                        HttpMethod.POST,
-                        Map.of("newPassword", "Reviewer9", "version", 0),
-                        adminToken)
+                        "/v1/admin/auth/password",
+                        HttpMethod.PUT,
+                        Map.of("currentPassword", "Reviewer8", "newPassword", "Reviewer9"),
+                        reviewerToken)
                 .getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED,
                 exchange("/v1/admin/auth/me", HttpMethod.GET, null, reviewerToken).getStatusCode());
         reviewerToken = loginAdmin("reviewer.one", "Reviewer9");
 
         assertEquals(HttpStatus.NO_CONTENT, exchange(
+                        "/v1/admin/users/" + reviewerId + "/password-reset",
+                        HttpMethod.POST,
+                        Map.of("newPassword", "Reviewer8", "version", 1),
+                        adminToken)
+                .getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED,
+                exchange("/v1/admin/auth/me", HttpMethod.GET, null, reviewerToken).getStatusCode());
+        reviewerToken = loginAdmin("reviewer.one", "Reviewer8");
+
+        assertEquals(HttpStatus.NO_CONTENT, exchange(
                         "/v1/admin/users/" + reviewerId + "/disablement",
                         HttpMethod.POST,
-                        Map.of("version", 1),
+                        Map.of("version", 2),
                         adminToken)
                 .getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED,
@@ -453,12 +494,12 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(HttpStatus.NO_CONTENT, exchange(
                         "/v1/admin/users/" + reviewerId + "/activation",
                         HttpMethod.POST,
-                        Map.of("version", 2),
+                        Map.of("version", 3),
                         adminToken)
                 .getStatusCode());
 
         assertEquals(1, count("select count(*) from admin_user where username='reviewer.one' "
-                + "and role='MERCHANT_REVIEWER' and status='ACTIVE' and force_password_change=1 and version=3"));
+                + "and role='MERCHANT_REVIEWER' and status='ACTIVE' and force_password_change=1 and version=4"));
         assertTrue(count("select count(*) from operation_audit_log where actor_type='ADMIN' "
                 + "and action in ('ADMIN_PASSWORD_CHANGE','ADMIN_USER_CREATE','ADMIN_PASSWORD_RESET',"
                 + "'ADMIN_USER_DISABLE','ADMIN_USER_ACTIVATE') and result='SUCCEEDED'") >= 5);
@@ -489,7 +530,7 @@ class DatabaseBusinessClosureIntegrationTest {
         var start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
             String finalSecondPlatformToken = secondPlatformToken;
-            var first = executor.submit(() -> concurrentRoleChange("1", 1, adminToken, ready, start));
+            var first = executor.submit(() -> concurrentRoleChange("1", 0, adminToken, ready, start));
             var second = executor.submit(() ->
                     concurrentRoleChange(secondPlatformId, 1, finalSecondPlatformToken, ready, start));
             ready.await();
@@ -508,7 +549,7 @@ class DatabaseBusinessClosureIntegrationTest {
         String platformUsername = jdbc.queryForObject(
                 "select username from admin_user where role='PLATFORM_ADMIN' and status='ACTIVE' limit 1",
                 String.class);
-        String platformPassword = "admin".equals(platformUsername) ? "AdminPass9" : "Platform9";
+        String platformPassword = "admin".equals(platformUsername) ? "Roamly123" : "Platform9";
         String adminToken = loginAdmin(platformUsername, platformPassword);
 
         String pendingMerchantToken = loginMerchantWithCode("13900000003");
@@ -630,7 +671,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 adminToken);
         assertEquals(HttpStatus.OK, suspended.getStatusCode());
         assertEquals("SUSPENDED", data(suspended).path("status").asText());
-        assertEquals(1, data(suspended).path("affectedAccountCount").asInt());
+        assertEquals(3, data(suspended).path("affectedAccountCount").asInt());
         assertEquals(HttpStatus.UNAUTHORIZED,
                 exchange("/v1/merchant/auth/me", HttpMethod.GET, null, shopOwnerToken).getStatusCode());
         redis.delete("roamly:merchant:sms-limit:13900000001");
@@ -671,9 +712,11 @@ class DatabaseBusinessClosureIntegrationTest {
                 adminToken);
         assertEquals(HttpStatus.OK, activated.getStatusCode());
         assertEquals("ACTIVE", data(activated).path("status").asText());
-        assertEquals(1, data(activated).path("affectedAccountCount").asInt());
+        assertEquals(3, data(activated).path("affectedAccountCount").asInt());
         assertEquals(1, count("select count(*) from merchant_account where id=1 and status='ACTIVE' "
                 + "and disabled_source is null and disabled_reason is null and disabled_at is null"));
+        assertEquals(1, count("select count(*) from merchant_account where id=33 and status='DISABLED' "
+                + "and disabled_source='STAFF_MANAGEMENT'"));
 
         assertEquals(HttpStatus.OK, exchangeCommand(
                         "/v1/admin/shops/2/suspension",
@@ -691,10 +734,7 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, count("select count(*) from merchant_account where id=5 and status='DISABLED' "
                 + "and disabled_source='ACCOUNT_GOVERNANCE'"));
 
-        String financeUsername = jdbc.queryForObject(
-                "select username from admin_user where role='FINANCE' and status='ACTIVE' limit 1", String.class);
-        String financePassword = "admin".equals(financeUsername) ? "AdminPass9" : "Platform9";
-        String financeToken = loginAdmin(financeUsername, financePassword);
+        String financeToken = loginAdmin("finance.demo", "Roamly123");
         assertEquals(HttpStatus.FORBIDDEN,
                 exchange("/v1/admin/merchant-applications", HttpMethod.GET, null, financeToken).getStatusCode());
         assertTrue(count("select count(*) from operation_audit_log where actor_type='ADMIN' "
@@ -804,11 +844,11 @@ class DatabaseBusinessClosureIntegrationTest {
                 firstToken);
         assertEquals(HttpStatus.CREATED, pending.getStatusCode());
         String pendingId = data(pending).path("id").asText();
-        assertEquals(79, count("select available_stock from voucher_product where id=3002"));
+        assertEquals(78, count("select available_stock from voucher_product where id=3002"));
         assertEquals(HttpStatus.NO_CONTENT, exchange(
                         "/v1/users/me/orders/" + pendingId, HttpMethod.DELETE, null, firstToken)
                 .getStatusCode());
-        assertEquals(80, count("select available_stock from voucher_product where id=3002"));
+        assertEquals(79, count("select available_stock from voucher_product where id=3002"));
 
         ResponseEntity<String> paid = exchangeCommand(
                 "/v1/voucher-products/3002/orders",
@@ -820,7 +860,7 @@ class DatabaseBusinessClosureIntegrationTest {
         settlementService.confirmPaid(Long.valueOf(paidId), LocalDateTime.of(2026, 9, 4, 12, 0));
         settlementService.confirmPaid(Long.valueOf(paidId), LocalDateTime.of(2026, 9, 4, 12, 0));
         assertEquals(1, count("select count(*) from user_voucher where order_id=" + paidId));
-        assertEquals(1, count("select sold_count from voucher_product where id=3002"));
+        assertEquals(2, count("select sold_count from voucher_product where id=3002"));
         assertEquals(HttpStatus.OK,
                 exchange("/v1/users/me/vouchers?status=UNUSED", HttpMethod.GET, null, buyerToken).getStatusCode());
         assertEquals(HttpStatus.NOT_FOUND,
@@ -843,7 +883,7 @@ class DatabaseBusinessClosureIntegrationTest {
         String platformUsername = jdbc.queryForObject(
                 "select username from admin_user where role='PLATFORM_ADMIN' and status='ACTIVE' limit 1",
                 String.class);
-        String platformPassword = "admin".equals(platformUsername) ? "AdminPass9" : "Platform9";
+        String platformPassword = "admin".equals(platformUsername) ? "Roamly123" : "Platform9";
         String token = loginAdmin(platformUsername, platformPassword);
         ResponseEntity<String> orders = exchange("/v1/admin/orders?status=PAID&page=1&size=20", HttpMethod.GET, null, token);
         assertEquals(HttpStatus.OK, orders.getStatusCode());
