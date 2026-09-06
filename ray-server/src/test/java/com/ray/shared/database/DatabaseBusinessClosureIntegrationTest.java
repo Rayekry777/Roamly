@@ -75,18 +75,20 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasThirtyThreeCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasThirtyNineCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(33, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(39, tableNames.size(), "当前表=" + tableNames);
         List<String> seededTables = List.of(
                 "admin_user", "operation_audit_log", "city", "content_section", "section_follow",
                 "media_asset", "post", "post_media", "post_like", "post_comment", "post_comment_like",
                 "follow", "shop", "merchant_account", "merchant_staff_invitation", "merchant_application",
                 "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_info",
-                "voucher_product", "voucher_package_item", "voucher_order", "payment_transaction",
-                "voucher_refund", "user_voucher", "voucher_redemption", "commission_rule", "fund_ledger_entry",
+                "voucher_product", "voucher_package_item", "voucher_product_detail", "voucher_product_tag",
+                "voucher_product_cash_rule", "voucher_product_discount_rule", "voucher_product_multi_use_rule",
+                "voucher_order", "payment_transaction", "voucher_refund", "user_voucher", "user_voucher_qr_code",
+                "voucher_redemption", "commission_rule", "fund_ledger_entry",
                 "settlement_batch", "settlement_item");
         assertEquals(tableNames, seededTables.stream().sorted().toList());
         seededTables.forEach(table -> assertTrue(
@@ -1018,8 +1020,6 @@ class DatabaseBusinessClosureIntegrationTest {
         request.put("marketAmount", 5000);
         request.put("faceValueAmount", 5000);
         request.put("minimumSpendAmount", 5000);
-        request.put("discountRateBps", null);
-        request.put("maximumDiscountAmount", null);
         request.put("totalUseCount", null);
         request.put("totalStock", 100);
         request.put("purchaseLimit", 2);

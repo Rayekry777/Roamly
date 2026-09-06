@@ -195,7 +195,7 @@ affectedEnds: 后端、管理 Web
 ## DTO 与 VO
 
 - 查询 DTO 使用不可变对象表达筛选、分页和时间范围，并在 Controller 边界执行枚举、长度和区间校验。
-- 命令 DTO：`MerchantApplicationApprovalRequest(version)`、`MerchantApplicationRejectionRequest(version,reason)`、`ShopGovernanceRequest(version,reason)`。
+- 命令 DTO：`MerchantApplicationApprovalDTO(version)`、`MerchantApplicationRejectionDTO(version,reason)`、`ShopGovernanceDTO(version,reason)`，统一位于 `com.ray.dto`。
 - 列表 VO：`MerchantApplicationReviewListItemVO`、`AdminShopListItemVO`。
 - 详情 VO：`MerchantApplicationReviewDetailVO`、`AdminShopDetailVO`。
 - 命令结果 VO：`MerchantApplicationReviewResultVO`、`AdminShopGovernanceResultVO`。

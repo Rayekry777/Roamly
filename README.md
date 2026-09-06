@@ -31,7 +31,7 @@ Roamly 后端是面向消费者小程序、商户小程序和管理 Web 的本�
                                       └─► Redis（会话、缓存、锁、幂等、事件）
 ```
 
-- **统一契约**：Controller 只暴露 DTO/VO，响应统一为 `Result`/`ErrorResult`；分页同时支持页码和游标，第三方 SDK 类型不进入公共模型。
+- **统一契约**：Controller 只暴露 `DTO` 入参和 `VO` 出参，响应统一为 `Result`/`ErrorResult`；分页同时支持页码和游标，第三方 SDK 类型不进入公共模型。
 - **事实与通知分离**：订单、支付、退款、核销、账本和结算以数据库状态为准，WebSocket/SSE/Redis Pub/Sub 只发送资源变更通知，客户端收到后回查 REST。
 - **可替换基础设施**：对象存储、定时任务、XLSX 导出和分布式锁均通过适配边界接入，开发环境可使用本地实现，生产配置不完整时显式失败。
 
@@ -101,11 +101,11 @@ Roamly
 └─ ray-server   Controller、Service、Mapper、配置、任务和基础设施适配器
 ```
 
-依赖方向固定为 `ray-server -> ray-common + ray-pojo`。服务端保持 `controller / service / service.impl / mapper / config / handler` 分层，第三方 SDK 类型不会进入公共 DTO 或 OpenAPI 契约。
+依赖方向固定为 `ray-server -> ray-common + ray-pojo`。`ray-pojo` 按用途分为 `dto`（接口入参及内部/可复用传输结构）、`vo`（接口出参）和 `entity`（数据库对象）；服务端保持 `controller / service / service.impl / mapper / config / handler` 分层，第三方 SDK 类型不会进入公共模型或 OpenAPI 契约。
 
 ## Demo 数据与测试账号
 
-dev 快照包含 33 张非空业务表，覆盖社区互动、四类券、订单、支付、退款、员工、核销、账本、结算和审计状态。
+dev 快照包含 39 张非空业务表，覆盖社区互动、四类券、订单、支付、退款、员工、核销、账本、结算和审计状态。
 
 | 端 | 推荐账号 | 开发凭据 |
 |---|---|---|
@@ -156,7 +156,7 @@ mvn -DskipTests compile
 mvn -pl ray-server -am dependency:tree
 ```
 
-最近一次默认测试共 159 项，0 失败、0 错误、22 项按环境开关跳过；真实数据库闭环测试 9 项全部通过，并在结束后恢复纯种子状态。
+最近一次默认测试共 172 项，其中 150 项通过、22 项按环境开关跳过，0 失败、0 错误；真实数据库闭环测试 9 项全部通过，并在结束后恢复纯种子状态。
 
 - [后端开发契约](BACKEND_DEVELOPMENT.md)
 - [数据库结构与测试账号](DATABASE_SCHEMA.md)

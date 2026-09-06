@@ -7,11 +7,17 @@ DROP TABLE IF EXISTS `settlement_batch`;
 DROP TABLE IF EXISTS `fund_ledger_entry`;
 DROP TABLE IF EXISTS `commission_rule`;
 DROP TABLE IF EXISTS `voucher_redemption`;
+DROP TABLE IF EXISTS `user_voucher_qr_code`;
 DROP TABLE IF EXISTS `user_voucher`;
 DROP TABLE IF EXISTS `voucher_refund`;
 DROP TABLE IF EXISTS `payment_transaction`;
 DROP TABLE IF EXISTS `voucher_order`;
 DROP TABLE IF EXISTS `voucher_package_item`;
+DROP TABLE IF EXISTS `voucher_product_multi_use_rule`;
+DROP TABLE IF EXISTS `voucher_product_discount_rule`;
+DROP TABLE IF EXISTS `voucher_product_cash_rule`;
+DROP TABLE IF EXISTS `voucher_product_tag`;
+DROP TABLE IF EXISTS `voucher_product_detail`;
 DROP TABLE IF EXISTS `voucher_product`;
 DROP TABLE IF EXISTS `merchant_staff_invitation`;
 DROP TABLE IF EXISTS `business_media_asset`;
@@ -451,7 +457,7 @@ CREATE TABLE `user_info`  (
 CREATE TABLE `voucher_product` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `shop_id` bigint UNSIGNED NOT NULL,
-  `product_type` varchar(16) NOT NULL COMMENT '券型：PACKAGE套餐券、CASH代金券、DISCOUNT折扣券、MULTI_USE次卡',
+  `product_type` varchar(16) NOT NULL COMMENT '券型：PACKAGE套餐券、CASH代金券、DISCOUNT折扣券（仅核销）、MULTI_USE次卡',
   `title` varchar(120) NULL,
   `sub_title` varchar(255) NULL,
   `cover_media_id` bigint UNSIGNED NULL,
@@ -460,8 +466,6 @@ CREATE TABLE `voucher_product` (
   `market_amount` bigint UNSIGNED NULL,
   `face_value_amount` bigint UNSIGNED NULL,
   `minimum_spend_amount` bigint UNSIGNED NULL,
-  `discount_rate_bps` int UNSIGNED NULL,
-  `maximum_discount_amount` bigint UNSIGNED NULL,
   `total_use_count` int UNSIGNED NULL,
   `total_stock` int UNSIGNED NOT NULL DEFAULT 0,
   `available_stock` int UNSIGNED NOT NULL DEFAULT 0,
@@ -515,6 +519,65 @@ CREATE TABLE `voucher_package_item` (
   INDEX `idx_voucher_package_item_product` (`product_id`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='套餐券与次卡有序明细';
 
+CREATE TABLE `voucher_product_detail` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `product_id` bigint UNSIGNED NOT NULL,
+  `section_type` varchar(32) NOT NULL COMMENT '详情分段类型，如PACKAGE_CONTENT、USAGE_RULE、NOTICE',
+  `title` varchar(80) NOT NULL,
+  `content` varchar(4000) NOT NULL,
+  `sort_order` int UNSIGNED NOT NULL DEFAULT 0,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_voucher_product_detail_order` (`product_id`,`sort_order`),
+  KEY `idx_voucher_product_detail_product` (`product_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户编写的券商品详情分段';
+
+CREATE TABLE `voucher_product_tag` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `product_id` bigint UNSIGNED NOT NULL,
+  `text` varchar(32) NOT NULL,
+  `icon_key` varchar(32) NOT NULL COMMENT '统一图标资源键，不存 SVG 内容',
+  `color_token` varchar(32) NULL,
+  `sort_order` int UNSIGNED NOT NULL DEFAULT 0,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_voucher_product_tag_order` (`product_id`,`sort_order`),
+  KEY `idx_voucher_product_tag_product` (`product_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='券商品展示标签';
+
+CREATE TABLE `voucher_product_cash_rule` (
+  `product_id` bigint UNSIGNED NOT NULL,
+  `face_value_amount` bigint UNSIGNED NULL,
+  `minimum_spend_amount` bigint UNSIGNED NULL,
+  `description` varchar(500) NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='代金券权益规则';
+
+CREATE TABLE `voucher_product_discount_rule` (
+  `product_id` bigint UNSIGNED NOT NULL,
+  `discount_text` varchar(80) NULL COMMENT '商户编写的折扣说明，不用于计价',
+  `applicable_scope` varchar(255) NULL,
+  `usage_period_text` varchar(120) NULL,
+  `description` varchar(500) NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='折扣券展示规则';
+
+CREATE TABLE `voucher_product_multi_use_rule` (
+  `product_id` bigint UNSIGNED NOT NULL,
+  `total_use_count` int UNSIGNED NULL,
+  `use_unit` varchar(16) NULL,
+  `description` varchar(500) NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='次卡权益规则';
+
 CREATE TABLE `voucher_order`  (
   `id` bigint(20) NOT NULL COMMENT '主键',
   `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '下单的用户id',
@@ -560,13 +623,25 @@ CREATE TABLE `payment_transaction` (
 CREATE TABLE `voucher_refund` (
   `id` bigint UNSIGNED NOT NULL COMMENT '退款ID',
   `voucher_id` bigint UNSIGNED NOT NULL COMMENT '用户券ID',
+  `voucher_ids` varchar(2000) NULL COMMENT '本次退款包含的用户券ID列表',
   `order_id` bigint NOT NULL COMMENT '订单ID',
   `user_id` bigint UNSIGNED NOT NULL COMMENT '消费者ID',
+  `shop_id` bigint UNSIGNED NULL COMMENT '门店快照',
+  `source` varchar(16) NOT NULL DEFAULT 'CONSUMER' COMMENT '申请来源：CONSUMER消费者、MERCHANT商户、ADMIN管理员',
+  `applicant_id` bigint UNSIGNED NULL COMMENT '申请人账号ID',
   `amount` bigint UNSIGNED NOT NULL COMMENT '退款金额，单位分',
   `status` varchar(16) NOT NULL COMMENT 'REQUESTED已申请、PROCESSING处理中、SUCCEEDED退款成功、FAILED退款失败、REJECTED退款被拒',
   `reason` varchar(255) NULL,
+  `description` varchar(100) NULL COMMENT '消费者退款说明',
+  `reject_reason` varchar(500) NULL COMMENT '平台驳回原因',
+  `failure_code` varchar(64) NULL COMMENT '渠道失败编码',
+  `failure_message` varchar(500) NULL COMMENT '渠道失败说明',
+  `provider_refund_no` varchar(128) NULL COMMENT '渠道退款单号',
+  `approved_amount` bigint UNSIGNED NULL COMMENT '最终批准金额，单位分',
+  `payment_provider` varchar(32) NULL COMMENT '原支付渠道',
   `idempotency_key` varchar(128) NOT NULL,
   `requested_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `approved_time` timestamp NULL,
   `processed_time` timestamp NULL,
   `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -601,6 +676,21 @@ CREATE TABLE `user_voucher` (
   UNIQUE INDEX `uk_user_voucher_order` (`order_id`,`sequence_no`),
   INDEX `idx_user_voucher_user_status_expire` (`user_id`,`status`,`expire_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户券实例';
+
+CREATE TABLE `user_voucher_qr_code` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `voucher_id` bigint UNSIGNED NOT NULL COMMENT '用户券ID，一券一条固定二维码',
+  `user_id` bigint UNSIGNED NOT NULL COMMENT '持券用户ID',
+  `token_key` char(32) NOT NULL COMMENT '随机定位值，不保存明文二维码 token',
+  `token_version` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '主动换码版本',
+  `expire_time` timestamp NULL COMMENT '沿用用户券有效期',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_user_voucher_qr_voucher` (`voucher_id`),
+  UNIQUE INDEX `uk_user_voucher_qr_token_key` (`token_key`),
+  INDEX `idx_user_voucher_qr_user` (`user_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户券固定二维码凭证';
 
 CREATE TABLE `voucher_redemption` (
   `id` bigint UNSIGNED NOT NULL COMMENT '核销记录ID',

@@ -152,8 +152,7 @@ VALUES (1, 4001, 502, 0, '2026-09-02 13:10:00');
 
 INSERT INTO `voucher_product`
   (`id`, `shop_id`, `product_type`, `title`, `sub_title`, `cover_media_id`, `detail_media_ids_json`,
-   `price_amount`, `market_amount`, `face_value_amount`, `minimum_spend_amount`, `discount_rate_bps`,
-   `maximum_discount_amount`, `total_use_count`, `total_stock`, `available_stock`, `sold_count`,
+   `price_amount`, `market_amount`, `face_value_amount`, `minimum_spend_amount`, `total_use_count`, `total_stock`, `available_stock`, `sold_count`,
    `purchase_limit`, `sale_begin_time`, `sale_end_time`, `validity_type`, `valid_begin_time`,
    `valid_end_time`, `valid_days`, `usage_rules_json`, `excluded_dates_json`, `reservation_required`,
    `reservation_notice`, `stackable`, `refund_anytime`, `refund_expired`, `review_status`,
@@ -161,33 +160,33 @@ INSERT INTO `voucher_product`
    `submitted_at`, `version`)
 VALUES
   (3001, 1, 'CASH', '103 茶餐厅 100 元代金券', '工作日、周末通用', NULL, '[]',
-   8000, 10000, 10000, 10000, NULL, NULL, NULL, 200, 198, 1, 1,
+   8000, 10000, 10000, 10000, NULL, 200, 198, 1, 1,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]}]',
    '[]', 0, NULL, 0, 1, 1, 'APPROVED', 'ON_SALE', NULL, NULL, NULL, NULL, 0),
   (3002, 2, 'PACKAGE', '漫游咖啡双人套餐', '限店内堂食使用', NULL, '[]',
-   6800, 8800, NULL, NULL, NULL, NULL, NULL, 80, 79, 1, 1,
+   6800, 8800, NULL, NULL, NULL, 80, 79, 1, 1,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 15,
    '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]}]',
    '[]', 1, '请至少提前一小时预约', 0, 1, 0, 'APPROVED', 'ON_SALE', NULL, NULL, NULL, NULL, 0),
   (3101, 1, 'PACKAGE', '下午茶双人套餐', '商户草稿，可继续编辑', NULL, '[]',
-   5200, 7200, NULL, NULL, NULL, NULL, NULL, 60, 60, 0, 2,
+   5200, 7200, NULL, NULL, NULL, 60, 60, 0, 2,
    '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 20,
    '[]', '[]', 0, NULL, 0, 1, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
   (3102, 1, 'CASH', '50 元代金券', '商户草稿，可继续编辑', NULL, '[]',
-   4200, 5000, 5000, 5000, NULL, NULL, NULL, 100, 100, 0, 1,
+   4200, 5000, 5000, 5000, NULL, 100, 100, 0, 1,
    '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 1, 1, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
-  (3103, 1, 'DISCOUNT', '全场 85 折券', '商户草稿，可继续编辑', NULL, '[]',
-   100, 100, NULL, 10000, 8500, 3000, NULL, 120, 120, 0, 1,
+  (3103, 1, 'DISCOUNT', '到店核销券', '商户草稿，可继续编辑', NULL, '[]',
+   100, 100, NULL, NULL, NULL, 120, 120, 0, 1,
    '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 15,
    '[]', '[]', 0, NULL, 0, 0, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
   (3104, 1, 'MULTI_USE', '精品咖啡 5 次卡', '商户草稿，可继续编辑', NULL, '[]',
-   12800, 15000, NULL, NULL, NULL, NULL, 5, 40, 40, 0, 1,
+   12800, 15000, NULL, NULL, 5, 40, 40, 0, 1,
    '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 60,
    '[]', '[]', 1, '使用前请预约座位', 0, 1, 0, 'DRAFT', NULL, NULL, NULL, NULL, NULL, 0),
   (3105, 1, 'PACKAGE', '秋日招牌双人餐', '阶段 21 券审核样例', 8201, '[]',
-   8800, 11800, NULL, NULL, NULL, NULL, NULL, 100, 100, 0, 2,
+   8800, 11800, NULL, NULL, NULL, 100, 100, 0, 2,
    '2026-09-10 10:00:00', '2026-12-31 22:00:00', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"10:00","close":"21:30"}]}]',
    '["2026-10-01"]', 1, '周末请提前两小时预约', 0, 1, 1, 'PENDING', NULL, NULL,
@@ -197,8 +196,7 @@ VALUES
 -- 消费者可购买的另外两种券，以及管理端可筛选的审核/销售状态样例。
 INSERT INTO `voucher_product`
   (`id`, `shop_id`, `product_type`, `title`, `sub_title`, `cover_media_id`, `detail_media_ids_json`,
-   `price_amount`, `market_amount`, `face_value_amount`, `minimum_spend_amount`, `discount_rate_bps`,
-   `maximum_discount_amount`, `total_use_count`, `total_stock`, `available_stock`, `sold_count`,
+   `price_amount`, `market_amount`, `face_value_amount`, `minimum_spend_amount`, `total_use_count`, `total_stock`, `available_stock`, `sold_count`,
    `purchase_limit`, `sale_begin_time`, `sale_end_time`, `validity_type`, `valid_begin_time`,
    `valid_end_time`, `valid_days`, `usage_rules_json`, `excluded_dates_json`, `reservation_required`,
    `reservation_notice`, `stackable`, `refund_anytime`, `refund_expired`, `review_status`,
@@ -206,44 +204,44 @@ INSERT INTO `voucher_product`
    `submitted_at`, `review_decision`, `review_idempotency_key`, `review_request_fingerprint`,
    `reviewed_at`, `reviewer_admin_id`, `version`)
 VALUES
-  (3003, 1, 'DISCOUNT', '全场 85 折体验券', '最高优惠 30 元', NULL, '[]',
-   1000, 1000, NULL, 10000, 8500, 3000, NULL, 100, 91, 9, 5,
+  (3003, 1, 'DISCOUNT', '八折折扣券', '商户填写适用范围与使用时段', NULL, '[]',
+   1000, 1000, NULL, NULL, NULL, 100, 91, 9, 5,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 1, 1, 'APPROVED', 'ON_SALE', NULL,
    'seed-product-3003-submit', REPEAT('3', 64), '2026-08-01 09:00:00', 'APPROVAL',
    'seed-product-3003-approve', REPEAT('a', 64), '2026-08-01 10:00:00', 2, 2),
   (3004, 1, 'MULTI_USE', '精品咖啡 5 次卡', '核销两次后仍可继续使用', NULL, '[]',
-   12800, 15000, NULL, NULL, NULL, NULL, 5, 50, 49, 1, 2,
+   12800, 15000, NULL, NULL, 5, 50, 49, 1, 2,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 60,
    '[]', '[]', 1, '使用前请预约座位', 0, 1, 0, 'APPROVED', 'ON_SALE', NULL,
    'seed-product-3004-submit', REPEAT('4', 64), '2026-08-01 09:10:00', 'APPROVAL',
    'seed-product-3004-approve', REPEAT('b', 64), '2026-08-01 10:10:00', 2, 2),
   (3106, 1, 'CASH', '资料不完整的代金券', '管理端驳回历史样例', NULL, '[]',
-   3600, 5000, 5000, 5000, NULL, NULL, NULL, 30, 30, 0, 1,
+   3600, 5000, 5000, 5000, NULL, 30, 30, 0, 1,
    '2026-09-01 00:00:00', '2026-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 1, 1, 'REJECTED', NULL, '使用规则说明不完整',
    'seed-product-3106-submit', REPEAT('5', 64), '2026-09-02 09:00:00', 'REJECTION',
    'seed-product-3106-reject', REPEAT('c', 64), '2026-09-02 10:00:00', 2, 2),
   (3107, 1, 'CASH', '国庆预约代金券', '已审核，等待开售', NULL, '[]',
-   8800, 10000, 10000, 10000, NULL, NULL, NULL, 50, 50, 0, 2,
+   8800, 10000, 10000, 10000, NULL, 50, 50, 0, 2,
    '2026-10-01 00:00:00', '2026-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 1, 1, 'APPROVED', 'SCHEDULED', NULL,
    'seed-product-3107-submit', REPEAT('6', 64), '2026-09-02 11:00:00', 'APPROVAL',
    'seed-product-3107-approve', REPEAT('d', 64), '2026-09-02 12:00:00', 2, 2),
   (3108, 1, 'CASH', '商户主动下架代金券', '已审核，当前下架', NULL, '[]',
-   7600, 10000, 10000, 10000, NULL, NULL, NULL, 50, 48, 2, 2,
+   7600, 10000, 10000, 10000, NULL, 50, 48, 2, 2,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 1, 1, 'APPROVED', 'OFF_SALE', NULL,
    'seed-product-3108-submit', REPEAT('7', 64), '2026-08-01 11:00:00', 'APPROVAL',
    'seed-product-3108-approve', REPEAT('e', 64), '2026-08-01 12:00:00', 2, 2),
   (3109, 1, 'CASH', '限量售罄代金券', '售罄状态展示样例', NULL, '[]',
-   5000, 6000, 6000, 6000, NULL, NULL, NULL, 20, 0, 20, 1,
+   5000, 6000, 6000, 6000, NULL, 20, 0, 20, 1,
    '2026-01-01 00:00:00', '2027-12-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 15,
    '[]', '[]', 0, NULL, 0, 0, 0, 'APPROVED', 'SOLD_OUT', NULL,
    'seed-product-3109-submit', REPEAT('8', 64), '2026-08-01 13:00:00', 'APPROVAL',
    'seed-product-3109-approve', REPEAT('f', 64), '2026-08-01 14:00:00', 2, 2),
   (3110, 1, 'CASH', '暑期已结束代金券', '销售周期结束样例', NULL, '[]',
-   6600, 8000, 8000, 8000, NULL, NULL, NULL, 40, 34, 6, 1,
+   6600, 8000, 8000, 8000, NULL, 40, 34, 6, 1,
    '2026-07-01 00:00:00', '2026-08-31 23:59:59', 'DAYS_AFTER_PURCHASE', NULL, NULL, 30,
    '[]', '[]', 0, NULL, 0, 0, 0, 'APPROVED', 'ENDED', NULL,
    'seed-product-3110-submit', REPEAT('9', 64), '2026-06-20 09:00:00', 'APPROVAL',
@@ -260,6 +258,34 @@ VALUES
   (6, 3105, '招牌主食', 2, '份', 3800, 0),
   (7, 3105, '手作饮品', 2, '杯', 2100, 1),
   (8, 3004, '精品咖啡任选', 1, '杯/次', 3000, 0);
+
+INSERT INTO `voucher_product_detail`
+  (`product_id`, `section_type`, `title`, `content`, `sort_order`)
+VALUES
+  (3001, 'BENEFIT', '券面权益', '到店可抵扣门市消费，具体以门店结算规则为准', 0),
+  (3002, 'PACKAGE_CONTENT', '套餐包含', '手冲咖啡 2 杯；当日甜点 2 份', 0),
+  (3003, 'USAGE_RULE', '使用说明', '到店出示券码核销，具体适用范围以商户说明为准', 0),
+  (3004, 'PACKAGE_CONTENT', '服务内容', '精品咖啡任选 5 次', 0);
+
+INSERT INTO `voucher_product_tag`
+  (`product_id`, `text`, `icon_key`, `color_token`, `sort_order`)
+VALUES
+  (3001, '100元代金券', 'coupon', 'pink', 0),
+  (3002, '双人套餐', 'coupon', 'pink', 0),
+  (3003, '八折折扣券', 'coupon', 'pink', 0),
+  (3004, '5次卡', 'refresh', 'pink', 0);
+
+INSERT INTO `voucher_product_cash_rule`
+  (`product_id`, `face_value_amount`, `minimum_spend_amount`, `description`)
+VALUES (3001, 10000, 10000, '每张券限抵扣一单');
+
+INSERT INTO `voucher_product_discount_rule`
+  (`product_id`, `discount_text`, `applicable_scope`, `usage_period_text`, `description`)
+VALUES (3003, '八折折扣券', '堂食及指定饮品', '周一至周日 10:00-22:00', '不可与其他优惠叠加');
+
+INSERT INTO `voucher_product_multi_use_rule`
+  (`product_id`, `total_use_count`, `use_unit`, `description`)
+VALUES (3004, 5, '次', '每次核销一份咖啡');
 
 INSERT INTO `voucher_order`
   (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`, `pay_amount`, `pay_type`, `status`, `payment_expire_time`, `idempotency_key`, `request_fingerprint`, `create_time`, `pay_time`, `update_time`)
@@ -321,6 +347,11 @@ VALUES
 UPDATE `user_voucher` SET `use_time` = '2026-09-04 12:00:00' WHERE `id` = 7004;
 UPDATE `user_voucher` SET `refund_time` = '2026-09-04 13:00:00' WHERE `id` = 7005;
 UPDATE `user_voucher` SET `use_time` = '2026-09-04 18:00:00' WHERE `id` = 7010;
+
+INSERT INTO `user_voucher_qr_code`
+  (`voucher_id`, `user_id`, `token_key`, `token_version`, `expire_time`, `create_time`, `update_time`)
+VALUES
+  (7001, 2, '0123456789abcdef0123456789abcdef', 1, '2026-10-03 10:02:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00');
 
 INSERT INTO `voucher_refund`
   (`id`, `voucher_id`, `order_id`, `user_id`, `amount`, `status`, `reason`, `idempotency_key`,

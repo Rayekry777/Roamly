@@ -8,8 +8,8 @@
 
 ## 接口契约
 
-- `VoucherRedemptionPreviewRequest` 仅包含 12 位 `code`。
-- `VoucherRedemptionPreviewVO` 返回券型、券面权益、有效期、使用规则、剩余次数和 `expiresAt`，不返回 `consumptionAmount` 或 `discountAmount`。
+- `VoucherRedemptionPreviewDTO` 仅包含 12 位 `code`。
+- `VoucherRedemptionPreviewVO` 返回券型、券面权益、有效期、使用规则、剩余次数和 `expiresAt`，不返回消费金额。
 - `VoucherRedemptionVO` 只返回核销 ID、券/门店、操作人、使用次数、剩余次数、状态及核销/撤销时间。
 - 预览令牌只保存 voucher、shop、操作账号和过期时间；确认仍使用预览令牌与 `Idempotency-Key`。
 
@@ -27,7 +27,7 @@
 
 ## 数据库与验收
 
-`voucher_redemption` 不保存线下金额字段；`voucher_product` 的面值、最低消费、折扣率和最高优惠仍作为券面规则展示。Demo 数据库直接重建，不对需要保留数据的数据库执行 `schema-init.sql`。
+`voucher_redemption` 不保存线下金额字段；`voucher_product` 的面值和最低消费作为代金券规则展示，核销券不参与消费金额计算。Demo 数据库直接重建，不对需要保留数据的数据库执行 `schema-init.sql`。
 
 验收至少覆盖：四类券直接预览和核销、跨店/过期/重复拒绝、次卡多次分摊、订单实付金额和佣金守恒、撤销负向账本、已结算禁止撤销、T+1 批次幂等、退款后续负向调整、三端页面和 OpenAPI Schema 不再出现核销金额字段。
 

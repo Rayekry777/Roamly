@@ -12,7 +12,7 @@ affectedEnds: 后端、商户小程序
 
 本阶段直接重构旧团购商品模型，交付四类券的商户草稿、编辑、消费者视角预览、复制、删除和提交审核闭环。
 
-- 券型固定为 `PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券）、`MULTI_USE`（次卡）。
+- 券型固定为 `PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券，仅核销）、`MULTI_USE`（次卡）。
 - 涉及后端和商户小程序；平台审核、上下架和消费者新结构展示留在阶段 21。
 - 现有消费者团购详情、下单、取消、Mock 支付和券包 Demo 必须继续工作；本阶段不得用商户建券重构破坏阶段 1 至 19。
 - 本阶段不实现平台审核、真实支付、退款、核销、员工邀请、佣金或结算。
@@ -23,7 +23,7 @@ affectedEnds: 后端、商户小程序
 - 阶段 19 已实现，商户申请审核能创建 `ACTIVE`（营业中）门店并激活 `OWNER`（店主）账号。
 - `MERCHANT`（商户端）认证域、`merchant:voucher:manage`（团购券管理）权限和门店停用门禁可用。
 - `business_media_asset`（经营媒体）已支持 `VOUCHER_COVER`（券封面）与 `VOUCHER_DETAIL`（券详情图）用途枚举，阶段实现已完成上传、绑定和鉴权读取。
-- 当前 24 表快照、86 个运行时操作和两端自动化均已通过；本阶段完成后应为 25 表和 93 个运行时操作。
+- 当前 24 表快照、86 个运行时操作和两端自动化均已通过；本阶段完成后为 38 表，详情与规则统一走结构化接口。
 
 ## 核心决策
 
@@ -45,7 +45,7 @@ affectedEnds: 后端、商户小程序
 
 ### 金额、时间和结构化规则
 
-- 金额全部为整数分，折扣使用基点；`8500` 表示 85 折，不接受浮点折扣。
+- 金额全部为整数分；券型不执行折扣计算。
 - 销售期使用 Asia/Shanghai 语义的 ISO-8601 日期时间，开始必须早于结束。
 - 有效期为 `FIXED_RANGE`（固定日期范围）或 `DAYS_AFTER_PURCHASE`（购买后若干天）二选一，不适用字段必须为空。
 - 使用规则保存为七日结构化时段、排除日期、预约、叠加与退款布尔字段；数据库不保存自由文本 `rules`。
@@ -69,9 +69,7 @@ affectedEnds: 后端、商户小程序
 | `price_amount` | bigint unsigned，可空 | 售价 |
 | `market_amount` | bigint unsigned，可空 | 门市价 |
 | `face_value_amount` | bigint unsigned，可空 | 代金券抵扣额 |
-| `minimum_spend_amount` | bigint unsigned，可空 | 代金券/折扣券最低消费 |
-| `discount_rate_bps` | int unsigned，可空 | 折扣基点，100 至 9900 |
-| `maximum_discount_amount` | bigint unsigned，可空 | 折扣券最高优惠 |
+| `minimum_spend_amount` | bigint unsigned，可空 | 代金券最低消费 |
 | `total_use_count` | int unsigned，可空 | 次卡总次数，2 至 100 |
 | `total_stock` | int unsigned，非空默认 0 | 总库存 |
 | `available_stock` | int unsigned，非空默认 0 | 可售库存 |
@@ -108,7 +106,11 @@ affectedEnds: 后端、商户小程序
 - `idx_voucher_product_public(shop_id,review_status,sale_status,sale_begin_time,sale_end_time,id)`：消费者可见性。
 - `idx_voucher_product_submission(submission_idempotency_key)`：提交重放定位；允许多个空值。
 
-### `voucher_package_item` 新表
+### 统一详情、标签与类型规则表
+
+`voucher_product_detail` 保存所有券型的商户明细分段，`voucher_product_tag` 保存标签文本和统一 `icon_key`。`voucher_product_cash_rule`、`voucher_product_discount_rule`、`voucher_product_multi_use_rule` 保存类型专属权益；折扣规则仅用于说明和核销展示，订单支付金额仍取 `price_amount`。
+
+### `voucher_package_item` 兼容读取表
 
 `voucher_package_item` 同时承载套餐项和次卡服务说明，字段固定为：
 
@@ -134,7 +136,7 @@ affectedEnds: 后端、商户小程序
 
 ### 快照与种子
 
-- 本阶段新增 1 张表，完整快照由 24 表变为 25 表；目标 33 表总数不变。
+- 本阶段新增统一详情、标签和类型规则表，完整快照由 33 表扩展为 38 表。
 - 既有商品 `3001`、`3002` 转换为 `APPROVED`（审核通过）且 `ON_SALE`（销售中），保持现有订单、库存、销量与消费者页面事实。
 - 新增四种券型草稿及至少一个 `PENDING`（审核中）商品，供商户端恢复和阶段 21 审核使用；新增券图片种子必须与媒体元数据和对象初始化一致。
 - 商品 3001 仍满足总库存 200、待支付占用 1、已支付 1、可售 198、销量 1；数据库测试结束后恢复相同纯种子。
@@ -143,16 +145,16 @@ affectedEnds: 后端、商户小程序
 
 ### 创建草稿
 
-`MerchantVoucherProductCreateRequest` 只包含必填 `productType`；创建后返回完整草稿，HTTP 状态为 201。
+`MerchantVoucherProductCreateDTO` 只包含必填 `productType`；创建后返回完整草稿，HTTP 状态为 201。
 
 ### 更新草稿
 
-`MerchantVoucherProductUpdateRequest` 为完整快照，包含：
+`MerchantVoucherProductUpdateDTO` 为完整快照，包含：
 
 - 必填 `version`，以及可空 `title`、`subTitle`、`coverMediaId`、`priceAmount`、`marketAmount`、销售期和有效期字段。
-- `detailMediaIds`、`usageRules`、`excludedDates` 和 `packageItems` 始终传数组，不传 `null`。
+- `detailMediaIds`、`usageRules`、`excludedDates`、`packageItems`、`details` 和 `tags` 始终传数组，不传 `null`。
 - `reservationRequired`、`stackable`、`refundAnytime`、`refundExpired` 始终传布尔值。
-- 代金券字段 `faceValueAmount`、`minimumSpendAmount`；折扣券字段 `discountRateBps`、`minimumSpendAmount`、`maximumDiscountAmount`；次卡字段 `totalUseCount`。
+- 代金券字段 `cashRule`（抵扣额、最低消费和说明）；折扣券字段 `discountRule`（商户自定义折扣说明、适用范围、使用时段和补充规则）；次卡字段 `multiUseRule`（次数、单位和说明）。
 - `totalStock` 与 `purchaseLimit` 可在未完成草稿中为 0；提交时必须满足完整规则。
 
 草稿保存执行基础类型、长度、非负数、集合上限、时段格式和字段互斥校验；提交再执行完整性与业务交叉校验。
@@ -167,7 +169,7 @@ affectedEnds: 后端、商户小程序
 - `reservationRequired=true` 时预约说明必填，关闭预约时说明必须为空。
 - `PACKAGE`：1 至 50 条套餐项，其他类型专属字段为空。
 - `CASH`：抵扣额大于 0、售价不高于抵扣额、最低消费不低于抵扣额，无明细和折扣字段。
-- `DISCOUNT`：折扣基点 100 至 9900、最低消费大于 0、最高优惠大于 0，无明细、抵扣额和次数字段。
+- `DISCOUNT`：可填写商户自定义折扣说明、适用范围、使用时段和补充规则；这些字段不参与计价，无需折扣率或最高优惠计算。
 - `MULTI_USE`：总次数 2 至 100、1 至 50 条服务明细，无代金与折扣字段。
 
 校验错误返回 400 和字段级错误；服务端不接受由客户端拼出的自由文本规则作为权威输入。
@@ -237,7 +239,7 @@ affectedEnds: 后端、商户小程序
 
 - 编辑页固定四步：券型与基础信息、价格库存与销售期、有效期与使用规则、图片与提交预览。
 - 新建先用券型选择面板创建服务端空草稿；进入编辑后不允许切换券型。
-- `PACKAGE` 显示套餐明细编辑器；`CASH` 显示抵扣额和最低消费；`DISCOUNT` 显示折扣、最低消费和最高优惠；`MULTI_USE` 显示总次数和服务明细。
+- `PACKAGE` 显示套餐明细编辑器；`CASH` 显示抵扣额和最低消费；`DISCOUNT` 显示通用核销信息；`MULTI_USE` 显示总次数和服务明细。
 - 七日规则按星期展示开关和最多三个时段；排除日期使用日期选择；预约、叠加、随时退和过期退使用开关。
 - 封面 1 张、详情图最多 9 张，复用现有上传组件和带 Bearer 私有下载；页面不持久化对象 URL。
 - 每步可保存草稿；保存成功以服务端响应整体替换基线，保存失败保留当前表单和已上传媒体并提供重试。
@@ -278,7 +280,7 @@ affectedEnds: 后端、商户小程序
 
 - 真实重建确认 25 张业务表、新表唯一索引、JSON 结构、四类种子、媒体归属和旧字段删除。
 - 真实 HTTP/OpenAPI 确认 93 个唯一 `operationId`、全部 `$ref`、Bearer、字符串 ID、201/204 与 400/401/403/404/409/500/503。
-- 数据库集成结束后再次重建 25 表纯种子并清空 Redis DB 15。
+- 数据库集成结束后再次重建 38 表纯种子并清空 Redis DB 15。
 
 ### 商户小程序
 
@@ -289,5 +291,5 @@ affectedEnds: 后端、商户小程序
 
 ## 完成判定
 
-- 后端、25 表快照、93 个运行时操作、现有消费者回归、商户小程序自动化和视觉检查全部通过后，阶段状态才可改为“已实现”。
+- 后端、38 表快照、结构化详情接口、现有消费者回归、商户小程序自动化和视觉检查全部通过后，阶段状态才可改为“已实现”。
 - 后端和商户小程序分别形成包含总结、明细和验证的 Conventional Commit；不得把阶段 21 的平台审核或上下架提前标记完成。
