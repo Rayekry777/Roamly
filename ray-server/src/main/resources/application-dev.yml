@@ -12,6 +12,10 @@ logging:
     com.ray: DEBUG
 
 ray:
+  qr:
+    hmac-secret: ${RAY_QR_HMAC_SECRET:dev-only-qr-secret-change-in-production}
+  payment:
+    mode: MOCK
   auth:
     sms:
       mode: MOCK

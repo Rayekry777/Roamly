@@ -1,8 +1,8 @@
 package com.ray.service;
 
-import com.ray.dto.MerchantApplicationApprovalRequest;
-import com.ray.dto.MerchantApplicationRejectionRequest;
-import com.ray.dto.ShopGovernanceRequest;
+import com.ray.dto.MerchantApplicationApprovalDTO;
+import com.ray.dto.MerchantApplicationRejectionDTO;
+import com.ray.dto.ShopGovernanceDTO;
 import com.ray.enums.MerchantApplicationStatus;
 import com.ray.enums.ShopStatus;
 import com.ray.result.PageResult;
@@ -35,11 +35,11 @@ public interface AdminMerchantGovernanceService {
 
     /** 幂等审核通过申请并在同一事务中创建活动门店和激活店主。 */
     MerchantApplicationReviewResultVO approve(
-            String applicationId, String idempotencyKey, MerchantApplicationApprovalRequest request);
+            String applicationId, String idempotencyKey, MerchantApplicationApprovalDTO request);
 
     /** 幂等驳回申请并在同一事务中迁移店主状态。 */
     MerchantApplicationReviewResultVO reject(
-            String applicationId, String idempotencyKey, MerchantApplicationRejectionRequest request);
+            String applicationId, String idempotencyKey, MerchantApplicationRejectionDTO request);
 
     /** 按经营条件分页查询门店治理摘要。 */
     PageResult<AdminShopListItemVO> listShops(
@@ -50,11 +50,11 @@ public interface AdminMerchantGovernanceService {
 
     /** 幂等停用门店并只联动当前活动账号。 */
     AdminShopGovernanceResultVO suspendShop(
-            String shopId, String idempotencyKey, ShopGovernanceRequest request);
+            String shopId, String idempotencyKey, ShopGovernanceDTO request);
 
     /** 幂等恢复门店并只恢复因门店停用联动的账号。 */
     AdminShopGovernanceResultVO activateShop(
-            String shopId, String idempotencyKey, ShopGovernanceRequest request);
+            String shopId, String idempotencyKey, ShopGovernanceDTO request);
 
     /** 管理端私有媒体内容。 */
     record AdminMediaContent(byte[] content, String mimeType, String filename) {

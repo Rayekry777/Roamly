@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(140, operationIds.size());
+        assertEquals(147, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -228,34 +228,34 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("BusinessMediaVO"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantVoucherProductCreateRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantVoucherProductUpdateRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantVoucherProductSubmitRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantVoucherPackageItemRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductCreateDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductUpdateDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductSubmitDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherPackageItemDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantVoucherPackageItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantVoucherProductVO"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantApplicationApprovalRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantApplicationRejectionRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("ShopGovernanceRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationApprovalDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantApplicationRejectionDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("ShopGovernanceDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationReviewDetailVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationReviewListItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationReviewResultVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminShopDetailVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminShopListItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminShopGovernanceResultVO"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("VoucherReviewApprovalRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("VoucherReviewRejectionRequest"), "schemas=" + schemaNames);
-        assertTrue(schemaNames.contains("MerchantVoucherProductOffSaleRequest"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("VoucherReviewApprovalDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("VoucherReviewRejectionDTO"), "schemas=" + schemaNames);
+        assertTrue(schemaNames.contains("MerchantVoucherProductOffSaleDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminVoucherReviewListItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminVoucherReviewDetailVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminVoucherReviewResultVO"), "schemas=" + schemaNames);
-        assertFalse(schemaNames.contains("PostCreateRequest"));
-        assertFalse(schemaNames.contains("PostUpdateRequest"));
+        assertFalse(schemaNames.contains("PostCreateDTO"));
+        assertFalse(schemaNames.contains("PostUpdateDTO"));
         assertFalse(schemaNames.contains("ApiResponse"));
         assertFalse(schemaNames.contains("ApiErrorResponse"));
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));
         assertSchemaProperties(document, "ErrorResult", Set.of("code", "message", "fieldErrors"));
-        assertSchemaProperties(document, "VoucherRedemptionPreviewRequest", Set.of("code"));
+        assertSchemaProperties(document, "VoucherRedemptionPreviewDTO", Set.of("code"));
         assertSchemaProperties(document, "VoucherRedemptionPreviewVO", Set.of("previewToken", "voucherId", "codeLast4",
                 "productTitle", "productType", "productTypeLabel", "benefitText", "validityText", "usageRules",
                 "remainingUseCount", "expiresAt"));
@@ -267,11 +267,14 @@ class OpenApiAndAuthRuntimeTest {
                 "CursorPageResult",
                 Set.of("items", "nextCursor", "nextOffset", "hasMore"));
         assertSchemaProperties(document, "CommentCreateDTO", Set.of("content"));
+        JsonNode voucherProductProperties = document.at("/components/schemas/VoucherProductVO/properties");
+        assertTrue(voucherProductProperties.has("productType"), "商品券型必须使用 productType");
+        assertFalse(voucherProductProperties.has("saleType"), "不得重新暴露已废弃的 saleType");
         assertSchemaProperties(document, "CommentVO", Set.of("id", "rootId", "author", "replyToUser", "content", "deleted", "postAuthor", "likedCount", "likedByMe", "deletable", "createdTime"));
         assertSchemaProperties(document, "CommentThreadVO", Set.of("root", "previewReplies", "replyCount", "hasMoreReplies", "nextReplyCursor", "nextReplyOffset"));
-        assertSchemaProperties(document, "MerchantApplicationApprovalRequest", Set.of("version"));
-        assertSchemaProperties(document, "MerchantApplicationRejectionRequest", Set.of("version", "reason"));
-        assertSchemaProperties(document, "ShopGovernanceRequest", Set.of("version", "reason"));
+        assertSchemaProperties(document, "MerchantApplicationApprovalDTO", Set.of("version"));
+        assertSchemaProperties(document, "MerchantApplicationRejectionDTO", Set.of("version", "reason"));
+        assertSchemaProperties(document, "ShopGovernanceDTO", Set.of("version", "reason"));
         assertSchemaProperties(
                 document,
                 "MerchantApplicationReviewResultVO",
@@ -299,9 +302,9 @@ class OpenApiAndAuthRuntimeTest {
                         "operatedByAdminName",
                         "operatedAt",
                         "affectedAccountCount"));
-        assertSchemaProperties(document, "VoucherReviewApprovalRequest", Set.of("version"));
-        assertSchemaProperties(document, "VoucherReviewRejectionRequest", Set.of("version", "reason"));
-        assertSchemaProperties(document, "MerchantVoucherProductOffSaleRequest", Set.of("version", "reason"));
+        assertSchemaProperties(document, "VoucherReviewApprovalDTO", Set.of("version"));
+        assertSchemaProperties(document, "VoucherReviewRejectionDTO", Set.of("version", "reason"));
+        assertSchemaProperties(document, "MerchantVoucherProductOffSaleDTO", Set.of("version", "reason"));
         assertRefsResolve(document, document, schemaNames);
     }
 
@@ -411,6 +414,7 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/refunds",
                 "GET /v1/users/me/refunds/{id}",
                 "POST /v1/users/me/vouchers/{voucherId}/refunds",
+                "POST /v1/users/me/refunds",
                 "POST /v1/users/me/orders/{orderId}/payments",
                 "GET /v1/merchant/staff",
                 "POST /v1/merchant/staff-invitations",
@@ -423,18 +427,23 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/redemptions",
                 "POST /v1/merchant/redemptions/{id}/reversal",
                 "GET /v1/merchant/redemptions",
+                "GET /v1/merchant/after-sales",
+                "GET /v1/merchant/after-sales/{id}",
+                "POST /v1/merchant/after-sales",
                 "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
                 "GET /v1/admin/refunds",
                 "GET /v1/admin/refunds/{id}",
                 "POST /v1/admin/refunds/{id}/approval",
                 "POST /v1/admin/refunds/{id}/rejection",
                 "POST /v1/admin/refunds/{id}/retry",
+                "POST /v1/admin/refunds",
                 "GET /v1/admin/redemptions",
                 "GET /v1/admin/redemptions/{id}",
                 "GET /v1/admin/commission-rules",
                 "PUT /v1/admin/commission-rules",
                 "GET /v1/admin/ledger-entries",
                 "GET /v1/merchant/finance/summary",
+                "GET /v1/admin/finance/summary",
                 "GET /v1/admin/settlements",
                 "GET /v1/admin/settlements/{id}",
                 "POST /v1/admin/settlements/{id}/retry",

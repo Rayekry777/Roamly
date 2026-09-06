@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 
 /** 套餐券或次卡服务明细请求。 */
 @Schema(description = "套餐券或次卡服务明细")
-public record MerchantVoucherPackageItemRequest(
+public record MerchantVoucherPackageItemDTO(
         @NotBlank @Size(max = 80) @Schema(description = "服务或商品名称") String name,
         @Min(1) @Max(999) @Schema(description = "数量") int quantity,
         @NotBlank @Size(max = 16) @Schema(description = "单位") String unit,

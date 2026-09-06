@@ -24,6 +24,9 @@ final class MerchantPermissionCatalog {
     static final String STAFF_MANAGE = "merchant:staff:manage";
     /** 查看经营与结算数据。 */
     static final String FINANCE_READ = "merchant:finance:read";
+    /** 查看和发起门店售后申请。 */
+    static final String AFTER_SALES_READ = "merchant:after-sales:read";
+    static final String AFTER_SALES_CREATE = "merchant:after-sales:create";
 
     private MerchantPermissionCatalog() {}
 
@@ -39,10 +42,12 @@ final class MerchantPermissionCatalog {
                     VOUCHER_MANAGE,
                     ORDER_READ,
                     REDEMPTION_MANAGE,
+                    AFTER_SALES_READ, AFTER_SALES_CREATE,
                     STAFF_MANAGE,
                     FINANCE_READ);
             case MANAGER -> List.of(
-                    PROFILE_READ, SHOP_READ, VOUCHER_MANAGE, ORDER_READ, REDEMPTION_MANAGE, FINANCE_READ);
+                PROFILE_READ, SHOP_READ, VOUCHER_MANAGE, ORDER_READ, REDEMPTION_MANAGE,
+                AFTER_SALES_READ, AFTER_SALES_CREATE, FINANCE_READ);
             case VERIFIER -> List.of(PROFILE_READ, REDEMPTION_MANAGE);
         };
     }

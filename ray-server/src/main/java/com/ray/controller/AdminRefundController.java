@@ -2,6 +2,7 @@ package com.ray.controller;
 
 import com.ray.result.PageResult;
 import com.ray.result.Result;
+import com.ray.dto.AdminRefundDTO;
 import com.ray.service.VoucherRefundService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.VoucherRefundVO;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.*;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/v1/admin/refunds")
@@ -28,4 +30,10 @@ public class AdminRefundController {
     public Result<VoucherRefundVO> reject(@PathVariable String id,@RequestHeader("Idempotency-Key") @Pattern(regexp="[A-Za-z0-9._:-]{8,128}") String key,@RequestParam String reason){return Result.ok(service.decide(IdUtils.parse(id,"refundId"),false,reason,key));}
     @PostMapping("/{id}/retry") @Operation(summary="重试退款", operationId="retryAdminRefund")
     public Result<VoucherRefundVO> retry(@PathVariable String id,@RequestHeader("Idempotency-Key") @Pattern(regexp="[A-Za-z0-9._:-]{8,128}") String key){return Result.ok(service.decide(IdUtils.parse(id,"refundId"),true,null,key));}
+    @PostMapping
+    @Operation(summary="管理员发起退款", operationId="createAdminRefund")
+    public Result<VoucherRefundVO> create(@Valid @RequestBody AdminRefundDTO request,
+            @RequestHeader("Idempotency-Key") @Pattern(regexp="[A-Za-z0-9._:-]{8,128}") String key) {
+        return Result.ok(service.adminRequest(request, key));
+    }
 }

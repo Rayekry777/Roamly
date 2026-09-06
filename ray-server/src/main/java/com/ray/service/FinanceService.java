@@ -11,6 +11,7 @@ public interface FinanceService {
     CommissionRuleVO update(String shopId, CommissionRuleUpdateDTO request, String key);
     PageResult<FundLedgerEntryVO> ledger(int page, int size);
     MerchantFinanceSummaryVO merchantSummary();
+    MerchantFinanceSummaryVO adminSummary();
     void append(FundLedgerEntryVO entry);
     void recognizeRedemption(Long redemptionId, UserVoucher voucher, LocalDateTime occurredAt);
     void reverseRedemption(Long redemptionId, UserVoucher voucher, LocalDateTime occurredAt);

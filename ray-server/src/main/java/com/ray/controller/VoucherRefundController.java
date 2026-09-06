@@ -1,6 +1,7 @@
 package com.ray.controller;
 
-import com.ray.dto.VoucherRefundRequest;
+import com.ray.dto.VoucherRefundDTO;
+import com.ray.dto.ConsumerRefundDTO;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.VoucherRefundService;
@@ -23,7 +24,7 @@ public class VoucherRefundController {
     public VoucherRefundController(VoucherRefundService service) { this.service = service; }
     @PostMapping("/v1/users/me/vouchers/{voucherId}/refunds")
     @Operation(summary="申请单券退款", operationId="requestVoucherRefund")
-    public Result<VoucherRefundVO> request(@PathVariable String voucherId, @Valid @RequestBody VoucherRefundRequest request,
+    public Result<VoucherRefundVO> request(@PathVariable String voucherId, @Valid @RequestBody VoucherRefundDTO request,
             @RequestHeader("Idempotency-Key") @Pattern(regexp="[A-Za-z0-9._:-]{8,128}") String key) { return Result.ok(service.request(IdUtils.parse(voucherId,"voucherId"), request, key)); }
     @GetMapping("/v1/users/me/refunds")
     @Operation(summary="查询我的退款", operationId="listMyVoucherRefunds")
@@ -31,4 +32,10 @@ public class VoucherRefundController {
     @GetMapping("/v1/users/me/refunds/{id}")
     @Operation(summary="查询退款详情", operationId="getMyVoucherRefund")
     public Result<VoucherRefundVO> get(@PathVariable String id){return Result.ok(service.get(IdUtils.parse(id,"refundId"),false));}
+    @PostMapping("/v1/users/me/refunds")
+    @Operation(summary="按订单申请退款", operationId="requestOrderRefund")
+    public Result<VoucherRefundVO> requestOrder(@Valid @RequestBody ConsumerRefundDTO request,
+            @RequestHeader("Idempotency-Key") @Pattern(regexp="[A-Za-z0-9._:-]{8,128}") String key) {
+        return Result.ok(service.consumerRequest(request, key));
+    }
 }

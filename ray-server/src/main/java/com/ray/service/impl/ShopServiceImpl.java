@@ -46,6 +46,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
     @Override
     public PageResult<ShopVO> listShops(
             String cityCode, Long typeId, String keyword, String sort, int page, int size, Double longitude, Double latitude) {
+        return listShops(cityCode, typeId, keyword, sort, page, size, null, longitude, latitude);
+    }
+
+    /** 按商品真实关联门店筛选，并在给出完整坐标时计算距离。 */
+    @Override
+    public PageResult<ShopVO> listShops(
+            String cityCode, Long typeId, String keyword, String sort, int page, int size,
+            Long productId, Double longitude, Double latitude) {
         String normalizedCityCode = requireEnabledCity(cityCode);
         ShopSort shopSort = parseSort(sort);
         validateCoordinates(longitude, latitude);
@@ -55,8 +63,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements Sh
         String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
         int offset = Math.multiplyExact(page - 1, size);
         List<Shop> shops = baseMapper.selectEnabledPage(
-                normalizedCityCode, typeId, normalizedKeyword, shopSort.name(), longitude, latitude, offset, size);
-        long total = baseMapper.countEnabledByFilter(normalizedCityCode, typeId, normalizedKeyword);
+                normalizedCityCode, typeId, normalizedKeyword, shopSort.name(), productId,
+                longitude, latitude, offset, size);
+        long total = baseMapper.countEnabledByFilter(normalizedCityCode, typeId, normalizedKeyword, productId);
         return new PageResult<>(
                 shops.stream().map(ViewMapper::toShop).toList(), page, size, total);
     }

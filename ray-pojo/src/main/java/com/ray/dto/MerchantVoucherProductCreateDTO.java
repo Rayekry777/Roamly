@@ -6,5 +6,5 @@ import jakarta.validation.constraints.NotNull;
 
 /** 创建空团购券草稿请求。 */
 @Schema(description = "创建空团购券草稿请求")
-public record MerchantVoucherProductCreateRequest(
+public record MerchantVoucherProductCreateDTO(
         @NotNull @Schema(description = "券型，创建后不可修改") VoucherProductType productType) {}

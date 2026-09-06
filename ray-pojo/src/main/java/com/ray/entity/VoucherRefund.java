@@ -14,11 +14,25 @@ import lombok.experimental.Accessors;
 public class VoucherRefund {
     @TableId(value = "id", type = IdType.INPUT) private Long id;
     private Long voucherId;
+    /** 退款包含的券 ID，逗号分隔；voucherId 保留首券索引。 */
+    private String voucherIds;
     private Long orderId;
     private Long userId;
+    private Long shopId;
+    /** CONSUMER、MERCHANT 或 ADMIN。 */
+    private String source;
+    private Long applicantId;
     private Long amount;
     private String status;
     private String reason;
+    private String description;
+    private String rejectReason;
+    private String failureCode;
+    private String failureMessage;
+    private String providerRefundNo;
+    private Long approvedAmount;
+    private String paymentProvider;
+    private LocalDateTime approvedTime;
     private String idempotencyKey;
     private LocalDateTime requestedTime;
     private LocalDateTime processedTime;

@@ -58,11 +58,18 @@ public class ShopController {
                     @RequestParam(defaultValue = "POPULAR") ShopSort sort,
             @Parameter(description = "页码，从 1 开始") @RequestParam(defaultValue = "1") @Min(1) int page,
             @Parameter(description = "每页条数，1 到 100") @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
+            @Parameter(description = "团购商品 ID，仅返回该商品真实适用门店") @RequestParam(required = false) String productId,
             @Parameter(description = "经度，需与 latitude 同时提供") @RequestParam(required = false) Double longitude,
             @Parameter(description = "纬度，需与 longitude 同时提供") @RequestParam(required = false) Double latitude) {
+        Long parsedTypeId = typeId == null ? null : IdUtils.parse(typeId, "typeId");
+        if (productId != null && !productId.isBlank()) {
+            return Result.ok(shopService.listShops(
+                    cityCode, parsedTypeId, keyword, sort.name(), page, size,
+                    IdUtils.parse(productId, "productId"), longitude, latitude));
+        }
         return Result.ok(shopService.listShops(
                 cityCode,
-                typeId == null ? null : IdUtils.parse(typeId, "typeId"),
+                parsedTypeId,
                 keyword,
                 sort.name(),
                 page,

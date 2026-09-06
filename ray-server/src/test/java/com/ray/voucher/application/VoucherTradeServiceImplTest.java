@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.ray.config.OrderCoordinationProperties;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ray.dto.VoucherOrderCreateDTO;
 import com.ray.entity.Shop;
 import com.ray.entity.VoucherOrder;
@@ -25,6 +27,7 @@ import com.ray.service.CurrentUserProvider;
 import com.ray.service.VoucherProductService;
 import com.ray.service.impl.VoucherTradeServiceImpl;
 import com.ray.utils.generator.RedisIdWorker;
+import com.ray.result.PageResult;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,7 @@ class VoucherTradeServiceImplTest {
     private RLock lock;
     private PlatformTransactionManager transactionManager;
     private TransactionStatus transactionStatus;
+    private CurrentUserProvider currentUserProvider;
     private VoucherTradeServiceImpl service;
 
     @BeforeEach
@@ -58,7 +62,7 @@ class VoucherTradeServiceImplTest {
         lock = mock(RLock.class);
         transactionManager = mock(PlatformTransactionManager.class);
         transactionStatus = mock(TransactionStatus.class);
-        CurrentUserProvider currentUserProvider = mock(CurrentUserProvider.class);
+        currentUserProvider = mock(CurrentUserProvider.class);
         when(currentUserProvider.requireUserId()).thenReturn(7L);
         when(redissonClient.getLock("roamly:lock:voucher-order:7:1001")).thenReturn(lock);
         when(lock.tryLock(1000, TimeUnit.MILLISECONDS)).thenReturn(true);
@@ -153,6 +157,41 @@ class VoucherTradeServiceImplTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    void listsOrdersThroughBaseMapperForRefundAggregate() {
+        VoucherOrder refunding = new VoucherOrder()
+                .setId(6008L).setUserId(7L).setProductId(1001L).setShopId(4L)
+                .setProductTitle("退款订单").setQuantity(1).setUnitPrice(1000L)
+                .setTotalAmount(1000L).setPayAmount(1000L).setStatus("REFUNDING");
+        when(orderMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenAnswer(invocation -> {
+            Page<VoucherOrder> page = invocation.getArgument(0);
+            page.setRecords(java.util.List.of(refunding));
+            page.setTotal(1L);
+            return page;
+        });
+
+        PageResult<?> result = service.listOrders("REFUNDING", 1, 10);
+
+        assertEquals(1L, result.total());
+        assertEquals(1, result.items().size());
+        verify(orderMapper).selectPage(any(Page.class), any(QueryWrapper.class));
+    }
+
+    @Test
+    void returnsEmptyPageWhenUserHasNoOrders() {
+        when(orderMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenAnswer(invocation -> {
+            Page<VoucherOrder> page = invocation.getArgument(0);
+            page.setRecords(java.util.List.of());
+            page.setTotal(0L);
+            return page;
+        });
+
+        PageResult<?> result = service.listOrders(null, 1, 10);
+
+        assertEquals(0L, result.total());
+        assertTrue(result.items().isEmpty());
     }
 
     private void preparePurchasableProduct(int purchaseLimit) {

@@ -14,7 +14,6 @@ public record VoucherOrderConfirmationVO(
         Integer minQuantity,
         Integer maxQuantity,
         Long totalAmount,
-        Long discountAmount,
         Long payAmount,
         Integer availableStock,
         LocalDateTime serverTime,

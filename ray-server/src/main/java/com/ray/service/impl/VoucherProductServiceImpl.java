@@ -9,6 +9,11 @@ import com.ray.dto.BusinessDayHoursDTO;
 import com.ray.entity.City;
 import com.ray.entity.Shop;
 import com.ray.entity.VoucherPackageItem;
+import com.ray.entity.VoucherProductDetail;
+import com.ray.entity.VoucherProductTag;
+import com.ray.entity.VoucherProductCashRule;
+import com.ray.entity.VoucherProductDiscountRule;
+import com.ray.entity.VoucherProductMultiUseRule;
 import com.ray.entity.VoucherProduct;
 import com.ray.enums.EnableStatus;
 import com.ray.enums.ShopStatus;
@@ -20,6 +25,11 @@ import com.ray.enums.VoucherValidityType;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.VoucherPackageItemMapper;
+import com.ray.mapper.VoucherProductDetailMapper;
+import com.ray.mapper.VoucherProductTagMapper;
+import com.ray.mapper.VoucherProductCashRuleMapper;
+import com.ray.mapper.VoucherProductDiscountRuleMapper;
+import com.ray.mapper.VoucherProductMultiUseRuleMapper;
 import com.ray.mapper.VoucherProductMapper;
 import com.ray.result.PageResult;
 import com.ray.service.CityService;
@@ -28,9 +38,14 @@ import com.ray.utils.converter.IdUtils;
 import com.ray.utils.converter.VoucherProductPresentation;
 import com.ray.vo.ShopSummaryVO;
 import com.ray.vo.VoucherPackageItemVO;
-import com.ray.vo.VoucherProductDetailVO;
+import com.ray.vo.VoucherProductSectionVO;
 import com.ray.vo.VoucherProductListItemVO;
 import com.ray.vo.VoucherProductVO;
+import com.ray.vo.VoucherProductDetailVO;
+import com.ray.vo.VoucherProductTagVO;
+import com.ray.vo.VoucherProductCashRuleVO;
+import com.ray.vo.VoucherProductDiscountRuleVO;
+import com.ray.vo.VoucherProductMultiUseRuleVO;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -46,16 +61,31 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
     private final ShopMapper shopMapper;
     private final CityService cityService;
     private final VoucherPackageItemMapper itemMapper;
+    private final VoucherProductDetailMapper detailMapper;
+    private final VoucherProductTagMapper tagMapper;
+    private final VoucherProductCashRuleMapper cashRuleMapper;
+    private final VoucherProductDiscountRuleMapper discountRuleMapper;
+    private final VoucherProductMultiUseRuleMapper multiUseRuleMapper;
     private final ObjectMapper objectMapper;
 
     public VoucherProductServiceImpl(
             ShopMapper shopMapper,
             CityService cityService,
             VoucherPackageItemMapper itemMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            VoucherProductDetailMapper detailMapper,
+            VoucherProductTagMapper tagMapper,
+            VoucherProductCashRuleMapper cashRuleMapper,
+            VoucherProductDiscountRuleMapper discountRuleMapper,
+            VoucherProductMultiUseRuleMapper multiUseRuleMapper) {
         this.shopMapper = shopMapper;
         this.cityService = cityService;
         this.itemMapper = itemMapper;
+        this.detailMapper = detailMapper;
+        this.tagMapper = tagMapper;
+        this.cashRuleMapper = cashRuleMapper;
+        this.discountRuleMapper = discountRuleMapper;
+        this.multiUseRuleMapper = multiUseRuleMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -114,8 +144,6 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
 
     private VoucherProductVO toVO(
             VoucherProduct product, Shop shop, VoucherSaleStatus knownSaleStatus) {
-        Long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
-                ? null : Math.max(0L, product.getMarketAmount() - product.getPriceAmount());
         VoucherProductType type = VoucherProductType.valueOf(product.getProductType());
         VoucherSaleStatus sale = knownSaleStatus == null ? effectiveSaleStatus(product, shop) : knownSaleStatus;
         VoucherValidityType validity = product.getValidityType() == null
@@ -129,21 +157,49 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
                         IdUtils.format(item.getId()), item.getName(), item.getQuantity(), item.getUnit(),
                         item.getUnitPriceAmount(), item.getSortOrder()))
                 .toList();
+        List<VoucherProductSectionVO> details = detailMapper == null ? List.of() : detailMapper.selectList(
+                        new LambdaQueryWrapper<VoucherProductDetail>().eq(VoucherProductDetail::getProductId, product.getId())
+                                .orderByAsc(VoucherProductDetail::getSortOrder, VoucherProductDetail::getId))
+                .stream().map(d -> new VoucherProductSectionVO(IdUtils.format(d.getId()), d.getSectionType(), d.getTitle(), d.getContent(), d.getSortOrder())).toList();
+        List<VoucherProductTagVO> tags = tagMapper == null ? List.of() : tagMapper.selectList(
+                        new LambdaQueryWrapper<VoucherProductTag>().eq(VoucherProductTag::getProductId, product.getId())
+                                .orderByAsc(VoucherProductTag::getSortOrder, VoucherProductTag::getId))
+                .stream().map(t -> new VoucherProductTagVO(IdUtils.format(t.getId()), t.getText(), t.getIconKey(), t.getColorToken(), t.getSortOrder())).toList();
+        VoucherProductCashRule cash = cashRuleMapper == null ? null : cashRuleMapper.selectById(product.getId());
+        VoucherProductDiscountRule discount = discountRuleMapper == null ? null : discountRuleMapper.selectById(product.getId());
+        VoucherProductMultiUseRule multi = multiUseRuleMapper == null ? null : multiUseRuleMapper.selectById(product.getId());
         return new VoucherProductVO(
                 IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
                 product.getSubTitle(), publicCoverPath(product), product.getPriceAmount(), product.getMarketAmount(),
-                discount, product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
+                product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
                 product.getProductType(), sale == null ? product.getSaleStatus() : sale.name(),
                 product.getSaleBeginTime(), product.getSaleEndTime(),
                 VoucherProductPresentation.validityText(product), VoucherProductPresentation.usageRules(product),
                 type.label(), sale == null ? null : sale.label(), product.getFaceValueAmount(),
-                product.getMinimumSpendAmount(), product.getDiscountRateBps(), product.getMaximumDiscountAmount(),
+                product.getMinimumSpendAmount(),
                 product.getTotalUseCount(), validity == null ? null : validity.label(),
                 product.getValidBeginTime(), product.getValidEndTime(), product.getValidDays(),
                 readJson(product.getUsageRulesJson(), RULES_TYPE),
                 readJson(product.getExcludedDatesJson(), DATES_TYPE),
                 product.getReservationRequired(), product.getReservationNotice(), product.getStackable(),
-                product.getRefundAnytime(), product.getRefundExpired(), items);
+                product.getRefundAnytime(), product.getRefundExpired(), items, details, tags,
+                cash == null ? null : new VoucherProductCashRuleVO(cash.getFaceValueAmount(), cash.getMinimumSpendAmount(), cash.getDescription()),
+                discount == null ? null : new VoucherProductDiscountRuleVO(discount.getDiscountText(), discount.getApplicableScope(), discount.getUsagePeriodText(), discount.getDescription()),
+                multi == null ? null : new VoucherProductMultiUseRuleVO(multi.getTotalUseCount(), multi.getUseUnit(), multi.getDescription()),
+                voucherLabel(type, product, discount));
+    }
+
+    private String voucherLabel(VoucherProductType type, VoucherProduct product, VoucherProductDiscountRule discount) {
+        if (type == VoucherProductType.CASH && product.getFaceValueAmount() != null) {
+            String amount = String.format(java.util.Locale.ROOT, "%.2f", product.getFaceValueAmount() / 100.0).replaceAll("\\.?0+$", "");
+            return amount + "元代金券";
+        }
+        if (type == VoucherProductType.MULTI_USE && product.getTotalUseCount() != null) return product.getTotalUseCount() + "次卡";
+        if (type == VoucherProductType.DISCOUNT) {
+            String text = discount == null ? null : discount.getDiscountText();
+            return text == null || text.isBlank() ? null : text.trim();
+        }
+        return null;
     }
 
     private VoucherProductListItemVO toListItem(VoucherProduct product) {

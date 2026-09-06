@@ -14,6 +14,10 @@ logging:
     com.ray: INFO
 
 ray:
+  qr:
+    hmac-secret: ${RAY_QR_HMAC_SECRET:test-qr-secret}
+  payment:
+    mode: MOCK
   auth:
     sms:
       mode: MOCK

@@ -1,6 +1,6 @@
 package com.ray.controller;
 
-import com.ray.dto.ShopGovernanceRequest;
+import com.ray.dto.ShopGovernanceDTO;
 import com.ray.enums.ShopStatus;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
@@ -92,7 +92,7 @@ public class AdminShopGovernanceController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody ShopGovernanceRequest request) {
+            @Valid @RequestBody ShopGovernanceDTO request) {
         return Result.ok(service.suspendShop(shopId, idempotencyKey, request));
     }
 
@@ -110,7 +110,7 @@ public class AdminShopGovernanceController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody ShopGovernanceRequest request) {
+            @Valid @RequestBody ShopGovernanceDTO request) {
         return Result.ok(service.activateShop(shopId, idempotencyKey, request));
     }
 

@@ -31,6 +31,7 @@ public interface ShopMapper extends BaseMapper<Shop> {
             + "FROM shop s WHERE s.status = 'ACTIVE' AND s.city_code = #{cityCode} "
             + "<if test='typeId != null'>AND s.type_id = #{typeId} </if>"
             + "<if test='keyword != null and keyword != \"\"'>AND s.name LIKE CONCAT('%', #{keyword}, '%') </if>"
+            + "<if test='productId != null'>AND EXISTS (SELECT 1 FROM voucher_product vp WHERE vp.id = #{productId} AND vp.shop_id = s.id) </if>"
             + "<choose>"
             + "<when test='sort == \"DISTANCE\"'>ORDER BY distance ASC, s.id ASC </when>"
             + "<when test='sort == \"SCORE\"'>ORDER BY s.score DESC, s.id ASC </when>"
@@ -41,6 +42,7 @@ public interface ShopMapper extends BaseMapper<Shop> {
             @Param("typeId") Long typeId,
             @Param("keyword") String keyword,
             @Param("sort") String sort,
+            @Param("productId") Long productId,
             @Param("longitude") Double longitude,
             @Param("latitude") Double latitude,
             @Param("offset") int offset,
@@ -49,9 +51,11 @@ public interface ShopMapper extends BaseMapper<Shop> {
     /** 统计与地理筛选相同条件的启用商户数量。 */
     @Select("<script>SELECT COUNT(*) FROM shop s WHERE s.status = 'ACTIVE' AND s.city_code = #{cityCode} "
             + "<if test='typeId != null'>AND s.type_id = #{typeId} </if>"
-            + "<if test='keyword != null and keyword != \"\"'>AND s.name LIKE CONCAT('%', #{keyword}, '%') </if></script>")
+            + "<if test='keyword != null and keyword != \"\"'>AND s.name LIKE CONCAT('%', #{keyword}, '%') </if>"
+            + "<if test='productId != null'>AND EXISTS (SELECT 1 FROM voucher_product vp WHERE vp.id = #{productId} AND vp.shop_id = s.id) </if></script>")
     long countEnabledByFilter(
             @Param("cityCode") String cityCode,
             @Param("typeId") Long typeId,
-            @Param("keyword") String keyword);
+            @Param("keyword") String keyword,
+            @Param("productId") Long productId);
 }

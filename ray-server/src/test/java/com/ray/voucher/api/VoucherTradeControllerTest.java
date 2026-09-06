@@ -51,7 +51,7 @@ class VoucherTradeControllerTest {
     @Test
     void confirmsServerCalculatedOrderSnapshot() throws Exception {
         when(tradeService.confirmOrder(1001L, 2)).thenReturn(new VoucherOrderConfirmationVO(
-                "1001", "4", "套餐", 8000L, 2, 1, 3, 16000L, 2000L, 16000L, 3,
+                "1001", "4", "套餐", 8000L, 2, 1, 3, 16000L, 16000L, 3,
                 LocalDateTime.now(), LocalDateTime.now().plusMinutes(15)));
         mockMvc.perform(post("/v1/voucher-products/1001/order-confirmations")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"quantity\":2}"))

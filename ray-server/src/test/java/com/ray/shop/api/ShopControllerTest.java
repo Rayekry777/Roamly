@@ -64,6 +64,21 @@ class ShopControllerTest {
         verify(shopService).listShops("330100", 2L, "咖啡", "DISTANCE", 2, 10, 120.1, 30.2);
     }
 
+    /** 商品详情传入商品 ID 时只查询真实关联门店。 */
+    @Test
+    void delegatesProductFilter() throws Exception {
+        when(shopService.listShops("330100", null, null, "POPULAR", 1, 10, 9001L, null, null))
+                .thenReturn(new PageResult<>(List.of(), 1, 10, 0));
+
+        mockMvc.perform(get("/v1/shops")
+                        .param("cityCode", "330100")
+                        .param("productId", "9001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        verify(shopService).listShops("330100", null, null, "POPULAR", 1, 10, 9001L, null, null);
+    }
+
     /** 商户详情将可选坐标透传到服务层，以便返回距离。 */
     @Test
     void delegatesDetailCoordinates() throws Exception {

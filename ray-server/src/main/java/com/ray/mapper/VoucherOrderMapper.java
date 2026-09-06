@@ -10,9 +10,12 @@ import java.util.List;
 
 /** 优惠券订单表的数据访问接口。 */
 public interface VoucherOrderMapper extends BaseMapper<VoucherOrder> {
-    /** 汇总用户对指定商品全部未取消订单的购买数量。 */
+    /** 汇总仍占用用户限购额度的有效订单，已退款或已过期券不再占用额度。 */
     @Select("SELECT COALESCE(SUM(quantity), 0) FROM voucher_order "
-            + "WHERE user_id = #{userId} AND product_id = #{productId} AND status != #{canceledStatus}")
+            + "o WHERE o.user_id = #{userId} AND o.product_id = #{productId} "
+            + "AND o.status != #{canceledStatus} AND o.status IN ('PENDING_PAYMENT', 'PAID') "
+            + "AND NOT EXISTS (SELECT 1 FROM user_voucher v "
+            + "WHERE v.order_id = o.id AND v.status IN ('EXPIRED', 'REFUNDED'))")
     long sumNonCanceledQuantity(
             @Param("userId") Long userId,
             @Param("productId") Long productId,

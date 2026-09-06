@@ -96,14 +96,33 @@ public class FinanceServiceImpl implements FinanceService {
         long frozen = 0;
         long recognized = 0;
         long commission = 0;
+        long refunded = 0;
         for (FundLedgerEntry entry : entries) {
             if ("PAYMENT_FROZEN".equals(entry.getEntryType())) frozen += entry.getAmount();
             if ("REDEMPTION_RECOGNIZED".equals(entry.getEntryType())) recognized += entry.getAmount();
             if ("COMMISSION_RECOGNIZED".equals(entry.getEntryType())) commission += entry.getAmount();
             if ("REDEMPTION_REVERSED".equals(entry.getEntryType())) recognized += entry.getAmount();
             if ("COMMISSION_REVERSED".equals(entry.getEntryType())) commission += entry.getAmount();
+            if ("REFUND_REVERSED".equals(entry.getEntryType())) { frozen += entry.getAmount(); refunded += Math.abs(entry.getAmount()); }
         }
-        return new MerchantFinanceSummaryVO(frozen, recognized, commission, recognized - commission);
+        long net = frozen + recognized - commission;
+        return new MerchantFinanceSummaryVO(frozen, recognized, commission, net, refunded, net, 0L);
+    }
+
+    @Override
+    public MerchantFinanceSummaryVO adminSummary() {
+        admin.requirePermission(AdminPermissions.COMMISSION_MANAGE);
+        var entries = ledgerMapper.selectList(new QueryWrapper<FundLedgerEntry>());
+        long frozen = 0, recognized = 0, commission = 0, refunded = 0;
+        for (FundLedgerEntry entry : entries) {
+            long amount = entry.getAmount() == null ? 0 : entry.getAmount();
+            if ("PAYMENT_FROZEN".equals(entry.getEntryType())) frozen += amount;
+            if ("REDEMPTION_RECOGNIZED".equals(entry.getEntryType()) || "REDEMPTION_REVERSED".equals(entry.getEntryType())) recognized += amount;
+            if ("COMMISSION_RECOGNIZED".equals(entry.getEntryType()) || "COMMISSION_REVERSED".equals(entry.getEntryType())) commission += amount;
+            if ("REFUND_REVERSED".equals(entry.getEntryType())) { frozen += amount; refunded += Math.abs(amount); }
+        }
+        long net = frozen + recognized - commission;
+        return new MerchantFinanceSummaryVO(frozen, recognized, commission, net, refunded, net, 0L);
     }
 
     @Override

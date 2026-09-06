@@ -1,9 +1,9 @@
 package com.ray.controller;
 
-import com.ray.dto.MerchantVoucherProductCreateRequest;
-import com.ray.dto.MerchantVoucherProductOffSaleRequest;
-import com.ray.dto.MerchantVoucherProductSubmitRequest;
-import com.ray.dto.MerchantVoucherProductUpdateRequest;
+import com.ray.dto.MerchantVoucherProductCreateDTO;
+import com.ray.dto.MerchantVoucherProductOffSaleDTO;
+import com.ray.dto.MerchantVoucherProductSubmitDTO;
+import com.ray.dto.MerchantVoucherProductUpdateDTO;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
@@ -79,7 +79,7 @@ public class MerchantVoucherProductController {
         @ApiResponse(responseCode = "500", description = "服务内部错误", content = @Content(schema = @Schema(implementation = ErrorResult.class)))
     })
     public ResponseEntity<Result<MerchantVoucherProductVO>> create(
-            @Valid @RequestBody MerchantVoucherProductCreateRequest request) {
+            @Valid @RequestBody MerchantVoucherProductCreateDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(service.create(request)));
     }
 
@@ -114,7 +114,7 @@ public class MerchantVoucherProductController {
     })
     public Result<MerchantVoucherProductVO> update(
             @PathVariable String productId,
-            @Valid @RequestBody MerchantVoucherProductUpdateRequest request) {
+            @Valid @RequestBody MerchantVoucherProductUpdateDTO request) {
         return Result.ok(service.update(IdUtils.parse(productId, "productId"), request));
     }
 
@@ -166,7 +166,7 @@ public class MerchantVoucherProductController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody MerchantVoucherProductSubmitRequest request) {
+            @Valid @RequestBody MerchantVoucherProductSubmitDTO request) {
         return Result.ok(service.submit(IdUtils.parse(productId, "productId"), idempotencyKey, request));
     }
 
@@ -187,7 +187,7 @@ public class MerchantVoucherProductController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody MerchantVoucherProductOffSaleRequest request) {
+            @Valid @RequestBody MerchantVoucherProductOffSaleDTO request) {
         return Result.ok(service.offSale(IdUtils.parse(productId, "productId"), idempotencyKey, request));
     }
 }

@@ -26,8 +26,6 @@ public class VoucherProduct implements Serializable {
     private Long marketAmount;
     private Long faceValueAmount;
     private Long minimumSpendAmount;
-    private Integer discountRateBps;
-    private Long maximumDiscountAmount;
     private Integer totalUseCount;
     private Integer totalStock;
     private Integer availableStock;

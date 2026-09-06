@@ -2,6 +2,7 @@ package com.ray.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import cn.hutool.crypto.digest.DigestUtil;
 import com.ray.config.OrderCoordinationProperties;
@@ -93,12 +94,10 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 && alreadyPurchased + quantity > product.getPurchaseLimit())
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
         long total = amount(product.getPriceAmount(), quantity);
-        long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
-                ? 0L : Math.max(0L, amount(product.getMarketAmount() - product.getPriceAmount(), quantity));
         LocalDateTime now = LocalDateTime.now();
         return new VoucherOrderConfirmationVO(
                 IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
-                product.getPriceAmount(), quantity, 1, maxQuantity, total, discount, total,
+                product.getPriceAmount(), quantity, 1, maxQuantity, total, total,
                 product.getAvailableStock(), now, now.plusMinutes(15));
     }
 
@@ -210,9 +209,22 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = currentUserProvider.requireUserId();
         validatePage(page, size);
         Page<VoucherOrder> result = new Page<>(page, size);
-        var wrapper = query().eq("user_id", userId).orderByDesc("create_time").orderByDesc("id");
-        if (status != null && !status.isBlank()) wrapper.eq("status", parseStatus(status).name());
-        result = page(result, wrapper);
+        QueryWrapper<VoucherOrder> wrapper = new QueryWrapper<VoucherOrder>()
+                .eq("user_id", userId)
+                .orderByDesc("create_time")
+                .orderByDesc("id");
+        String normalizedStatus = status == null ? null : status.trim();
+        if (normalizedStatus != null && !normalizedStatus.isBlank()) {
+            // 消费者订单页的“退款/售后”是聚合页签，需同时包含退款处理中和已完成退款。
+            if (VoucherOrderStatus.REFUNDING.name().equalsIgnoreCase(normalizedStatus)) {
+                wrapper.in("status", VoucherOrderStatus.REFUNDING.name(), VoucherOrderStatus.REFUNDED.name());
+            } else {
+                wrapper.eq("status", parseStatus(normalizedStatus).name());
+            }
+        }
+        // 直接调用 BaseMapper，避免把 ChainQuery 当成分页 wrapper 传入 MyBatis-Plus。
+        // ChainQuery 的 getSqlFirst/getSqlComment 是故意禁止调用的，分页插件会在解析 ew 时触发它们。
+        result = getBaseMapper().selectPage(result, wrapper);
         return new PageResult<>(result.getRecords().stream().map(order -> toOrderVO(order, null)).toList(), page, size,
                 result.getTotal());
     }
@@ -295,11 +307,21 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private VoucherOrderVO toOrderVO(VoucherOrder order, VoucherProductVO product) {
         String status = order.getStatus() == null ? VoucherOrderStatus.PENDING_PAYMENT.name() : order.getStatus();
         LocalDateTime expire = order.getPaymentExpireTime();
+        String productCover = product == null ? null : product.cover();
+        if (productCover == null && order.getProductId() != null) {
+            VoucherProduct orderedProduct = productMapper.selectById(order.getProductId());
+            productCover = orderedProduct == null ? null : publicCoverPath(orderedProduct);
+        }
         return new VoucherOrderVO(IdUtils.format(order.getId()), IdUtils.format(order.getId()), IdUtils.format(order.getUserId()),
                 IdUtils.format(order.getShopId()), IdUtils.format(order.getProductId()), order.getProductTitle(),
                 order.getQuantity() == null ? 1 : order.getQuantity(), order.getUnitPrice(), order.getTotalAmount(),
                 order.getPayAmount(), status, order.getCreateTime(), order.getPayTime(),
-                status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire);
+                status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire, productCover);
+    }
+
+    private String publicCoverPath(VoucherProduct product) {
+        return product.getCoverMediaId() == null ? null
+                : "/v1/voucher-products/" + product.getId() + "/media/" + product.getCoverMediaId() + "/content";
     }
 
     private boolean isPurchasable(VoucherProduct product, Shop shop) {
@@ -342,12 +364,10 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     private VoucherProductVO toProductVO(VoucherProduct product) {
-        Long discount = product.getMarketAmount() == null || product.getPriceAmount() == null
-                ? null : Math.max(0L, product.getMarketAmount() - product.getPriceAmount());
         String saleStatus = product.getSaleStatus();
         return new VoucherProductVO(IdUtils.format(product.getId()), IdUtils.format(product.getShopId()),
-                product.getTitle(), product.getSubTitle(), null, product.getPriceAmount(), product.getMarketAmount(),
-                discount, product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
+                product.getTitle(), product.getSubTitle(), publicCoverPath(product), product.getPriceAmount(), product.getMarketAmount(),
+                product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(),
                 product.getProductType(), saleStatus, product.getSaleBeginTime(), product.getSaleEndTime(),
                 VoucherProductPresentation.validityText(product), VoucherProductPresentation.usageRules(product));
     }

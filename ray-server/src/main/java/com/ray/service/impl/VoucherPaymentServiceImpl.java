@@ -2,7 +2,7 @@ package com.ray.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.ray.config.PaymentProperties;
-import com.ray.dto.VoucherPaymentRequest;
+import com.ray.dto.VoucherPaymentDTO;
 import com.ray.entity.PaymentTransaction;
 import com.ray.entity.VoucherOrder;
 import com.ray.enums.VoucherOrderStatus;
@@ -57,9 +57,10 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         this.realtimeEvents = realtimeEvents;
     }
 
+    /** 按服务端支付模式执行订单支付，并在 Mock 成功时完成发券与账本冻结。 */
     @Transactional
     @Override
-    public VoucherPaymentVO pay(Long orderId, VoucherPaymentRequest request, String idempotencyKey) {
+    public VoucherPaymentVO pay(Long orderId, VoucherPaymentDTO request, String idempotencyKey) {
         Long userId = currentUserProvider.requireUserId();
         if (idempotencyKey == null || idempotencyKey.isBlank())
             throw BusinessException.badRequest("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key 不能为空");
@@ -79,9 +80,13 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
             throw BusinessException.conflict("ORDER_PAYMENT_EXPIRED", "订单支付已超时");
         }
         String mode = properties.getMode();
-        if ("DISABLED".equals(mode) || "WECHAT".equals(mode))
-            throw new BusinessException(503, "PAYMENT_SERVICE_UNAVAILABLE", "支付服务暂不可用");
-        String scenario = request == null ? "MOCK_SUCCESS" : request.scenario();
+        if ("DISABLED".equals(mode)) {
+            return unavailable(order, mode, "支付渠道暂未启用，订单已保存，可稍后支付");
+        }
+        if ("WECHAT".equals(mode)) {
+            return unavailable(order, mode, "微信支付尚未配置，订单已保存，可稍后支付");
+        }
+        String scenario = request == null || request.scenario() == null ? "MOCK_SUCCESS" : request.scenario();
         PaymentTransaction tx = new PaymentTransaction().setId(idWorker.nextId("payment-transaction"))
                 .setOrderId(orderId).setUserId(userId).setIdempotencyKey(idempotencyKey).setProvider("MOCK")
                 .setAmount(order.getPayAmount()).setCreatedTime(now).setUpdatedTime(now);
@@ -97,6 +102,7 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         try { transactionMapper.insert(tx); } catch (DuplicateKeyException ignored) {
             PaymentTransaction retry = transactionMapper.findByOrderAndKey(orderId, idempotencyKey);
             if (retry != null) return toVO(retry, order);
+            throw BusinessException.conflict("PAYMENT_IDEMPOTENCY_CONFLICT", "支付请求正在处理中，请稍后重试");
         }
         settlementService.confirmPaid(orderId, now);
         financeService.append(new FundLedgerEntryVO(null, order.getShopId().toString(), order.getId().toString(), null,
@@ -105,9 +111,36 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         return toVO(tx, orderMapper.selectById(orderId));
     }
 
+    /** 返回当前订单可用的支付渠道和支付有效期，不改变订单状态。 */
+    @Override
+    public VoucherPaymentVO prepare(Long orderId) {
+        Long userId = currentUserProvider.requireUserId();
+        VoucherOrder order = orderMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<VoucherOrder>()
+                .eq("id", orderId).eq("user_id", userId));
+        if (order == null) throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
+        if (!VoucherOrderStatus.PENDING_PAYMENT.name().equals(order.getStatus())) {
+            throw BusinessException.conflict("ORDER_STATUS_CONFLICT", "订单当前不可支付");
+        }
+        if (order.getPaymentExpireTime() != null && !order.getPaymentExpireTime().isAfter(LocalDateTime.now())) {
+            throw BusinessException.conflict("ORDER_PAYMENT_EXPIRED", "订单支付已超时");
+        }
+        String mode = properties.getMode();
+        if ("DISABLED".equals(mode)) return unavailable(order, mode, "支付渠道暂未启用，订单已保存，可稍后支付");
+        if ("WECHAT".equals(mode)) return unavailable(order, mode, "微信支付尚未配置，订单已保存，可稍后支付");
+        return new VoucherPaymentVO("MOCK", true, "", null, null, IdUtils.format(order.getId()),
+                "PENDING", order.getPayAmount(), null, order.getPaymentExpireTime());
+    }
+
     private VoucherPaymentVO toVO(PaymentTransaction tx, VoucherOrder order) {
-        return new VoucherPaymentVO(IdUtils.format(tx.getId()), IdUtils.format(tx.getOrderId()), tx.getStatus(),
+        return new VoucherPaymentVO(tx.getProvider() == null ? "MOCK" : tx.getProvider(), true, "", null,
+                IdUtils.format(tx.getId()), IdUtils.format(tx.getOrderId()), tx.getStatus(),
                 tx.getAmount(), VoucherPaymentStatus.SUCCEEDED.name().equals(tx.getStatus()) ? order.getPayTime() : null,
+                order.getPaymentExpireTime());
+    }
+
+    private VoucherPaymentVO unavailable(VoucherOrder order, String mode, String message) {
+        return new VoucherPaymentVO(mode, false, message, null, null,
+                IdUtils.format(order.getId()), "PENDING", order.getPayAmount(), null,
                 order.getPaymentExpireTime());
     }
 }

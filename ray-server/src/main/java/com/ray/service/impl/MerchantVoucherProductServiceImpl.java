@@ -8,14 +8,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.dto.BusinessDayHoursDTO;
 import com.ray.dto.BusinessPeriodDTO;
-import com.ray.dto.MerchantVoucherPackageItemRequest;
-import com.ray.dto.MerchantVoucherProductCreateRequest;
-import com.ray.dto.MerchantVoucherProductOffSaleRequest;
-import com.ray.dto.MerchantVoucherProductSubmitRequest;
-import com.ray.dto.MerchantVoucherProductUpdateRequest;
+import com.ray.dto.MerchantVoucherPackageItemDTO;
+import com.ray.dto.MerchantVoucherProductCreateDTO;
+import com.ray.dto.MerchantVoucherProductOffSaleDTO;
+import com.ray.dto.MerchantVoucherProductSubmitDTO;
+import com.ray.dto.MerchantVoucherProductUpdateDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.VoucherPackageItem;
 import com.ray.entity.VoucherProduct;
+import com.ray.entity.VoucherProductDetail;
+import com.ray.entity.VoucherProductTag;
+import com.ray.entity.VoucherProductCashRule;
+import com.ray.entity.VoucherProductDiscountRule;
+import com.ray.entity.VoucherProductMultiUseRule;
 import com.ray.enums.BusinessDayOfWeek;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.MerchantRole;
@@ -27,6 +32,11 @@ import com.ray.exception.BusinessException;
 import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.VoucherPackageItemMapper;
 import com.ray.mapper.VoucherProductMapper;
+import com.ray.mapper.VoucherProductDetailMapper;
+import com.ray.mapper.VoucherProductTagMapper;
+import com.ray.mapper.VoucherProductCashRuleMapper;
+import com.ray.mapper.VoucherProductDiscountRuleMapper;
+import com.ray.mapper.VoucherProductMultiUseRuleMapper;
 import com.ray.result.PageResult;
 import com.ray.service.BusinessMediaService;
 import com.ray.service.MerchantAuditService;
@@ -36,6 +46,11 @@ import com.ray.utils.converter.IdUtils;
 import com.ray.vo.BusinessMediaVO;
 import com.ray.vo.MerchantVoucherPackageItemVO;
 import com.ray.vo.MerchantVoucherProductVO;
+import com.ray.vo.VoucherProductSectionVO;
+import com.ray.vo.VoucherProductTagVO;
+import com.ray.vo.VoucherProductCashRuleVO;
+import com.ray.vo.VoucherProductDiscountRuleVO;
+import com.ray.vo.VoucherProductMultiUseRuleVO;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,6 +78,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     private static final TypeReference<List<LocalDate>> DATES_TYPE = new TypeReference<>() {};
     private static final String AUDIT_OBJECT = "VOUCHER_PRODUCT";
     private static final String SUCCEEDED = "SUCCEEDED";
+    private static final Set<String> ICON_KEYS = Set.of("shop", "coupon", "star", "file", "scan", "refresh", "info", "location");
 
     private final VoucherProductMapper productMapper;
     private final VoucherPackageItemMapper itemMapper;
@@ -71,7 +87,13 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     private final BusinessMediaService businessMediaService;
     private final MerchantAuditService merchantAuditService;
     private final ObjectMapper objectMapper;
+    private final VoucherProductDetailMapper detailMapper;
+    private final VoucherProductTagMapper tagMapper;
+    private final VoucherProductCashRuleMapper cashRuleMapper;
+    private final VoucherProductDiscountRuleMapper discountRuleMapper;
+    private final VoucherProductMultiUseRuleMapper multiUseRuleMapper;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public MerchantVoucherProductServiceImpl(
             VoucherProductMapper productMapper,
             VoucherPackageItemMapper itemMapper,
@@ -79,7 +101,12 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             MerchantAuthService merchantAuthService,
             BusinessMediaService businessMediaService,
             MerchantAuditService merchantAuditService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            VoucherProductDetailMapper detailMapper,
+            VoucherProductTagMapper tagMapper,
+            VoucherProductCashRuleMapper cashRuleMapper,
+            VoucherProductDiscountRuleMapper discountRuleMapper,
+            VoucherProductMultiUseRuleMapper multiUseRuleMapper) {
         this.productMapper = productMapper;
         this.itemMapper = itemMapper;
         this.orderMapper = orderMapper;
@@ -87,6 +114,20 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         this.businessMediaService = businessMediaService;
         this.merchantAuditService = merchantAuditService;
         this.objectMapper = objectMapper;
+        this.detailMapper = detailMapper;
+        this.tagMapper = tagMapper;
+        this.cashRuleMapper = cashRuleMapper;
+        this.discountRuleMapper = discountRuleMapper;
+        this.multiUseRuleMapper = multiUseRuleMapper;
+    }
+
+    public MerchantVoucherProductServiceImpl(
+            VoucherProductMapper productMapper, VoucherPackageItemMapper itemMapper,
+            VoucherOrderMapper orderMapper, MerchantAuthService merchantAuthService,
+            BusinessMediaService businessMediaService, MerchantAuditService merchantAuditService,
+            ObjectMapper objectMapper) {
+        this(productMapper, itemMapper, orderMapper, merchantAuthService, businessMediaService,
+                merchantAuditService, objectMapper, null, null, null, null, null);
     }
 
     /** 按当前账号门店强制隔离，并对可选筛选值做枚举校验。 */
@@ -120,7 +161,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     /** 创建仅固定券型和门店的空草稿。 */
     @Override
     @Transactional
-    public MerchantVoucherProductVO create(MerchantVoucherProductCreateRequest request) {
+    public MerchantVoucherProductVO create(MerchantVoucherProductCreateDTO request) {
         MerchantAccount account = requireVoucherManager();
         VoucherProduct product = new VoucherProduct()
                 .setShopId(account.getShopId())
@@ -157,7 +198,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     /** 锁定商品后覆盖完整快照，并同步明细、媒体和审计。 */
     @Override
     @Transactional
-    public MerchantVoucherProductVO update(Long productId, MerchantVoucherProductUpdateRequest request) {
+    public MerchantVoucherProductVO update(Long productId, MerchantVoucherProductUpdateDTO request) {
         MerchantAccount account = requireVoucherManager();
         VoucherProduct product = requireProductForUpdate(account, productId);
         VoucherReviewStatus reviewStatus = VoucherReviewStatus.valueOf(product.getReviewStatus());
@@ -168,6 +209,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         DraftSnapshot snapshot = snapshot(product, request);
         applyUpdate(product, snapshot);
         syncItems(productId, snapshot.packageItems());
+        syncStructuredContent(productId, request);
         businessMediaService.syncVoucherProductReferences(
                 account.getId(), account.getShopId(), productId, snapshot.coverMediaId(), snapshot.detailMediaIds());
         merchantAuditService.record(
@@ -195,6 +237,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         }
         businessMediaService.deleteVoucherProductReferences(account.getShopId(), productId);
         itemMapper.delete(new QueryWrapper<VoucherPackageItem>().eq("product_id", productId));
+        deleteStructuredContent(productId);
         if (productMapper.deleteById(productId) != 1) {
             throw BusinessException.conflict("VOUCHER_PRODUCT_STATE_CONFLICT", "团购券状态已变化，请重试");
         }
@@ -214,6 +257,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         VoucherProduct target = copyDraft(source);
         if (productMapper.insert(target) != 1) throw new IllegalStateException("团购券副本创建失败");
         copyItems(source.getId(), target.getId());
+        copyStructuredContent(source.getId(), target.getId());
         BusinessMediaService.VoucherMediaCopy media = businessMediaService.copyVoucherProductReferences(
                 account.getId(),
                 account.getShopId(),
@@ -239,7 +283,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     @Override
     @Transactional
     public MerchantVoucherProductVO submit(
-            Long productId, String idempotencyKey, MerchantVoucherProductSubmitRequest request) {
+            Long productId, String idempotencyKey, MerchantVoucherProductSubmitDTO request) {
         MerchantAccount account = requireVoucherManager();
         VoucherProduct product = requireProductForUpdate(account, productId);
         String fingerprint = fingerprint(productId, request.version());
@@ -281,7 +325,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     @Override
     @Transactional
     public MerchantVoucherProductVO offSale(
-            Long productId, String idempotencyKey, MerchantVoucherProductOffSaleRequest request) {
+            Long productId, String idempotencyKey, MerchantVoucherProductOffSaleDTO request) {
         MerchantAccount account = requireVoucherManager();
         VoucherProduct product = requireProductForUpdate(account, productId);
         String reason = request.reason() == null ? null : request.reason().trim();
@@ -307,7 +351,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         return toView(account, requireProduct(account, productId));
     }
 
-    private DraftSnapshot snapshot(VoucherProduct product, MerchantVoucherProductUpdateRequest request) {
+    private DraftSnapshot snapshot(VoucherProduct product, MerchantVoucherProductUpdateDTO request) {
         String title = normalize(request.title());
         String subTitle = normalize(request.subTitle());
         Long coverMediaId = request.coverMediaId() == null
@@ -321,7 +365,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 request.validityType(), VoucherValidityType.class, "有效期类型无效");
         List<BusinessDayHoursDTO> rules = normalizeRules(request.usageRules());
         List<LocalDate> dates = distinctDates(request.excludedDates());
-        List<MerchantVoucherPackageItemRequest> packageItems = normalizeItems(request.packageItems());
+        List<MerchantVoucherPackageItemDTO> packageItems = normalizeItems(request.packageItems());
         DraftSnapshot snapshot = new DraftSnapshot(
                 title,
                 subTitle,
@@ -331,8 +375,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 request.marketAmount(),
                 request.faceValueAmount(),
                 request.minimumSpendAmount(),
-                request.discountRateBps(),
-                request.maximumDiscountAmount(),
                 request.totalUseCount(),
                 request.totalStock(),
                 request.purchaseLimit(),
@@ -350,7 +392,17 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 request.refundAnytime(),
                 request.refundExpired(),
                 packageItems);
-        validateDraft(VoucherProductType.valueOf(product.getProductType()), snapshot);
+        VoucherProductType type = VoucherProductType.valueOf(product.getProductType());
+        if (type != VoucherProductType.CASH && request.cashRule() != null) {
+            throw typeConflict("仅代金券可以填写 cashRule");
+        }
+        if (type != VoucherProductType.DISCOUNT && request.discountRule() != null) {
+            throw typeConflict("仅折扣券可以填写 discountRule");
+        }
+        if (type != VoucherProductType.MULTI_USE && request.multiUseRule() != null) {
+            throw typeConflict("仅次卡可以填写 multiUseRule");
+        }
+        validateDraft(type, snapshot);
         return snapshot;
     }
 
@@ -368,8 +420,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .set("market_amount", snapshot.marketAmount())
                 .set("face_value_amount", snapshot.faceValueAmount())
                 .set("minimum_spend_amount", snapshot.minimumSpendAmount())
-                .set("discount_rate_bps", snapshot.discountRateBps())
-                .set("maximum_discount_amount", snapshot.maximumDiscountAmount())
                 .set("total_use_count", snapshot.totalUseCount())
                 .set("total_stock", snapshot.totalStock())
                 .set("available_stock", snapshot.totalStock())
@@ -421,22 +471,18 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             case PACKAGE -> requireAbsent(
                     draft.faceValueAmount(),
                     draft.minimumSpendAmount(),
-                    draft.discountRateBps(),
-                    draft.maximumDiscountAmount(),
                     draft.totalUseCount());
             case CASH -> {
-                requireAbsent(draft.discountRateBps(), draft.maximumDiscountAmount(), draft.totalUseCount());
+                requireAbsent(draft.totalUseCount());
                 if (!draft.packageItems().isEmpty()) throw typeConflict("代金券不能包含套餐明细");
             }
             case DISCOUNT -> {
-                requireAbsent(draft.faceValueAmount(), draft.totalUseCount());
+                requireAbsent(draft.faceValueAmount(), draft.minimumSpendAmount(), draft.totalUseCount());
                 if (!draft.packageItems().isEmpty()) throw typeConflict("折扣券不能包含套餐明细");
             }
             case MULTI_USE -> requireAbsent(
                     draft.faceValueAmount(),
-                    draft.minimumSpendAmount(),
-                    draft.discountRateBps(),
-                    draft.maximumDiscountAmount());
+                    draft.minimumSpendAmount());
         }
     }
 
@@ -510,16 +556,9 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 if (!items.isEmpty()) throw typeConflict("代金券不能包含套餐明细");
             }
             case DISCOUNT -> {
-                if (product.getDiscountRateBps() == null
-                        || product.getDiscountRateBps() < 100
-                        || product.getDiscountRateBps() > 9900) {
-                    throw incomplete("折扣必须在100至9900基点之间");
-                }
-                if (product.getMinimumSpendAmount() == null || product.getMinimumSpendAmount() <= 0) {
-                    throw incomplete("折扣券最低消费必须大于0");
-                }
-                if (product.getMaximumDiscountAmount() == null || product.getMaximumDiscountAmount() <= 0) {
-                    throw incomplete("折扣券最高优惠必须大于0");
+                if (product.getFaceValueAmount() != null || product.getMinimumSpendAmount() != null
+                        || product.getTotalUseCount() != null) {
+                    throw typeConflict("折扣券不支持面值、最低消费或次数配置");
                 }
                 if (!items.isEmpty()) throw typeConflict("折扣券不能包含套餐明细");
             }
@@ -590,10 +629,10 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         return List.copyOf(distinct);
     }
 
-    private List<MerchantVoucherPackageItemRequest> normalizeItems(
-            List<MerchantVoucherPackageItemRequest> items) {
-        List<MerchantVoucherPackageItemRequest> normalized = new ArrayList<>();
-        for (MerchantVoucherPackageItemRequest item : items) {
+    private List<MerchantVoucherPackageItemDTO> normalizeItems(
+            List<MerchantVoucherPackageItemDTO> items) {
+        List<MerchantVoucherPackageItemDTO> normalized = new ArrayList<>();
+        for (MerchantVoucherPackageItemDTO item : items) {
             if (item == null) throw incomplete("套餐明细不能为空");
             String name = normalize(item.name());
             String unit = normalize(item.unit());
@@ -604,16 +643,16 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             if (item.unitPriceAmount() != null && item.unitPriceAmount() < 0) {
                 throw incomplete("套餐明细单价不能为负数");
             }
-            normalized.add(new MerchantVoucherPackageItemRequest(
+            normalized.add(new MerchantVoucherPackageItemDTO(
                     name, item.quantity(), unit, item.unitPriceAmount()));
         }
         return List.copyOf(normalized);
     }
 
-    private void syncItems(Long productId, List<MerchantVoucherPackageItemRequest> items) {
+    private void syncItems(Long productId, List<MerchantVoucherPackageItemDTO> items) {
         itemMapper.delete(new QueryWrapper<VoucherPackageItem>().eq("product_id", productId));
         for (int index = 0; index < items.size(); index++) {
-            MerchantVoucherPackageItemRequest item = items.get(index);
+            MerchantVoucherPackageItemDTO item = items.get(index);
             VoucherPackageItem entity = new VoucherPackageItem()
                     .setProductId(productId)
                     .setName(item.name())
@@ -623,6 +662,61 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                     .setSortOrder(index);
             if (itemMapper.insert(entity) != 1) throw new IllegalStateException("团购券明细保存失败");
         }
+    }
+
+    private void syncStructuredContent(Long productId, MerchantVoucherProductUpdateDTO request) {
+        if (detailMapper == null) return;
+        detailMapper.delete(new QueryWrapper<VoucherProductDetail>().eq("product_id", productId));
+        int order = 0;
+        for (var d : request.details()) {
+            detailMapper.insert(new VoucherProductDetail().setProductId(productId).setSectionType(normalize(d.sectionType()))
+                    .setTitle(normalize(d.title())).setContent(normalize(d.content())).setSortOrder(d.sortOrder() == null ? order++ : d.sortOrder()));
+        }
+        tagMapper.delete(new QueryWrapper<VoucherProductTag>().eq("product_id", productId));
+        order = 0;
+        for (var t : request.tags()) {
+            String iconKey = normalize(t.iconKey());
+            if (!ICON_KEYS.contains(iconKey)) iconKey = "info";
+            tagMapper.insert(new VoucherProductTag().setProductId(productId).setText(normalize(t.text())).setIconKey(iconKey)
+                    .setColorToken(normalize(t.colorToken())).setSortOrder(t.sortOrder() == null ? order++ : t.sortOrder()));
+        }
+        cashRuleMapper.deleteById(productId);
+        if (request.cashRule() != null) cashRuleMapper.insert(new VoucherProductCashRule().setProductId(productId)
+                .setFaceValueAmount(request.cashRule().faceValueAmount()).setMinimumSpendAmount(request.cashRule().minimumSpendAmount())
+                .setDescription(normalize(request.cashRule().description())));
+        discountRuleMapper.deleteById(productId);
+        if (request.discountRule() != null) discountRuleMapper.insert(new VoucherProductDiscountRule().setProductId(productId)
+                .setDiscountText(normalize(request.discountRule().discountText())).setApplicableScope(normalize(request.discountRule().applicableScope()))
+                .setUsagePeriodText(normalize(request.discountRule().usagePeriodText())).setDescription(normalize(request.discountRule().description())));
+        multiUseRuleMapper.deleteById(productId);
+        if (request.multiUseRule() != null) multiUseRuleMapper.insert(new VoucherProductMultiUseRule().setProductId(productId)
+                .setTotalUseCount(request.multiUseRule().totalUseCount()).setUseUnit(normalize(request.multiUseRule().useUnit()))
+                .setDescription(normalize(request.multiUseRule().description())));
+    }
+
+    private void deleteStructuredContent(Long productId) {
+        if (detailMapper == null) return;
+        detailMapper.delete(new QueryWrapper<VoucherProductDetail>().eq("product_id", productId));
+        tagMapper.delete(new QueryWrapper<VoucherProductTag>().eq("product_id", productId));
+        cashRuleMapper.deleteById(productId);
+        discountRuleMapper.deleteById(productId);
+        multiUseRuleMapper.deleteById(productId);
+    }
+
+    private void copyStructuredContent(Long sourceId, Long targetId) {
+        if (detailMapper == null) return;
+        for (VoucherProductDetail d : detailMapper.selectList(new QueryWrapper<VoucherProductDetail>().eq("product_id", sourceId))) {
+            detailMapper.insert(new VoucherProductDetail().setProductId(targetId).setSectionType(d.getSectionType()).setTitle(d.getTitle()).setContent(d.getContent()).setSortOrder(d.getSortOrder()));
+        }
+        for (VoucherProductTag t : tagMapper.selectList(new QueryWrapper<VoucherProductTag>().eq("product_id", sourceId))) {
+            tagMapper.insert(new VoucherProductTag().setProductId(targetId).setText(t.getText()).setIconKey(t.getIconKey()).setColorToken(t.getColorToken()).setSortOrder(t.getSortOrder()));
+        }
+        VoucherProductCashRule cash = cashRuleMapper.selectById(sourceId);
+        if (cash != null) cashRuleMapper.insert(new VoucherProductCashRule().setProductId(targetId).setFaceValueAmount(cash.getFaceValueAmount()).setMinimumSpendAmount(cash.getMinimumSpendAmount()).setDescription(cash.getDescription()));
+        VoucherProductDiscountRule discount = discountRuleMapper.selectById(sourceId);
+        if (discount != null) discountRuleMapper.insert(new VoucherProductDiscountRule().setProductId(targetId).setDiscountText(discount.getDiscountText()).setApplicableScope(discount.getApplicableScope()).setUsagePeriodText(discount.getUsagePeriodText()).setDescription(discount.getDescription()));
+        VoucherProductMultiUseRule multi = multiUseRuleMapper.selectById(sourceId);
+        if (multi != null) multiUseRuleMapper.insert(new VoucherProductMultiUseRule().setProductId(targetId).setTotalUseCount(multi.getTotalUseCount()).setUseUnit(multi.getUseUnit()).setDescription(multi.getDescription()));
     }
 
     private void copyItems(Long sourceProductId, Long targetProductId) {
@@ -656,8 +750,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .setMarketAmount(source.getMarketAmount())
                 .setFaceValueAmount(source.getFaceValueAmount())
                 .setMinimumSpendAmount(source.getMinimumSpendAmount())
-                .setDiscountRateBps(source.getDiscountRateBps())
-                .setMaximumDiscountAmount(source.getMaximumDiscountAmount())
                 .setTotalUseCount(source.getTotalUseCount())
                 .setTotalStock(source.getTotalStock())
                 .setAvailableStock(source.getTotalStock())
@@ -705,6 +797,15 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                         item.getUnitPriceAmount(),
                         item.getSortOrder()))
                 .toList();
+        List<VoucherProductSectionVO> details = detailMapper == null ? List.of() : detailMapper.selectList(new QueryWrapper<VoucherProductDetail>()
+                .eq("product_id", product.getId()).orderByAsc("sort_order", "id")).stream()
+                .map(d -> new VoucherProductSectionVO(IdUtils.format(d.getId()), d.getSectionType(), d.getTitle(), d.getContent(), d.getSortOrder())).toList();
+        List<VoucherProductTagVO> tags = tagMapper == null ? List.of() : tagMapper.selectList(new QueryWrapper<VoucherProductTag>()
+                .eq("product_id", product.getId()).orderByAsc("sort_order", "id")).stream()
+                .map(t -> new VoucherProductTagVO(IdUtils.format(t.getId()), t.getText(), t.getIconKey(), t.getColorToken(), t.getSortOrder())).toList();
+        VoucherProductCashRule cash = cashRuleMapper == null ? null : cashRuleMapper.selectById(product.getId());
+        VoucherProductDiscountRule discount = discountRuleMapper == null ? null : discountRuleMapper.selectById(product.getId());
+        VoucherProductMultiUseRule multi = multiUseRuleMapper == null ? null : multiUseRuleMapper.selectById(product.getId());
         return new MerchantVoucherProductVO(
                 IdUtils.format(product.getId()),
                 IdUtils.format(product.getShopId()),
@@ -720,8 +821,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 product.getMarketAmount(),
                 product.getFaceValueAmount(),
                 product.getMinimumSpendAmount(),
-                product.getDiscountRateBps(),
-                product.getMaximumDiscountAmount(),
                 product.getTotalUseCount(),
                 product.getTotalStock(),
                 product.getAvailableStock(),
@@ -750,7 +849,12 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 product.getSubmittedAt(),
                 product.getVersion(),
                 product.getCreateTime(),
-                product.getUpdateTime());
+                product.getUpdateTime(),
+                details,
+                tags,
+                cash == null ? null : new VoucherProductCashRuleVO(cash.getFaceValueAmount(), cash.getMinimumSpendAmount(), cash.getDescription()),
+                discount == null ? null : new VoucherProductDiscountRuleVO(discount.getDiscountText(), discount.getApplicableScope(), discount.getUsagePeriodText(), discount.getDescription()),
+                multi == null ? null : new VoucherProductMultiUseRuleVO(multi.getTotalUseCount(), multi.getUseUnit(), multi.getDescription()));
     }
 
     private MerchantAccount requireVoucherManager() {
@@ -886,8 +990,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             Long marketAmount,
             Long faceValueAmount,
             Long minimumSpendAmount,
-            Integer discountRateBps,
-            Long maximumDiscountAmount,
             Integer totalUseCount,
             Integer totalStock,
             Integer purchaseLimit,
@@ -904,5 +1006,5 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             Boolean stackable,
             Boolean refundAnytime,
             Boolean refundExpired,
-            List<MerchantVoucherPackageItemRequest> packageItems) {}
+            List<MerchantVoucherPackageItemDTO> packageItems) {}
 }

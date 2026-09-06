@@ -5,9 +5,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ray.constant.AdminPermissions;
-import com.ray.dto.VoucherRedemptionConfirmRequest;
-import com.ray.dto.VoucherRedemptionPreviewRequest;
-import com.ray.dto.VoucherRedemptionReversalRequest;
+import com.ray.dto.VoucherRedemptionConfirmDTO;
+import com.ray.dto.VoucherRedemptionPreviewDTO;
+import com.ray.dto.VoucherRedemptionReversalDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.UserVoucher;
 import com.ray.entity.VoucherProduct;
@@ -27,6 +27,7 @@ import com.ray.service.FinanceService;
 import com.ray.service.MerchantAuditService;
 import com.ray.service.MerchantAuthService;
 import com.ray.service.VoucherRedemptionService;
+import com.ray.service.VoucherQrTokenService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.converter.VoucherProductPresentation;
 import com.ray.utils.generator.RedisIdWorker;
@@ -55,12 +56,14 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
     private final RedisIdWorker idWorker;
     private final MerchantAuditService audit;
     private final FinanceService finance;
+    private final VoucherQrTokenService qrTokens;
     private RealtimeEventPublisher realtimeEvents;
 
     public VoucherRedemptionServiceImpl(UserVoucherMapper voucherMapper,
             VoucherRedemptionMapper redemptionMapper, VoucherProductMapper productMapper,
             MerchantAuthService merchantAuth, AdminAuthService adminAuth, StringRedisTemplate redis,
-            RedisIdWorker idWorker, MerchantAuditService audit, FinanceService finance) {
+            RedisIdWorker idWorker, MerchantAuditService audit, FinanceService finance,
+            VoucherQrTokenService qrTokens) {
         this.voucherMapper = voucherMapper;
         this.redemptionMapper = redemptionMapper;
         this.productMapper = productMapper;
@@ -70,6 +73,7 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
         this.idWorker = idWorker;
         this.audit = audit;
         this.finance = finance;
+        this.qrTokens = qrTokens;
     }
 
     @Autowired(required = false)
@@ -78,7 +82,7 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
     }
 
     @Override
-    public VoucherRedemptionPreviewVO preview(VoucherRedemptionPreviewRequest request) {
+    public VoucherRedemptionPreviewVO preview(VoucherRedemptionPreviewDTO request) {
         MerchantAccount account = operator();
         UserVoucher voucher = voucherMapper.findByCodeHmac(DigestUtil.sha256Hex(request.code()));
         validateVoucher(account, voucher);
@@ -91,21 +95,26 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
 
     @Override
     public VoucherRedemptionPreviewVO previewByQrToken(String token) {
-        String raw = redis.opsForValue().getAndDelete("roamly:qr:voucher:" + token);
-        if (raw == null) {
-            throw BusinessException.conflict("QR_TOKEN_EXPIRED", "二维码已过期或已使用");
-        }
-        Long voucherId = Long.valueOf(raw.split("\\|")[0]);
-        UserVoucher voucher = voucherMapper.selectById(voucherId);
+        var resolution = qrTokens.resolve(token);
+        UserVoucher voucher = voucherMapper.selectById(resolution.voucherId());
         if (voucher == null) {
             throw BusinessException.notFound("VOUCHER_NOT_FOUND", "券不存在");
         }
-        return preview(new VoucherRedemptionPreviewRequest(voucher.getVoucherCode()));
+        if (!resolution.userId().equals(voucher.getUserId())) {
+            throw BusinessException.conflict("QR_TOKEN_INVALID", "二维码绑定关系无效");
+        }
+        MerchantAccount account = operator();
+        validateVoucher(account, voucher);
+        VoucherProduct product = productMapper.selectById(voucher.getProductId());
+        String previewToken = UUID.randomUUID().toString().replace("-", "");
+        String context = voucher.getId() + "|" + account.getShopId() + "|" + account.getId();
+        redis.opsForValue().set(PREVIEW + previewToken, context, 5, TimeUnit.MINUTES);
+        return toPreview(previewToken, voucher, product);
     }
 
     @Override
     @Transactional
-    public VoucherRedemptionVO confirm(VoucherRedemptionConfirmRequest request, String idempotencyKey) {
+    public VoucherRedemptionVO confirm(VoucherRedemptionConfirmDTO request, String idempotencyKey) {
         MerchantAccount account = operator();
         VoucherRedemption existing = redemptionMapper.selectOne(new QueryWrapper<VoucherRedemption>()
                 .eq("shop_id", account.getShopId()).eq("idempotency_key", idempotencyKey));
@@ -155,7 +164,7 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
 
     @Override
     @Transactional
-    public VoucherRedemptionVO reverse(Long id, VoucherRedemptionReversalRequest request, String idempotencyKey) {
+    public VoucherRedemptionVO reverse(Long id, VoucherRedemptionReversalDTO request, String idempotencyKey) {
         MerchantAccount account = operator();
         if (MerchantRole.VERIFIER.name().equals(account.getRole())) {
             throw BusinessException.forbidden("REDEMPTION_REVERSAL_FORBIDDEN", "核销员无权撤销");
@@ -252,8 +261,7 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
         return switch (type) {
             case CASH -> "面值 " + yuan(product.getFaceValueAmount()) + " 元"
                     + (product.getMinimumSpendAmount() == null ? "" : "，最低消费 " + yuan(product.getMinimumSpendAmount()) + " 元");
-            case DISCOUNT -> "折扣 " + ((product.getDiscountRateBps() == null ? 10000 : product.getDiscountRateBps()) / 100.0)
-                    + " 折" + (product.getMaximumDiscountAmount() == null ? "" : "，最高优惠 " + yuan(product.getMaximumDiscountAmount()) + " 元");
+            case DISCOUNT -> "到店核销";
             case MULTI_USE -> "共 " + (product.getTotalUseCount() == null ? 1 : product.getTotalUseCount()) + " 次";
             case PACKAGE -> "按套餐明细使用";
         };

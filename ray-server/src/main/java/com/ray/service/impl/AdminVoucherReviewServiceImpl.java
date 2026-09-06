@@ -9,12 +9,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.dto.BusinessDayHoursDTO;
-import com.ray.dto.VoucherReviewApprovalRequest;
-import com.ray.dto.VoucherReviewRejectionRequest;
+import com.ray.dto.VoucherReviewApprovalDTO;
+import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.Shop;
 import com.ray.entity.VoucherPackageItem;
 import com.ray.entity.VoucherProduct;
+import com.ray.entity.VoucherProductDetail;
+import com.ray.entity.VoucherProductTag;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.ShopStatus;
 import com.ray.enums.VoucherProductType;
@@ -28,6 +30,8 @@ import com.ray.entity.AdminUser;
 import com.ray.mapper.ShopMapper;
 import com.ray.mapper.VoucherPackageItemMapper;
 import com.ray.mapper.VoucherProductMapper;
+import com.ray.mapper.VoucherProductDetailMapper;
+import com.ray.mapper.VoucherProductTagMapper;
 import com.ray.result.PageResult;
 import com.ray.service.AdminAuditService;
 import com.ray.service.AdminAuthService;
@@ -41,6 +45,8 @@ import com.ray.vo.BusinessMediaVO;
 import com.ray.vo.MerchantVoucherPackageItemVO;
 import com.ray.vo.MerchantVoucherProductVO;
 import com.ray.vo.ShopSummaryVO;
+import com.ray.vo.VoucherProductSectionVO;
+import com.ray.vo.VoucherProductTagVO;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -68,6 +74,8 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
     private final AdminAuditService auditService;
     private final BusinessMediaService mediaService;
     private final ObjectMapper objectMapper;
+    private final VoucherProductDetailMapper detailMapper;
+    private final VoucherProductTagMapper tagMapper;
 
     public AdminVoucherReviewServiceImpl(
             VoucherProductMapper productMapper,
@@ -78,7 +86,9 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
             AdminAuthService adminAuthService,
             AdminAuditService auditService,
             BusinessMediaService mediaService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            VoucherProductDetailMapper detailMapper,
+            VoucherProductTagMapper tagMapper) {
         this.productMapper = productMapper;
         this.itemMapper = itemMapper;
         this.shopMapper = shopMapper;
@@ -88,6 +98,8 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         this.auditService = auditService;
         this.mediaService = mediaService;
         this.objectMapper = objectMapper;
+        this.detailMapper = detailMapper;
+        this.tagMapper = tagMapper;
     }
 
     @Override
@@ -120,7 +132,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
     @Override
     @Transactional
     public AdminVoucherReviewResultVO approve(
-            String productId, String idempotencyKey, VoucherReviewApprovalRequest request) {
+            String productId, String idempotencyKey, VoucherReviewApprovalDTO request) {
         requirePermission();
         return decide(IdUtils.parse(productId, "productId"), idempotencyKey, request.version(), null);
     }
@@ -128,7 +140,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
     @Override
     @Transactional
     public AdminVoucherReviewResultVO reject(
-            String productId, String idempotencyKey, VoucherReviewRejectionRequest request) {
+            String productId, String idempotencyKey, VoucherReviewRejectionDTO request) {
         requirePermission();
         String reason = normalizeReason(request.reason());
         if (reason == null) throw BusinessException.badRequest("VOUCHER_REVIEW_REASON_REQUIRED", "驳回原因不能为空");
@@ -204,12 +216,16 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         VoucherValidityType validity = product.getValidityType() == null ? null : VoucherValidityType.valueOf(product.getValidityType());
         List<MerchantVoucherPackageItemVO> items = itemMapper.selectList(new QueryWrapper<VoucherPackageItem>().eq("product_id", product.getId()).orderByAsc("sort_order"))
                 .stream().map(item -> new MerchantVoucherPackageItemVO(IdUtils.format(item.getId()), item.getName(), item.getQuantity(), item.getUnit(), item.getUnitPriceAmount(), item.getSortOrder())).toList();
+        List<VoucherProductSectionVO> details = detailMapper.selectList(new QueryWrapper<VoucherProductDetail>().eq("product_id", product.getId()).orderByAsc("sort_order", "id"))
+                .stream().map(d -> new VoucherProductSectionVO(IdUtils.format(d.getId()), d.getSectionType(), d.getTitle(), d.getContent(), d.getSortOrder())).toList();
+        List<VoucherProductTagVO> tags = tagMapper.selectList(new QueryWrapper<VoucherProductTag>().eq("product_id", product.getId()).orderByAsc("sort_order", "id"))
+                .stream().map(t -> new VoucherProductTagVO(IdUtils.format(t.getId()), t.getText(), t.getIconKey(), t.getColorToken(), t.getSortOrder())).toList();
         return new MerchantVoucherProductVO(IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), type, type.label(), product.getTitle(), product.getSubTitle(),
                 IdUtils.format(product.getCoverMediaId()), cover, detailIds.stream().map(IdUtils::format).toList(), detailMedia,
-                product.getPriceAmount(), product.getMarketAmount(), product.getFaceValueAmount(), product.getMinimumSpendAmount(), product.getDiscountRateBps(), product.getMaximumDiscountAmount(),
+                product.getPriceAmount(), product.getMarketAmount(), product.getFaceValueAmount(), product.getMinimumSpendAmount(),
                 product.getTotalUseCount(), product.getTotalStock(), product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(), product.getSaleBeginTime(), product.getSaleEndTime(), validity,
                 validity == null ? null : validity.label(), product.getValidBeginTime(), product.getValidEndTime(), product.getValidDays(), read(product.getUsageRulesJson(), RULES), read(product.getExcludedDatesJson(), DATES),
-                product.getReservationRequired(), product.getReservationNotice(), product.getStackable(), product.getRefundAnytime(), product.getRefundExpired(), items, review, review.label(), sale, sale == null ? null : sale.label(), product.getRejectionReason(), product.getSubmittedAt(), product.getVersion(), product.getCreateTime(), product.getUpdateTime());
+                product.getReservationRequired(), product.getReservationNotice(), product.getStackable(), product.getRefundAnytime(), product.getRefundExpired(), items, review, review.label(), sale, sale == null ? null : sale.label(), product.getRejectionReason(), product.getSubmittedAt(), product.getVersion(), product.getCreateTime(), product.getUpdateTime(), details, tags, null, null, null);
     }
 
     private AdminVoucherReviewResultVO toResult(VoucherProduct product) {

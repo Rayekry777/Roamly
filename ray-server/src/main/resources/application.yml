@@ -71,6 +71,8 @@ sa-token:
   is-print: false
 
 ray:
+  payment:
+    mode: ${RAY_PAYMENT_MODE:MOCK}
   cache:
     shop-ttl: 30m
     dictionary-ttl: 6h

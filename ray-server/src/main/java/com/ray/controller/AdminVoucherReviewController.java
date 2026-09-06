@@ -1,7 +1,7 @@
 package com.ray.controller;
 
-import com.ray.dto.VoucherReviewApprovalRequest;
-import com.ray.dto.VoucherReviewRejectionRequest;
+import com.ray.dto.VoucherReviewApprovalDTO;
+import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.enums.VoucherProductType;
 import com.ray.enums.VoucherReviewStatus;
 import com.ray.result.ErrorResult;
@@ -85,7 +85,7 @@ public class AdminVoucherReviewController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody VoucherReviewApprovalRequest request) {
+            @Valid @RequestBody VoucherReviewApprovalDTO request) {
         return Result.ok(service.approve(productId, idempotencyKey, request));
     }
 
@@ -103,7 +103,7 @@ public class AdminVoucherReviewController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody VoucherReviewRejectionRequest request) {
+            @Valid @RequestBody VoucherReviewRejectionDTO request) {
         return Result.ok(service.reject(productId, idempotencyKey, request));
     }
 }

@@ -12,9 +12,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.dto.BusinessDayHoursDTO;
-import com.ray.dto.MerchantApplicationApprovalRequest;
-import com.ray.dto.MerchantApplicationRejectionRequest;
-import com.ray.dto.ShopGovernanceRequest;
+import com.ray.dto.MerchantApplicationApprovalDTO;
+import com.ray.dto.MerchantApplicationRejectionDTO;
+import com.ray.dto.ShopGovernanceDTO;
 import com.ray.entity.AdminUser;
 import com.ray.entity.City;
 import com.ray.entity.MerchantAccount;
@@ -195,7 +195,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     @Override
     @Transactional
     public MerchantApplicationReviewResultVO approve(
-            String applicationId, String idempotencyKey, MerchantApplicationApprovalRequest request) {
+            String applicationId, String idempotencyKey, MerchantApplicationApprovalDTO request) {
         requireReviewPermission();
         Long id = IdUtils.parse(applicationId, "applicationId");
         Long actorId = adminAuthService.currentAdminId();
@@ -261,7 +261,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     @Override
     @Transactional
     public MerchantApplicationReviewResultVO reject(
-            String applicationId, String idempotencyKey, MerchantApplicationRejectionRequest request) {
+            String applicationId, String idempotencyKey, MerchantApplicationRejectionDTO request) {
         requireReviewPermission();
         Long id = IdUtils.parse(applicationId, "applicationId");
         Long actorId = adminAuthService.currentAdminId();
@@ -354,7 +354,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     @Override
     @Transactional
     public AdminShopGovernanceResultVO suspendShop(
-            String shopId, String idempotencyKey, ShopGovernanceRequest request) {
+            String shopId, String idempotencyKey, ShopGovernanceDTO request) {
         return governShop(shopId, idempotencyKey, request, ShopGovernanceCommandType.SUSPENSION);
     }
 
@@ -362,14 +362,14 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     @Override
     @Transactional
     public AdminShopGovernanceResultVO activateShop(
-            String shopId, String idempotencyKey, ShopGovernanceRequest request) {
+            String shopId, String idempotencyKey, ShopGovernanceDTO request) {
         return governShop(shopId, idempotencyKey, request, ShopGovernanceCommandType.ACTIVATION);
     }
 
     private AdminShopGovernanceResultVO governShop(
             String shopId,
             String idempotencyKey,
-            ShopGovernanceRequest request,
+            ShopGovernanceDTO request,
             ShopGovernanceCommandType command) {
         requireGovernPermission();
         Long id = IdUtils.parse(shopId, "shopId");

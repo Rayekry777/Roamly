@@ -75,10 +75,8 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     private VoucherProductVO toProduct(VoucherProduct product) {
         if (product == null) return null;
-        Long discount = product.getMarketAmount() == null || product.getPriceAmount() == null ? null
-                : Math.max(0L, product.getMarketAmount() - product.getPriceAmount());
         return new VoucherProductVO(IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
-                product.getSubTitle(), null, product.getPriceAmount(), product.getMarketAmount(), discount,
+                product.getSubTitle(), null, product.getPriceAmount(), product.getMarketAmount(),
                 product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(), product.getProductType(),
                 product.getSaleStatus(), product.getSaleBeginTime(), product.getSaleEndTime(), null, null);
     }

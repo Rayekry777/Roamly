@@ -6,5 +6,6 @@ public enum UserVoucherStatus {
     PARTIALLY_USED,
     USED,
     EXPIRED,
+    REFUNDING,
     REFUNDED
 }

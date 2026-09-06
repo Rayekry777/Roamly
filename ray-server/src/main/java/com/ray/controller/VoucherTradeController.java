@@ -1,7 +1,7 @@
 package com.ray.controller;
 
 import com.ray.dto.VoucherOrderCreateDTO;
-import com.ray.dto.VoucherPaymentRequest;
+import com.ray.dto.VoucherPaymentDTO;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.VoucherTradeService;
@@ -100,11 +100,19 @@ public class VoucherTradeController {
     }
 
     /** Mock 支付订单；真实渠道由后续微信支付适配器接入。 */
+    @PostMapping("/v1/users/me/orders/{orderId}/payments/prepare")
+    @Operation(summary = "准备团购订单支付", operationId = "prepareMyVoucherPayment")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "支付能力", useReturnTypeSchema = true))
+    public Result<VoucherPaymentVO> prepare(@PathVariable String orderId) {
+        return Result.ok(paymentService.prepare(IdUtils.parse(orderId, "orderId")));
+    }
+
+    /** 根据当前环境支付模式处理团购订单支付。 */
     @PostMapping("/v1/users/me/orders/{orderId}/payments")
     @Operation(summary = "支付团购订单", operationId = "payMyVoucherOrder")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "支付结果", useReturnTypeSchema = true),
             @ApiResponse(responseCode = "503", description = "支付服务不可用")})
-    public Result<VoucherPaymentVO> pay(@PathVariable String orderId, @Valid @RequestBody VoucherPaymentRequest request,
+    public Result<VoucherPaymentVO> pay(@PathVariable String orderId, @Valid @RequestBody VoucherPaymentDTO request,
             @RequestHeader("Idempotency-Key") @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}") String idempotencyKey) {
         return Result.ok(paymentService.pay(IdUtils.parse(orderId, "orderId"), request, idempotencyKey));
     }

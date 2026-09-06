@@ -7,6 +7,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @Schema(description = "门店治理命令")
-public record ShopGovernanceRequest(
+public record ShopGovernanceDTO(
         @NotNull @Min(0) @Schema(description = "期望门店版本", example = "0", minimum = "0") Integer version,
         @NotBlank @Size(max = 500) @Schema(description = "治理原因", maxLength = 500) String reason) {}

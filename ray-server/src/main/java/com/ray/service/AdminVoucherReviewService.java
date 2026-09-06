@@ -1,7 +1,7 @@
 package com.ray.service;
 
-import com.ray.dto.VoucherReviewApprovalRequest;
-import com.ray.dto.VoucherReviewRejectionRequest;
+import com.ray.dto.VoucherReviewApprovalDTO;
+import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.enums.VoucherProductType;
 import com.ray.enums.VoucherReviewStatus;
 import com.ray.result.PageResult;
@@ -18,8 +18,8 @@ public interface AdminVoucherReviewService {
     AdminVoucherReviewDetailVO get(String productId);
 
     AdminVoucherReviewResultVO approve(
-            String productId, String idempotencyKey, VoucherReviewApprovalRequest request);
+            String productId, String idempotencyKey, VoucherReviewApprovalDTO request);
 
     AdminVoucherReviewResultVO reject(
-            String productId, String idempotencyKey, VoucherReviewRejectionRequest request);
+            String productId, String idempotencyKey, VoucherReviewRejectionDTO request);
 }

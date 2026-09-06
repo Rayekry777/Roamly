@@ -9,10 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ray.dto.MerchantVoucherProductCreateRequest;
-import com.ray.dto.MerchantVoucherProductOffSaleRequest;
-import com.ray.dto.MerchantVoucherProductSubmitRequest;
-import com.ray.dto.MerchantVoucherProductUpdateRequest;
+import com.ray.dto.MerchantVoucherProductCreateDTO;
+import com.ray.dto.MerchantVoucherProductOffSaleDTO;
+import com.ray.dto.MerchantVoucherProductSubmitDTO;
+import com.ray.dto.MerchantVoucherProductUpdateDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.VoucherProduct;
 import com.ray.enums.BusinessMediaPurpose;
@@ -78,7 +78,7 @@ class MerchantVoucherProductServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.create(new MerchantVoucherProductCreateRequest(VoucherProductType.PACKAGE)));
+                () -> service.create(new MerchantVoucherProductCreateDTO(VoucherProductType.PACKAGE)));
 
         assertEquals(403, exception.status());
         assertEquals("MERCHANT_FORBIDDEN", exception.code());
@@ -95,7 +95,7 @@ class MerchantVoucherProductServiceImplTest {
         });
         when(productMapper.selectById(3201L)).thenAnswer(invocation -> inserted.getValue());
 
-        var result = service.create(new MerchantVoucherProductCreateRequest(VoucherProductType.DISCOUNT));
+        var result = service.create(new MerchantVoucherProductCreateDTO(VoucherProductType.DISCOUNT));
 
         assertEquals("3201", result.id());
         assertEquals(VoucherProductType.DISCOUNT, result.productType());
@@ -139,7 +139,7 @@ class MerchantVoucherProductServiceImplTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.submit(3101L, "stage20-submit", new MerchantVoucherProductSubmitRequest(0)));
+                () -> service.submit(3101L, "stage20-submit", new MerchantVoucherProductSubmitDTO(0)));
 
         assertEquals(400, exception.status());
         assertEquals("VOUCHER_PRODUCT_INCOMPLETE", exception.code());
@@ -160,7 +160,7 @@ class MerchantVoucherProductServiceImplTest {
                 .thenReturn(List.of(media(9001L)));
 
         var result = service.submit(
-                3102L, "stage20-submit", new MerchantVoucherProductSubmitRequest(0));
+                3102L, "stage20-submit", new MerchantVoucherProductSubmitDTO(0));
 
         assertEquals(VoucherReviewStatus.PENDING, result.reviewStatus());
         assertEquals(1, result.version());
@@ -193,7 +193,7 @@ class MerchantVoucherProductServiceImplTest {
         var result = service.offSale(
                 3103L,
                 "off-sale-key",
-                new MerchantVoucherProductOffSaleRequest(2, "库存调整"));
+                new MerchantVoucherProductOffSaleDTO(2, "库存调整"));
 
         assertEquals("OFF_SALE", result.saleStatus().name());
         assertEquals(3, result.version());
@@ -209,15 +209,13 @@ class MerchantVoucherProductServiceImplTest {
                 .setStatus(MerchantAccountStatus.ACTIVE.name());
     }
 
-    private MerchantVoucherProductUpdateRequest emptyUpdate(int version) {
-        return new MerchantVoucherProductUpdateRequest(
+    private MerchantVoucherProductUpdateDTO emptyUpdate(int version) {
+        return new MerchantVoucherProductUpdateDTO(
                 version,
                 null,
                 null,
                 null,
                 List.of(),
-                null,
-                null,
                 null,
                 null,
                 null,

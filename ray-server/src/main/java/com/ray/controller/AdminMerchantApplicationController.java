@@ -1,7 +1,7 @@
 package com.ray.controller;
 
-import com.ray.dto.MerchantApplicationApprovalRequest;
-import com.ray.dto.MerchantApplicationRejectionRequest;
+import com.ray.dto.MerchantApplicationApprovalDTO;
+import com.ray.dto.MerchantApplicationRejectionDTO;
 import com.ray.enums.MerchantApplicationStatus;
 import com.ray.result.ErrorResult;
 import com.ray.result.PageResult;
@@ -132,7 +132,7 @@ public class AdminMerchantApplicationController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody MerchantApplicationApprovalRequest request) {
+            @Valid @RequestBody MerchantApplicationApprovalDTO request) {
         return Result.ok(service.approve(applicationId, idempotencyKey, request));
     }
 
@@ -150,7 +150,7 @@ public class AdminMerchantApplicationController {
                     @RequestHeader("Idempotency-Key")
                     @Pattern(regexp = "[A-Za-z0-9._:-]{8,128}", message = "Idempotency-Key 格式无效")
                     String idempotencyKey,
-            @Valid @RequestBody MerchantApplicationRejectionRequest request) {
+            @Valid @RequestBody MerchantApplicationRejectionDTO request) {
         return Result.ok(service.reject(applicationId, idempotencyKey, request));
     }
 

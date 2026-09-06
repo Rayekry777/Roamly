@@ -15,6 +15,10 @@ springdoc:
     enabled: false
 
 ray:
+  qr:
+    hmac-secret: ${RAY_QR_HMAC_SECRET}
+  payment:
+    mode: ${RAY_PAYMENT_MODE:DISABLED}
   auth:
     sms:
       mode: DISABLED

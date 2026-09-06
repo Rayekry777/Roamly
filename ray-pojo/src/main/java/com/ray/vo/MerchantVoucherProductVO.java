@@ -27,8 +27,6 @@ public record MerchantVoucherProductVO(
         Long marketAmount,
         Long faceValueAmount,
         Long minimumSpendAmount,
-        Integer discountRateBps,
-        Long maximumDiscountAmount,
         Integer totalUseCount,
         Integer totalStock,
         Integer availableStock,
@@ -57,12 +55,19 @@ public record MerchantVoucherProductVO(
         LocalDateTime submittedAt,
         Integer version,
         LocalDateTime createTime,
-        LocalDateTime updateTime) {
+        LocalDateTime updateTime,
+        List<VoucherProductSectionVO> details,
+        List<VoucherProductTagVO> tags,
+        VoucherProductCashRuleVO cashRule,
+        VoucherProductDiscountRuleVO discountRule,
+        VoucherProductMultiUseRuleVO multiUseRule) {
     public MerchantVoucherProductVO {
         detailMediaIds = List.copyOf(detailMediaIds);
         detailMedia = List.copyOf(detailMedia);
         usageRules = List.copyOf(usageRules);
         excludedDates = List.copyOf(excludedDates);
         packageItems = List.copyOf(packageItems);
+        details = details == null ? List.of() : List.copyOf(details);
+        tags = tags == null ? List.of() : List.copyOf(tags);
     }
 }

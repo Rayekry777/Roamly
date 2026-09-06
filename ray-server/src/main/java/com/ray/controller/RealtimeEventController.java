@@ -22,11 +22,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/** 管理事件票据、SSE 订阅和消费者动态券码。 */
+/** 管理事件票据、SSE 订阅和消费者固定券码。 */
 @RestController
 @RequestMapping
 @SecurityRequirement(name = "BearerAuth")
-@Tag(name = "实时事件与动态二维码")
+@Tag(name = "实时事件与固定二维码")
 public class RealtimeEventController {
     private final VoucherQrTokenService qr;
     private final EventTicketService tickets;
@@ -45,7 +45,7 @@ public class RealtimeEventController {
     }
 
     @PostMapping("/v1/users/me/vouchers/{voucherId}/qr-tokens")
-    @Operation(summary = "生成动态券二维码", operationId = "issueVoucherQrToken")
+    @Operation(summary = "获取固定券二维码", operationId = "issueVoucherQrToken")
     public Result<VoucherQrTokenVO> qr(@PathVariable String voucherId) {
         return Result.ok(qr.issue(IdUtils.parse(voucherId, "voucherId")));
     }
