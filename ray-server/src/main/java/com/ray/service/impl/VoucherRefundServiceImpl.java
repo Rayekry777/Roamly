@@ -3,6 +3,7 @@ package com.ray.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.ray.constant.AdminPermissions;
 import com.ray.dto.VoucherRefundDTO;
 import com.ray.dto.MerchantRefundDTO;
@@ -12,6 +13,7 @@ import com.ray.entity.VoucherOrder;
 import com.ray.entity.VoucherProduct;
 import com.ray.entity.VoucherRefund;
 import com.ray.entity.UserVoucher;
+import com.ray.enums.MerchantAfterSaleStage;
 import com.ray.enums.UserVoucherStatus;
 import com.ray.enums.VoucherOrderStatus;
 import com.ray.enums.VoucherRefundStatus;
@@ -31,11 +33,15 @@ import com.ray.service.MerchantAuthService;
 import com.ray.entity.MerchantAccount;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.generator.RedisIdWorker;
+import com.ray.vo.MerchantRefundCandidateVO;
+import com.ray.vo.MerchantRefundCandidateVoucherVO;
 import com.ray.vo.VoucherRefundVO;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -44,6 +50,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** 消费者单券退款申请与管理端审核状态流转实现。 */
 @Service
 public class VoucherRefundServiceImpl implements VoucherRefundService {
+    private static final List<String> ACTIVE_REFUND_STATUSES = List.of(
+            VoucherRefundStatus.REQUESTED.name(), VoucherRefundStatus.PROCESSING.name(), VoucherRefundStatus.SUCCEEDED.name());
     private final VoucherRefundMapper refundMapper;
     private final UserVoucherMapper voucherMapper;
     private final VoucherOrderMapper orderMapper;
@@ -178,6 +186,7 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         return toVO(r);
     }
 
+    /** 以字符串业务 ID 发起商户退款申请，并由服务端重新校验资格。 */
     @Override
     @Transactional
     public VoucherRefundVO merchantRequest(MerchantRefundDTO request, String key) {
@@ -186,7 +195,11 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         if (account.getShopId() == null) throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
         if (request == null || request.voucherIds() == null || request.voucherIds().isEmpty())
             throw BusinessException.badRequest("REFUND_VOUCHERS_REQUIRED", "请选择要退款的券");
-        return createForVouchers(request.orderId(), request.voucherIds(), request.reasonCode(), request.description(),
+        Long orderId = IdUtils.parse(request.orderId(), "orderId");
+        List<Long> voucherIds = request.voucherIds().stream()
+                .map(id -> IdUtils.parse(id, "voucherId"))
+                .toList();
+        return createForVouchers(orderId, voucherIds, request.reasonCode(), request.description(),
                 key, "MERCHANT", account.getId(), account.getShopId(), null);
     }
 
@@ -219,17 +232,62 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         return toVO(created);
     }
 
+    /** 按门店、聚合阶段与精确关键词分页查询售后记录。 */
     @Override
-    public PageResult<VoucherRefundVO> merchantList(String status, int page, int size) {
+    public PageResult<VoucherRefundVO> merchantList(String status, MerchantAfterSaleStage stage, String keyword, int page, int size) {
         merchantAuth.requirePermission(MerchantPermissionCatalog.AFTER_SALES_READ);
         MerchantAccount account = merchantAuth.requireCurrentAccount();
         if (account.getShopId() == null) throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
+        if (page < 1 || size < 1 || size > 100)
+            throw BusinessException.badRequest("INVALID_PAGE", "page 必须大于等于1，size 必须在1到100之间");
+        if (status != null && !status.isBlank() && stage != null)
+            throw BusinessException.badRequest("INVALID_REFUND_FILTER", "status 与 stage 不能同时使用");
         QueryWrapper<VoucherRefund> q = new QueryWrapper<VoucherRefund>().eq("shop_id", account.getShopId());
-        if (status != null && !status.isBlank()) q.eq("status", status.toUpperCase(Locale.ROOT));
+        if (status != null && !status.isBlank()) {
+            try { q.eq("status", VoucherRefundStatus.valueOf(status.toUpperCase(Locale.ROOT)).name()); }
+            catch (IllegalArgumentException exception) { throw BusinessException.badRequest("INVALID_STATUS", "退款状态无效"); }
+        } else if (stage != null) applyStage(q, stage);
+        applyKeyword(q, keyword, account.getShopId());
         Page<VoucherRefund> result = refundMapper.selectPage(new Page<>(page, size), q.orderByDesc("created_time", "id"));
         return new PageResult<>(result.getRecords().stream().map(this::toVO).toList(), page, size, result.getTotal());
     }
 
+    /** 按本店订单号优先、完整券码其次查询退款候选资格。 */
+    @Override
+    public MerchantRefundCandidateVO merchantCandidate(String keyword) {
+        merchantAuth.requirePermission(MerchantPermissionCatalog.AFTER_SALES_CREATE);
+        MerchantAccount account = merchantAuth.requireCurrentAccount();
+        if (account.getShopId() == null) throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
+        String normalized = requireKeyword(keyword);
+        VoucherOrder order = null;
+        UserVoucher matchedVoucher = null;
+        Long possibleOrderId = tryParsePositiveId(normalized);
+        if (possibleOrderId != null) {
+            VoucherOrder candidate = orderMapper.selectById(possibleOrderId);
+            if (candidate != null && account.getShopId().equals(candidate.getShopId())) order = candidate;
+        }
+        if (order == null) {
+            UserVoucher byCode = voucherMapper.findByCodeHmac(DigestUtil.sha256Hex(normalized));
+            if (byCode != null && account.getShopId().equals(byCode.getShopId())) {
+                VoucherOrder candidate = orderMapper.selectById(byCode.getOrderId());
+                if (candidate != null && account.getShopId().equals(candidate.getShopId())) { order = candidate; matchedVoucher = byCode; }
+            }
+        }
+        if (order == null) throw BusinessException.notFound("REFUND_CANDIDATE_NOT_FOUND", "未找到本店订单或券码");
+        List<UserVoucher> vouchers = voucherMapper.selectList(new QueryWrapper<UserVoucher>()
+                .eq("order_id", order.getId()).eq("shop_id", account.getShopId()).orderByAsc("sequence_no", "id"));
+        Set<Long> activeVoucherIds = activeRefundVoucherIds(order.getId());
+        VoucherOrder locatedOrder = order;
+        List<MerchantRefundCandidateVoucherVO> voucherViews = vouchers.stream()
+                .map(voucher -> toCandidateVoucher(locatedOrder, voucher, activeVoucherIds)).toList();
+        boolean refundable = voucherViews.stream().anyMatch(item -> Boolean.TRUE.equals(item.refundable()));
+        String unavailableReason = refundable ? null : orderUnavailableReason(order, voucherViews);
+        return new MerchantRefundCandidateVO(IdUtils.format(order.getId()), IdUtils.format(order.getId()), order.getProductTitle(),
+                order.getStatus(), order.getQuantity() == null ? 1 : order.getQuantity(), order.getPayAmount(), refundable,
+                unavailableReason, matchedVoucher == null ? null : IdUtils.format(matchedVoucher.getId()), voucherViews);
+    }
+
+    /** 查询当前门店可见的单条售后详情。 */
     @Override
     public VoucherRefundVO merchantGet(Long id) {
         merchantAuth.requirePermission(MerchantPermissionCatalog.AFTER_SALES_READ);
@@ -275,24 +333,18 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         long unit = total / quantity;
         Long firstVoucher = null;
         long amount = 0;
-        boolean includesLast = false;
+        Set<Long> activeVoucherIds = activeRefundVoucherIds(orderId);
         for (int i = 0; i < ids.size(); i++) {
             UserVoucher voucher = voucherMapper.selectById(ids.get(i));
-            if (voucher == null || !orderId.equals(voucher.getOrderId()) || !UserVoucherStatus.UNUSED.name().equals(voucher.getStatus()))
+            if (voucher == null || !orderId.equals(voucher.getOrderId()))
                 throw BusinessException.conflict("VOUCHER_REFUND_NOT_ALLOWED", "存在不可退款的券");
             VoucherProduct product = productMapper.selectById(voucher.getProductId());
-            boolean expired = voucher.getExpireTime() != null && !voucher.getExpireTime().isAfter(LocalDateTime.now());
-            if (product == null || (expired ? !Boolean.TRUE.equals(product.getRefundExpired()) : !Boolean.TRUE.equals(product.getRefundAnytime())))
-                throw BusinessException.conflict("VOUCHER_REFUND_NOT_ALLOWED", "商品规则不支持退款");
+            RefundEligibility eligibility = refundEligibility(order, voucher, product, activeVoucherIds);
+            if (!eligibility.refundable())
+                throw BusinessException.conflict("VOUCHER_REFUND_NOT_ALLOWED", eligibility.reason());
             if (firstVoucher == null) firstVoucher = voucher.getId();
             amount += unit;
-            includesLast |= voucher.getSequenceNo() != null && voucher.getSequenceNo() == quantity;
-        }
-        if (includesLast) amount += total % quantity;
-        for (Long voucherId : ids) {
-            VoucherRefund active = refundMapper.selectOne(new QueryWrapper<VoucherRefund>().eq("voucher_id", voucherId)
-                    .in("status", VoucherRefundStatus.REQUESTED.name(), VoucherRefundStatus.PROCESSING.name(), VoucherRefundStatus.SUCCEEDED.name()));
-            if (active != null) throw BusinessException.conflict("VOUCHER_REFUND_ALREADY_EXISTS", "该券已有退款记录");
+            if (voucher.getSequenceNo() != null && voucher.getSequenceNo() == quantity) amount += total % quantity;
         }
         return new VoucherRefund().setId(idWorker.nextId("voucher-refund")).setVoucherId(firstVoucher)
                 .setOrderId(orderId).setVoucherIds(ids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")))
@@ -305,6 +357,81 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         if (refund.getVoucherIds() == null || refund.getVoucherIds().isBlank()) return List.of(refund.getVoucherId());
         return java.util.Arrays.stream(refund.getVoucherIds().split(",")).map(String::trim).filter(v -> !v.isEmpty()).map(Long::valueOf).toList();
     }
+
+    private void applyStage(QueryWrapper<VoucherRefund> query, MerchantAfterSaleStage stage) {
+        switch (stage) {
+            case PENDING -> query.eq("status", VoucherRefundStatus.REQUESTED.name());
+            case PROCESSING -> query.eq("status", VoucherRefundStatus.PROCESSING.name());
+            case DECLINED -> query.in("status", VoucherRefundStatus.REJECTED.name(), VoucherRefundStatus.FAILED.name());
+            case COMPLETED -> query.eq("status", VoucherRefundStatus.SUCCEEDED.name());
+        }
+    }
+
+    private void applyKeyword(QueryWrapper<VoucherRefund> query, String keyword, Long shopId) {
+        if (keyword == null || keyword.isBlank()) return;
+        String normalized = requireKeyword(keyword);
+        Long possibleId = tryParsePositiveId(normalized);
+        UserVoucher byCode = voucherMapper.findByCodeHmac(DigestUtil.sha256Hex(normalized));
+        Long codeVoucherId = byCode != null && shopId.equals(byCode.getShopId()) ? byCode.getId() : null;
+        if (possibleId == null && codeVoucherId == null) { query.eq("id", -1L); return; }
+        query.and(nested -> {
+            if (possibleId != null) nested.eq("id", possibleId).or().eq("order_id", possibleId).or().eq("voucher_id", possibleId);
+            if (codeVoucherId != null) {
+                if (possibleId != null) nested.or();
+                nested.eq("voucher_id", codeVoucherId).or().apply("FIND_IN_SET({0}, voucher_ids)", codeVoucherId);
+            }
+        });
+    }
+
+    private MerchantRefundCandidateVoucherVO toCandidateVoucher(VoucherOrder order, UserVoucher voucher, Set<Long> activeVoucherIds) {
+        RefundEligibility eligibility = refundEligibility(order, voucher, productMapper.selectById(voucher.getProductId()), activeVoucherIds);
+        return new MerchantRefundCandidateVoucherVO(IdUtils.format(voucher.getId()), voucher.getSequenceNo(), voucher.getVoucherCodeLast4(),
+                voucher.getStatus(), refundAmount(order, voucher), eligibility.refundable(), eligibility.reason());
+    }
+
+    private RefundEligibility refundEligibility(VoucherOrder order, UserVoucher voucher, VoucherProduct product, Set<Long> activeVoucherIds) {
+        if (!VoucherOrderStatus.PAID.name().equals(order.getStatus())) return new RefundEligibility(false, "订单当前不可退款");
+        if (!UserVoucherStatus.UNUSED.name().equals(voucher.getStatus())) return new RefundEligibility(false, "券当前状态不可退款");
+        if (activeVoucherIds.contains(voucher.getId())) return new RefundEligibility(false, "该券已有退款记录");
+        if (product == null) return new RefundEligibility(false, "退款商品不存在");
+        boolean expired = voucher.getExpireTime() != null && !voucher.getExpireTime().isAfter(LocalDateTime.now());
+        boolean allowed = expired ? Boolean.TRUE.equals(product.getRefundExpired()) : Boolean.TRUE.equals(product.getRefundAnytime());
+        return allowed ? new RefundEligibility(true, null) : new RefundEligibility(false, "商品规则不支持退款");
+    }
+
+    private Set<Long> activeRefundVoucherIds(Long orderId) {
+        Set<Long> result = new HashSet<>();
+        List<VoucherRefund> refunds = refundMapper.selectList(new QueryWrapper<VoucherRefund>().eq("order_id", orderId).in("status", ACTIVE_REFUND_STATUSES));
+        for (VoucherRefund refund : refunds) result.addAll(refundVoucherIds(refund));
+        return result;
+    }
+
+    private long refundAmount(VoucherOrder order, UserVoucher voucher) {
+        long total = order.getPayAmount() == null ? 0 : order.getPayAmount();
+        int quantity = Math.max(1, order.getQuantity() == null ? 1 : order.getQuantity());
+        return total / quantity + (voucher.getSequenceNo() != null && voucher.getSequenceNo() == quantity ? total % quantity : 0);
+    }
+
+    private String orderUnavailableReason(VoucherOrder order, List<MerchantRefundCandidateVoucherVO> vouchers) {
+        if (!VoucherOrderStatus.PAID.name().equals(order.getStatus())) return "订单当前不可退款";
+        if (vouchers.isEmpty()) return "订单暂无可退款券";
+        return vouchers.getFirst().unavailableReason();
+    }
+
+    private String requireKeyword(String keyword) {
+        String normalized = keyword == null ? "" : keyword.trim();
+        if (normalized.isEmpty() || normalized.length() > 64)
+            throw BusinessException.badRequest("INVALID_REFUND_KEYWORD", "请输入不超过64个字符的订单号或券码");
+        return normalized;
+    }
+
+    private Long tryParsePositiveId(String value) {
+        try { long parsed = Long.parseLong(value); return parsed > 0 ? parsed : null; }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    private record RefundEligibility(boolean refundable, String reason) {}
+
     private VoucherRefundVO toVO(VoucherRefund r) {
         VoucherOrder order = orderMapper.selectById(r.getOrderId());
         VoucherProduct voucherProduct = order == null ? null : productMapper.selectById(order.getProductId());
@@ -319,16 +446,12 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
 
     /** 将固定原因编码投影为消费者可读文案，编码仍通过 reasonCode 保留给客户端。 */
     private String reasonLabel(String reasonCode) {
-        return Map.of(
-                "PLAN_CHANGED", "计划有变没时间消费",
-                "BOUGHT_WRONG", "买多了/买错了",
-                "SAFETY_CONCERN", "担心安全问题",
-                "REGRET", "后悔了，不想要了",
-                "MISTOOK_DELIVERY", "误以为是外卖",
-                "RULES_UNCLEAR", "没看清使用规则",
-                "QUEUE_TOO_LONG", "预约不上/排队太久",
-                "CANNOT_CONTACT_SHOP", "联系不上商家",
-                "SHOP_NOT_SERVING", "商家营业但不接待",
-                "OTHER", "其他").getOrDefault(reasonCode, reasonCode);
+        return Map.ofEntries(
+                Map.entry("PLAN_CHANGED", "计划有变没时间消费"), Map.entry("BOUGHT_WRONG", "买多了/买错了"),
+                Map.entry("SAFETY_CONCERN", "担心安全问题"), Map.entry("REGRET", "后悔了，不想要了"),
+                Map.entry("MISTOOK_DELIVERY", "误以为是外卖"), Map.entry("RULES_UNCLEAR", "没看清使用规则"),
+                Map.entry("QUEUE_TOO_LONG", "预约不上/排队太久"), Map.entry("CANNOT_CONTACT_SHOP", "联系不上商家"),
+                Map.entry("SHOP_NOT_SERVING", "商家营业但不接待"), Map.entry("SHOP_EXCEPTION", "商户发起退款"),
+                Map.entry("OTHER", "其他")).getOrDefault(reasonCode, reasonCode);
     }
 }

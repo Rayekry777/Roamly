@@ -4,7 +4,9 @@ import com.ray.dto.VoucherRefundDTO;
 import com.ray.dto.MerchantRefundDTO;
 import com.ray.dto.AdminRefundDTO;
 import com.ray.dto.ConsumerRefundDTO;
+import com.ray.enums.MerchantAfterSaleStage;
 import com.ray.result.PageResult;
+import com.ray.vo.MerchantRefundCandidateVO;
 import com.ray.vo.VoucherRefundVO;
 
 /** 消费者单券退款申请及管理端处理能力。 */
@@ -17,8 +19,14 @@ public interface VoucherRefundService {
     VoucherRefundVO get(Long id, boolean admin);
     /** 由管理端审批、驳回或重试退款，并同步券与订单状态。 */
     VoucherRefundVO decide(Long id, boolean approve, String reason, String idempotencyKey);
-    PageResult<VoucherRefundVO> merchantList(String status, int page, int size);
+    /** 按当前门店、聚合阶段和精确关键词分页查询售后。 */
+    PageResult<VoucherRefundVO> merchantList(
+            String status, MerchantAfterSaleStage stage, String keyword, int page, int size);
+    /** 按本店订单号或券码查询退款候选和服务端资格。 */
+    MerchantRefundCandidateVO merchantCandidate(String keyword);
+    /** 查询当前门店可见的售后详情。 */
     VoucherRefundVO merchantGet(Long id);
+    /** 以字符串业务 ID 发起本店退款申请。 */
     VoucherRefundVO merchantRequest(MerchantRefundDTO request, String idempotencyKey);
     VoucherRefundVO adminRequest(AdminRefundDTO request, String idempotencyKey);
     VoucherRefundVO consumerRequest(ConsumerRefundDTO request, String idempotencyKey);

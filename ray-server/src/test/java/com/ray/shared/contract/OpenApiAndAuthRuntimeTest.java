@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(147, operationIds.size());
+        assertEquals(148, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -428,6 +428,7 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/redemptions/{id}/reversal",
                 "GET /v1/merchant/redemptions",
                 "GET /v1/merchant/after-sales",
+                "GET /v1/merchant/after-sales/candidate",
                 "GET /v1/merchant/after-sales/{id}",
                 "POST /v1/merchant/after-sales",
                 "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
