@@ -62,12 +62,25 @@ class VoucherTradeControllerTest {
 
     @Test
     void listsAndCancelsMyOrdersWithStringId() throws Exception {
-        when(tradeService.listOrders(null, 1, 10)).thenReturn(new PageResult<>(List.of(), 1, 10, 0));
+        when(tradeService.listOrders(null, null, 1, 10)).thenReturn(new PageResult<>(List.of(), 1, 10, 0));
         mockMvc.perform(get("/v1/users/me/orders")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isArray());
         mockMvc.perform(delete("/v1/users/me/orders/10001")).andExpect(status().isNoContent());
-        verify(tradeService).listOrders(null, 1, 10);
+        verify(tradeService).listOrders(null, null, 1, 10);
         verify(tradeService).cancelOrder(10001L);
+    }
+
+    @Test
+    void passesProductTypeFilterToOrderQuery() throws Exception {
+        when(tradeService.listOrders("PAID", "CASH", 2, 20))
+                .thenReturn(new PageResult<>(List.of(), 2, 20, 0));
+        mockMvc.perform(get("/v1/users/me/orders")
+                        .param("status", "PAID")
+                        .param("productType", "CASH")
+                        .param("page", "2")
+                        .param("size", "20"))
+                .andExpect(status().isOk());
+        verify(tradeService).listOrders("PAID", "CASH", 2, 20);
     }
 
     @Test

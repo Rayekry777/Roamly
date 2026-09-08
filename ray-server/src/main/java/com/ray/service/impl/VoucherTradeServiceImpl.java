@@ -13,6 +13,7 @@ import com.ray.entity.VoucherOrder;
 import com.ray.entity.VoucherProduct;
 import com.ray.enums.UserVoucherStatus;
 import com.ray.enums.VoucherOrderStatus;
+import com.ray.enums.VoucherProductType;
 import com.ray.enums.ShopStatus;
 import com.ray.enums.VoucherReviewStatus;
 import com.ray.enums.VoucherSaleStatus;
@@ -205,7 +206,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     /** 查询当前用户订单分页。 */
     @Override
-    public PageResult<VoucherOrderVO> listOrders(String status, int page, int size) {
+    public PageResult<VoucherOrderVO> listOrders(String status, String productType, int page, int size) {
         Long userId = currentUserProvider.requireUserId();
         validatePage(page, size);
         Page<VoucherOrder> result = new Page<>(page, size);
@@ -221,6 +222,11 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             } else {
                 wrapper.eq("status", parseStatus(normalizedStatus).name());
             }
+        }
+        VoucherProductType parsedProductType = parseProductType(productType);
+        if (parsedProductType != null) {
+            wrapper.inSql("product_id", "SELECT id FROM voucher_product WHERE product_type = '"
+                    + parsedProductType.name() + "'");
         }
         // 直接调用 BaseMapper，避免把 ChainQuery 当成分页 wrapper 传入 MyBatis-Plus。
         // ChainQuery 的 getSqlFirst/getSqlComment 是故意禁止调用的，分页插件会在解析 ew 时触发它们。
@@ -299,6 +305,15 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return parsed;
     }
 
+    private VoucherProductType parseProductType(String productType) {
+        if (productType == null || productType.isBlank()) return null;
+        try {
+            return VoucherProductType.valueOf(productType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw BusinessException.badRequest("INVALID_PRODUCT_TYPE", "券型无效");
+        }
+    }
+
     private void validatePage(int page, int size) {
         if (page < 1 || size < 1 || size > 100)
             throw BusinessException.badRequest("INVALID_PAGE", "page 必须大于等于1，size 必须在1到100之间");
@@ -307,16 +322,27 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private VoucherOrderVO toOrderVO(VoucherOrder order, VoucherProductVO product) {
         String status = order.getStatus() == null ? VoucherOrderStatus.PENDING_PAYMENT.name() : order.getStatus();
         LocalDateTime expire = order.getPaymentExpireTime();
+        VoucherProduct orderedProduct = product == null && order.getProductId() != null
+                ? productMapper.selectById(order.getProductId()) : null;
         String productCover = product == null ? null : product.cover();
-        if (productCover == null && order.getProductId() != null) {
-            VoucherProduct orderedProduct = productMapper.selectById(order.getProductId());
-            productCover = orderedProduct == null ? null : publicCoverPath(orderedProduct);
-        }
+        if (productCover == null && orderedProduct != null) productCover = publicCoverPath(orderedProduct);
+        String productType = product != null ? product.productType()
+                : orderedProduct == null ? null : orderedProduct.getProductType();
+        String productTypeLabel = productType == null ? null : productTypeLabel(productType);
         return new VoucherOrderVO(IdUtils.format(order.getId()), IdUtils.format(order.getId()), IdUtils.format(order.getUserId()),
                 IdUtils.format(order.getShopId()), IdUtils.format(order.getProductId()), order.getProductTitle(),
                 order.getQuantity() == null ? 1 : order.getQuantity(), order.getUnitPrice(), order.getTotalAmount(),
                 order.getPayAmount(), status, order.getCreateTime(), order.getPayTime(),
-                status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire, productCover);
+                status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire, productCover,
+                productType, productTypeLabel);
+    }
+
+    private String productTypeLabel(String productType) {
+        try {
+            return VoucherProductType.valueOf(productType).label();
+        } catch (IllegalArgumentException exception) {
+            return productType;
+        }
     }
 
     private String publicCoverPath(VoucherProduct product) {

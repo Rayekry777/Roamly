@@ -76,10 +76,13 @@ public class VoucherTradeController {
     @Operation(summary = "查询我的团购订单", operationId = "listMyVoucherOrders")
     @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功", useReturnTypeSchema = true))
     public Result<PageResult<VoucherOrderVO>> listOrders(
+            @Parameter(description = "订单状态；REFUNDING 同时包含 REFUNDING 与 REFUNDED")
             @RequestParam(required = false) String status,
+            @Parameter(description = "券型筛选：PACKAGE 套餐券、CASH 代金券、DISCOUNT 折扣券、MULTI_USE 次卡")
+            @RequestParam(required = false) String productType,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
-        return Result.ok(service.listOrders(status, page, size));
+        return Result.ok(service.listOrders(status, productType, page, size));
     }
 
     /** 查询当前用户订单详情。 */

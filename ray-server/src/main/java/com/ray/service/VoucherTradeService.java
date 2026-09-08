@@ -18,7 +18,12 @@ public interface VoucherTradeService {
     VoucherOrderVO createOrder(Long productId, VoucherOrderCreateDTO request, String idempotencyKey);
 
     /** 查询当前用户订单分页。 */
-    PageResult<VoucherOrderVO> listOrders(String status, int page, int size);
+    default PageResult<VoucherOrderVO> listOrders(String status, int page, int size) {
+        return listOrders(status, null, page, size);
+    }
+
+    /** 按订单状态和券型查询当前用户订单分页。 */
+    PageResult<VoucherOrderVO> listOrders(String status, String productType, int page, int size);
 
     /** 查询当前用户订单详情。 */
     VoucherOrderDetailVO getOrder(Long orderId);

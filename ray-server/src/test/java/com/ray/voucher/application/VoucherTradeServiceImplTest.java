@@ -194,6 +194,28 @@ class VoucherTradeServiceImplTest {
         assertTrue(result.items().isEmpty());
     }
 
+    @Test
+    void returnsProductTypeAndLabelInOrderSummary() {
+        VoucherOrder order = new VoucherOrder()
+                .setId(6010L).setUserId(7L).setProductId(1001L).setShopId(4L)
+                .setProductTitle("代金券").setQuantity(1).setUnitPrice(8000L)
+                .setTotalAmount(8000L).setPayAmount(8000L).setStatus("PAID");
+        when(productMapper.selectById(1001L)).thenReturn(new VoucherProduct()
+                .setId(1001L).setProductType("CASH"));
+        when(orderMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenAnswer(invocation -> {
+            Page<VoucherOrder> page = invocation.getArgument(0);
+            page.setRecords(java.util.List.of(order));
+            page.setTotal(1L);
+            return page;
+        });
+
+        PageResult<?> result = service.listOrders(null, "CASH", 1, 10);
+
+        Object item = result.items().get(0);
+        assertEquals("CASH", ((com.ray.vo.VoucherOrderVO) item).productType());
+        assertEquals("代金券", ((com.ray.vo.VoucherOrderVO) item).productTypeLabel());
+    }
+
     private void preparePurchasableProduct(int purchaseLimit) {
         when(productMapper.selectById(1001L)).thenReturn(new VoucherProduct()
                 .setId(1001L)
