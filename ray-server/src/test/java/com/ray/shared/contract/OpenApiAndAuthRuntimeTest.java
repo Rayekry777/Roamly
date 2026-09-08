@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(148, operationIds.size());
+        assertEquals(158, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -312,6 +312,8 @@ class OpenApiAndAuthRuntimeTest {
         return Set.of(
                 "POST /v1/auth/sms-codes",
                 "POST /v1/auth/sessions",
+                "POST /v1/auth/registrations",
+                "POST /v1/auth/password-sessions",
                 "DELETE /v1/auth/session",
                 "POST /v1/admin/auth/login",
                 "GET /v1/admin/auth/me",
@@ -385,6 +387,15 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me",
                 "GET /v1/users/{userId}",
                 "GET /v1/users/{userId}/profile",
+                "GET /v1/users/me/profile",
+                "PUT /v1/users/me/profile",
+                "PUT /v1/users/me/nickname",
+                "PUT /v1/users/me/avatar",
+                "PUT /v1/users/me/city-preference",
+                "POST /v1/users/me/phone-change/sms-codes",
+                "PUT /v1/users/me/phone",
+                "POST /v1/users/me/password-change/sms-codes",
+                "PUT /v1/users/me/password",
                 "PUT /v1/users/me/check-ins/today",
                 "GET /v1/users/me/check-ins/streak",
                 "PUT /v1/users/me/following/{userId}",
@@ -627,7 +638,9 @@ class OpenApiAndAuthRuntimeTest {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
             ResponseEntity<String> response = http.postForEntity(
-                    "/v1/auth/sms-codes", new HttpEntity<>("{\"phone\":\"13800138000\"}", headers), String.class);
+                    "/v1/auth/sms-codes",
+                    new HttpEntity<>("{\"phone\":\"13800138000\",\"scene\":\"LOGIN\"}", headers),
+                    String.class);
             assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
             assertEquals(
                     "SMS_SERVICE_UNAVAILABLE",

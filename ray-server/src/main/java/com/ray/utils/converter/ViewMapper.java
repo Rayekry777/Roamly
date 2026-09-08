@@ -4,12 +4,10 @@ import com.ray.entity.ContentSection;
 import com.ray.entity.Shop;
 import com.ray.entity.ShopType;
 import com.ray.entity.User;
-import com.ray.entity.UserInfo;
 import com.ray.vo.SectionDetailVO;
 import com.ray.vo.SectionVO;
 import com.ray.vo.ShopTypeVO;
 import com.ray.vo.ShopVO;
-import com.ray.vo.UserInfoVO;
 import com.ray.vo.UserVO;
 
 /** 持久化模型到接口视图的集中映射。 */
@@ -18,19 +16,6 @@ public final class ViewMapper {
 
     public static UserVO toUser(User user) {
         return new UserVO(IdUtils.format(user.getId()), user.getNickName(), user.getIcon());
-    }
-
-    public static UserInfoVO toUserInfo(UserInfo info) {
-        return new UserInfoVO(
-                IdUtils.format(info.getUserId()),
-                info.getCity(),
-                info.getIntroduce(),
-                info.getFans(),
-                info.getFollowee(),
-                info.getGender(),
-                info.getBirthday(),
-                info.getCredits(),
-                info.getLevel());
     }
 
     public static ShopTypeVO toShopType(ShopType type) {

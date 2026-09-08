@@ -84,7 +84,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 "admin_user", "operation_audit_log", "city", "content_section", "section_follow",
                 "media_asset", "post", "post_media", "post_like", "post_comment", "post_comment_like",
                 "follow", "shop", "merchant_account", "merchant_staff_invitation", "merchant_application",
-                "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_info",
+                "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_profile",
                 "voucher_product", "voucher_package_item", "voucher_product_detail", "voucher_product_tag",
                 "voucher_product_cash_rule", "voucher_product_discount_rule", "voucher_product_multi_use_rule",
                 "voucher_order", "payment_transaction", "voucher_refund", "user_voucher", "user_voucher_qr_code",
@@ -906,7 +906,7 @@ class DatabaseBusinessClosureIntegrationTest {
 
     private String login(String phone) throws Exception {
         ResponseEntity<String> code = exchange(
-                "/v1/auth/sms-codes", HttpMethod.POST, Map.of("phone", phone), null);
+                "/v1/auth/sms-codes", HttpMethod.POST, Map.of("phone", phone, "scene", "LOGIN"), null);
         assertEquals(HttpStatus.NO_CONTENT, code.getStatusCode());
         ResponseEntity<String> session = exchange(
                 "/v1/auth/sessions",

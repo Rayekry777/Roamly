@@ -28,20 +28,22 @@ public class User implements Serializable {
      */
     private String phone;
 
-    /**
-     * 密码，加密存储
-     */
-    private String password;
+    /** BCrypt 密码摘要。 */
+    private String passwordHash;
 
     /**
      * 昵称，默认是随机字符
      */
     private String nickName;
 
-    /**
-     * 用户头像
-     */
+    /** 用户头像相对路径。 */
     private String icon = "";
+
+    /** 当前头像媒体资产 ID。 */
+    private Long avatarMediaId;
+
+    /** 最近一次用户主动修改昵称的时间。 */
+    private LocalDateTime nicknameUpdatedAt;
 
     /**
      * 创建时间

@@ -62,7 +62,11 @@ public class MvcConfig implements WebMvcConfigurer {
     static boolean isPublic(String method, String path) {
         if (isAdminPublic(method, path)) return true;
         if (isMerchantPublic(method, path)) return true;
-        if ("POST".equals(method) && ("/v1/auth/sms-codes".equals(path) || "/v1/auth/sessions".equals(path)))
+        if ("POST".equals(method)
+                && ("/v1/auth/sms-codes".equals(path)
+                        || "/v1/auth/sessions".equals(path)
+                        || "/v1/auth/password-sessions".equals(path)
+                        || "/v1/auth/registrations".equals(path)))
             return true;
         if (!"GET".equals(method)) return false;
         if (path.equals("/v1/cities")

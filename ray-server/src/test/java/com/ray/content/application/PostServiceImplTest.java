@@ -14,7 +14,6 @@ import com.ray.dto.PostCreateDTO;
 import com.ray.entity.ContentPost;
 import com.ray.entity.ContentSection;
 import com.ray.entity.Follow;
-import com.ray.entity.UserInfo;
 import com.ray.enums.EnableStatus;
 import com.ray.enums.PostStatus;
 import com.ray.exception.BusinessException;
@@ -27,7 +26,7 @@ import com.ray.service.CurrentUserProvider;
 import com.ray.service.FollowService;
 import com.ray.service.MediaAssetService;
 import com.ray.service.ShopService;
-import com.ray.service.UserInfoService;
+import com.ray.service.UserProfileService;
 import com.ray.service.UserService;
 import com.ray.service.impl.PostServiceImpl;
 import java.util.List;
@@ -54,7 +53,7 @@ class PostServiceImplTest {
         contentSectionService = mock(ContentSectionService.class);
         ShopService shopService = mock(ShopService.class);
         cityService = mock(CityService.class);
-        UserInfoService userInfoService = mock(UserInfoService.class);
+        UserProfileService userProfileService = mock(UserProfileService.class);
         UserService userService = mock(UserService.class);
         FollowService followService = mock(FollowService.class);
         currentUserProvider = mock(CurrentUserProvider.class);
@@ -66,7 +65,7 @@ class PostServiceImplTest {
                 contentSectionService,
                 shopService,
                 cityService,
-                userInfoService,
+                userProfileService,
                 userService,
                 followService,
                 currentUserProvider,
@@ -78,7 +77,7 @@ class PostServiceImplTest {
                 .setId(1L)
                 .setCode("ROAM_DAILY")
                 .setStatus(EnableStatus.ENABLED.code()));
-        when(userInfoService.getById(7L)).thenReturn(new UserInfo().setUserId(7L).setCityCode("330100"));
+        when(userProfileService.currentCityCode(7L)).thenReturn("330100");
         when(cityService.count(any())).thenReturn(1L);
         when(followService.list(org.mockito.ArgumentMatchers.<Wrapper<Follow>>any())).thenReturn(List.of());
         when(postMapper.insert(any(ContentPost.class))).thenAnswer(invocation -> {

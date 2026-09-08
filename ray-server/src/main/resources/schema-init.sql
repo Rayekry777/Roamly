@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS `merchant_application`;
 DROP TABLE IF EXISTS `merchant_account`;
 DROP TABLE IF EXISTS `shop_review_media`;
 DROP TABLE IF EXISTS `shop_review`;
+DROP TABLE IF EXISTS `user_profile`;
 DROP TABLE IF EXISTS `user_info`;
 DROP TABLE IF EXISTS `user`;
 DROP TABLE IF EXISTS `shop_type`;
@@ -128,7 +129,7 @@ CREATE TABLE `media_asset` (
   `width` int UNSIGNED NOT NULL COMMENT '图片像素宽度',
   `height` int UNSIGNED NOT NULL COMMENT '图片像素高度',
   `status` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态：0临时，1已绑定，2已删除',
-  `bound_type` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '绑定类型：1动态，2商户点评',
+  `bound_type` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '绑定类型：1动态，2商户点评，3用户头像',
   `bound_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '绑定业务ID',
   `expire_time` timestamp NULL DEFAULT NULL COMMENT '临时资产过期时间',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -427,31 +428,30 @@ CREATE TABLE `shop_review_media` (
 CREATE TABLE `user`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `phone` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '手机号码',
-  `password` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '密码，加密存储',
-  `nick_name` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '昵称，默认是用户id',
-  `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '人物头像',
+  `password_hash` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'BCrypt密码摘要',
+  `nick_name` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '昵称，注册时默认生成',
+  `icon` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '头像相对路径',
+  `avatar_media_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '当前头像媒体资产ID，逻辑关联media_asset.id',
+  `nickname_updated_at` timestamp NULL DEFAULT NULL COMMENT '最近一次用户主动修改昵称时间',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uniqe_key_phone`(`phone`) USING BTREE
+  UNIQUE INDEX `uk_user_phone`(`phone`) USING BTREE,
+  UNIQUE INDEX `uk_user_avatar_media` (`avatar_media_id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1010 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
 
-CREATE TABLE `user_info`  (
-  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '主键，用户id',
-  `city` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '城市名称',
-  `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '当前城市编码',
-  `introduce` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '个人介绍，不要超过128个字符',
-  `fans` int(8) UNSIGNED NULL DEFAULT 0 COMMENT '粉丝数量',
-  `followee` int(8) UNSIGNED NULL DEFAULT 0 COMMENT '关注的人的数量',
-  `gender` tinyint(1) UNSIGNED NULL DEFAULT 0 COMMENT '性别，0：男，1：女',
+CREATE TABLE `user_profile`  (
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户ID，逻辑关联user.id',
+  `gender` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'UNDISCLOSED' COMMENT '性别：UNDISCLOSED保密、MALE男、FEMALE女',
   `birthday` date NULL DEFAULT NULL COMMENT '生日',
-  `credits` int(8) UNSIGNED NULL DEFAULT 0 COMMENT '积分',
-  `level` tinyint(1) UNSIGNED NULL DEFAULT 0 COMMENT '会员级别，0~9级,0代表未开通会员',
+  `current_city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '330100' COMMENT '内部当前城市偏好，不对外展示',
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`user_id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
+  PRIMARY KEY (`user_id`) USING BTREE,
+  INDEX `idx_user_profile_city` (`current_city_code`, `user_id`) USING BTREE,
+  CONSTRAINT `chk_user_profile_gender` CHECK (`gender` IN ('UNDISCLOSED','MALE','FEMALE'))
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '消费者私有资料与内部偏好' ROW_FORMAT = Compact;
 
 
 CREATE TABLE `voucher_product` (

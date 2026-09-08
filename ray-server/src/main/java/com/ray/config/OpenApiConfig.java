@@ -73,8 +73,19 @@ import com.ray.dto.VoucherReviewApprovalDTO;
 import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.dto.MerchantVoucherProductOffSaleDTO;
 import com.ray.dto.CommissionRuleUpdateDTO;
+import com.ray.dto.RegistrationDTO;
+import com.ray.dto.PasswordLoginDTO;
+import com.ray.dto.UserProfileUpdateDTO;
+import com.ray.dto.NicknameUpdateDTO;
+import com.ray.dto.AvatarUpdateDTO;
+import com.ray.dto.PhoneChangeDTO;
+import com.ray.dto.PhoneSmsCodeDTO;
+import com.ray.dto.PasswordChangeDTO;
+import com.ray.dto.SmsCodeDTO;
 import com.ray.vo.AdminEventTicketVO;
 import com.ray.vo.AdminAuditLogVO;
+import com.ray.vo.CurrentUserProfileVO;
+import com.ray.vo.PublicUserProfileVO;
 import com.ray.vo.CommissionRuleVO;
 import com.ray.vo.FundLedgerEntryVO;
 import com.ray.vo.MerchantFinanceSummaryVO;
@@ -127,6 +138,7 @@ public class OpenApiConfig {
         registerVoucherReviewSchemas(components);
         registerStage23To29Schemas(components);
         registerSchema(components, "AdminAuditLogVO", AdminAuditLogVO.class);
+        registerConsumerAccountSchemas(components);
         return new OpenAPI()
                 .info(new Info()
                         .title("Roamly 本地生活服务 API")
@@ -152,6 +164,7 @@ public class OpenApiConfig {
             registerVoucherReviewSchemas(openApi.getComponents());
             registerStage23To29Schemas(openApi.getComponents());
             registerSchema(openApi.getComponents(), "AdminAuditLogVO", AdminAuditLogVO.class);
+            registerConsumerAccountSchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
                 if (path.equals("/v1/admin/events") && method == HttpMethod.GET) {
                     operation.setSecurity(List.of());
@@ -181,6 +194,10 @@ public class OpenApiConfig {
                     addError(operation.getResponses(), "401", "用户名、密码或账号状态无效");
                     addError(operation.getResponses(), "429", "管理员登录失败次数过多");
                     addError(operation.getResponses(), "503", "管理员认证依赖服务暂不可用");
+                }
+                if (path.startsWith("/v1/auth/") || path.startsWith("/v1/users/me/")) {
+                    addError(operation.getResponses(), "409", "账号、验证码或状态冲突");
+                    addError(operation.getResponses(), "429", "操作过于频繁或密码登录已受限");
                 }
                 if (path.matches("/v1/admin/users/\\{[^/]+}(/activation|/disablement|/password-reset)?")) {
                     addError(operation.getResponses(), "404", "管理员账号不存在");
@@ -294,6 +311,20 @@ public class OpenApiConfig {
         registerSchema(components, "MerchantFinanceSummaryVO", MerchantFinanceSummaryVO.class);
         registerSchema(components, "SettlementBatchVO", SettlementBatchVO.class);
         registerSchema(components, "AdminEventTicketVO", AdminEventTicketVO.class);
+    }
+
+    private void registerConsumerAccountSchemas(Components components) {
+        registerSchema(components, "SmsCodeDTO", SmsCodeDTO.class);
+        registerSchema(components, "RegistrationDTO", RegistrationDTO.class);
+        registerSchema(components, "PasswordLoginDTO", PasswordLoginDTO.class);
+        registerSchema(components, "UserProfileUpdateDTO", UserProfileUpdateDTO.class);
+        registerSchema(components, "NicknameUpdateDTO", NicknameUpdateDTO.class);
+        registerSchema(components, "AvatarUpdateDTO", AvatarUpdateDTO.class);
+        registerSchema(components, "PhoneSmsCodeDTO", PhoneSmsCodeDTO.class);
+        registerSchema(components, "PhoneChangeDTO", PhoneChangeDTO.class);
+        registerSchema(components, "PasswordChangeDTO", PasswordChangeDTO.class);
+        registerSchema(components, "CurrentUserProfileVO", CurrentUserProfileVO.class);
+        registerSchema(components, "PublicUserProfileVO", PublicUserProfileVO.class);
     }
 
     private void registerMerchantSchemas(Components components) {

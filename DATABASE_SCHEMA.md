@@ -1,13 +1,13 @@
 # Roamly 数据库结构契约
 
 ```yaml
-updatedAt: 2026-09-06
+updatedAt: 2026-09-08
 schemaMode: Demo 可重建快照
 businessTableCount: 39
 database: MySQL / InnoDB / utf8mb4
 runtimeVerification: 已验证（39 张当前业务表）
 targetBusinessTableCount: 39
-targetDesignVersion: 7
+targetDesignVersion: 8
 targetDesignStatus: 已冻结
 targetImplementationStatus: 已实现
 demoDataClosureStatus: 已实现
@@ -49,7 +49,7 @@ demoDataClosureStatus: 已实现
 | `shop_review` | 独立点评 | 商户/用户级 | `shop_id,user_id` 唯一 |
 | `shop_review_media` | 点评媒体顺序 | 点评级 | 点评顺序与媒体各自唯一 |
 | `user` | 用户账号 | 平台级 | 手机号唯一 |
-| `user_info` | 用户资料 | 用户级 | `user_id` 主键 |
+| `user_profile` | 消费者私有资料与城市偏好 | 用户级 | `user_id` 主键；性别 CHECK；内部城市编码 |
 | `voucher_product` | 团购商品 | 商户级 | 商户状态与销售期索引 |
 | `voucher_order` | 团购订单 | 用户级 | 用户状态时间、商品用户索引 |
 | `user_voucher` | 用户券实例 | 用户级 | 券码唯一、订单唯一 |

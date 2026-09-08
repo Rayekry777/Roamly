@@ -26,7 +26,7 @@ import com.ray.service.CurrentUserProvider;
 import com.ray.service.FollowService;
 import com.ray.service.MediaAssetService;
 import com.ray.service.ShopService;
-import com.ray.service.UserInfoService;
+import com.ray.service.UserProfileService;
 import com.ray.service.UserService;
 import com.ray.service.impl.PostServiceImpl;
 import com.ray.vo.PostCardVO;
@@ -60,7 +60,7 @@ class PostFeedServiceImplTest {
                 contentSectionService,
                 dependencies.shopService,
                 cityService,
-                dependencies.userInfoService,
+                dependencies.userProfileService,
                 dependencies.userService,
                 dependencies.followService,
                 currentUserProvider,
@@ -184,7 +184,7 @@ class PostFeedServiceImplTest {
         private final PostLikeMapper postLikeMapper = mock(PostLikeMapper.class);
         private final MediaAssetService mediaAssetService = mock(MediaAssetService.class);
         private final ShopService shopService = mock(ShopService.class);
-        private final UserInfoService userInfoService = mock(UserInfoService.class);
+        private final UserProfileService userProfileService = mock(UserProfileService.class);
         private final UserService userService = mock(UserService.class);
         private final FollowService followService = mock(FollowService.class);
     }

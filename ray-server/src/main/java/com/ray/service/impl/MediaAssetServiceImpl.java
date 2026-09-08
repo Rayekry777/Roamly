@@ -138,6 +138,12 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         return lockTemporaryImages(ownerUserId, mediaIds);
     }
 
+    /** 锁定当前用户的一张临时图片作为待绑定头像。 */
+    @Override
+    public MediaAsset lockTemporaryAvatarImage(Long ownerUserId, Long mediaId) {
+        return lockTemporaryImages(ownerUserId, List.of(mediaId)).getFirst();
+    }
+
     private List<MediaAsset> lockTemporaryImages(Long ownerUserId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return List.of();
         List<Long> lockOrder = mediaIds.stream().sorted().toList();
@@ -181,6 +187,12 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         bindImages(ownerUserId, MediaAssetBoundType.SHOP_REVIEW, reviewId, mediaIds);
     }
 
+    /** 将唯一临时媒体绑定到用户头像业务。 */
+    @Override
+    public void bindAvatarImage(Long ownerUserId, Long mediaId) {
+        bindImages(ownerUserId, MediaAssetBoundType.USER_AVATAR, ownerUserId, List.of(mediaId));
+    }
+
     private void bindImages(
             Long ownerUserId, MediaAssetBoundType boundType, Long boundId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return;
@@ -214,6 +226,12 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         deleteImages(MediaAssetBoundType.SHOP_REVIEW, reviewId, mediaIds);
     }
 
+    /** 删除指定用户当前已绑定的旧头像媒体。 */
+    @Override
+    public void deleteAvatarImage(Long ownerUserId, Long mediaId) {
+        deleteImages(MediaAssetBoundType.USER_AVATAR, ownerUserId, List.of(mediaId));
+    }
+
     private void deleteImages(MediaAssetBoundType boundType, Long boundId, List<Long> mediaIds) {
         if (mediaIds.isEmpty()) return;
         List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
@@ -221,13 +239,13 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
                 .orderByAsc("id")
                 .last("FOR UPDATE"));
         if (assets.size() != mediaIds.size()) {
-            throw BusinessException.notFound("MEDIA_NOT_FOUND", "动态媒体资产不存在");
+            throw BusinessException.notFound("MEDIA_NOT_FOUND", "媒体资产不存在");
         }
         for (MediaAsset asset : assets) {
             if (!Integer.valueOf(MediaAssetStatus.BOUND.code()).equals(asset.getStatus())
                     || !Integer.valueOf(boundType.code()).equals(asset.getBoundType())
                     || !boundId.equals(asset.getBoundId())) {
-                throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产不属于当前动态");
+                throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产不属于当前业务");
             }
         }
         int affected = baseMapper.update(

@@ -18,7 +18,6 @@ import com.ray.entity.PostLike;
 import com.ray.entity.PostMedia;
 import com.ray.entity.Shop;
 import com.ray.entity.User;
-import com.ray.entity.UserInfo;
 import com.ray.enums.EnableStatus;
 import com.ray.enums.PostFeedSort;
 import com.ray.enums.PostStatus;
@@ -37,7 +36,7 @@ import com.ray.service.MediaAssetService;
 import com.ray.service.PostService;
 import com.ray.service.PostCommentService;
 import com.ray.service.ShopService;
-import com.ray.service.UserInfoService;
+import com.ray.service.UserProfileService;
 import com.ray.service.UserService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.utils.converter.ViewMapper;
@@ -87,7 +86,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     private final ContentSectionService contentSectionService;
     private final ShopService shopService;
     private final CityService cityService;
-    private final UserInfoService userInfoService;
+    private final UserProfileService userProfileService;
     private final UserService userService;
     private final FollowService followService;
     private final CurrentUserProvider currentUserProvider;
@@ -103,7 +102,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             ContentSectionService contentSectionService,
             ShopService shopService,
             CityService cityService,
-            UserInfoService userInfoService,
+            UserProfileService userProfileService,
             UserService userService,
             FollowService followService,
             CurrentUserProvider currentUserProvider,
@@ -115,7 +114,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         this.contentSectionService = contentSectionService;
         this.shopService = shopService;
         this.cityService = cityService;
-        this.userInfoService = userInfoService;
+        this.userProfileService = userProfileService;
         this.userService = userService;
         this.followService = followService;
         this.currentUserProvider = currentUserProvider;
@@ -131,13 +130,13 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             ContentSectionService contentSectionService,
             ShopService shopService,
             CityService cityService,
-            UserInfoService userInfoService,
+            UserProfileService userProfileService,
             UserService userService,
             FollowService followService,
             CurrentUserProvider currentUserProvider,
             StringRedisTemplate redis) {
         this(postMediaMapper, postLikeMapper, mediaAssetService, contentSectionService, shopService,
-                cityService, userInfoService, userService, followService, currentUserProvider, redis, null);
+                cityService, userProfileService, userService, followService, currentUserProvider, redis, null);
     }
 
     /** 校验发布位置和媒体后创建动态，并在提交后投递关注流。 */
@@ -419,10 +418,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     }
 
     private String resolveUserCity(Long userId) {
-        UserInfo userInfo = userInfoService.getById(userId);
-        String cityCode = userInfo != null && StringUtils.hasText(userInfo.getCityCode())
-                ? userInfo.getCityCode()
-                : DEFAULT_CITY_CODE;
+        String cityCode = userProfileService.currentCityCode(userId);
         boolean enabled = isEnabledCity(cityCode);
         if (!enabled && !DEFAULT_CITY_CODE.equals(cityCode)) cityCode = DEFAULT_CITY_CODE;
         boolean defaultEnabled = enabled || isEnabledCity(cityCode);

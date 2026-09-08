@@ -29,15 +29,16 @@ INSERT INTO `shop_type` (`id`, `name`, `icon`, `sort`) VALUES
   (2, '休闲娱乐', '/types/leisure.png', 2),
   (3, '运动健身', '/types/sport.png', 3);
 
-INSERT INTO `user` (`id`, `phone`, `password`, `nick_name`, `icon`) VALUES
-  (1, '13686869696', '', '小鱼同学', '/imgs/blogs/blog1.jpg'),
-  (2, '13838411438', '', '可可今天不吃肉', '/imgs/icons/kkjtbcr.jpg'),
-  (3, '13456789011', '', '漫游测试员', '');
+-- Demo 消费者账号统一密码为 Roamly123。
+INSERT INTO `user` (`id`, `phone`, `password_hash`, `nick_name`, `icon`) VALUES
+  (1, '13686869696', '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO', '小鱼同学', '/imgs/blogs/blog1.jpg'),
+  (2, '13838411438', '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO', '可可今天不吃肉', '/imgs/icons/kkjtbcr.jpg'),
+  (3, '13456789011', '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO', '漫游测试员', '');
 
-INSERT INTO `user_info` (`user_id`, `city`, `city_code`, `introduce`) VALUES
-  (1, '杭州', '330100', '记录城市里的新鲜事'),
-  (2, '杭州', '330100', '认真生活，认真探店'),
-  (3, '杭州', '330100', 'Roamly 开发测试账号');
+INSERT INTO `user_profile` (`user_id`, `gender`, `birthday`, `current_city_code`) VALUES
+  (1, 'FEMALE', '2000-06-18', '330100'),
+  (2, 'FEMALE', '1998-10-02', '330100'),
+  (3, 'UNDISCLOSED', NULL, '330100');
 
 INSERT INTO `shop`
   (`id`, `name`, `type_id`, `city_code`, `images`, `area`, `address`, `x`, `y`, `avg_price`, `sold`, `comments`, `score`, `open_hours`, `status`, `source_application_id`, `business_hours_json`, `activated_at`, `version`)
