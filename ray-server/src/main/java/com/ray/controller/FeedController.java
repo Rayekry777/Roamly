@@ -50,7 +50,7 @@ public class FeedController {
                     description = "查询成功",
                     useReturnTypeSchema = true))
     public Result<CursorPageResult<PostCardVO>> listRecommendedFeed(
-            @Parameter(description = "城市编码", required = true)
+            @Parameter(description = "浏览城市编码；提交完整真实坐标时由服务端解析结果覆盖", required = true)
             @RequestParam
                     @NotBlank
                     @Size(max = 16)
@@ -69,13 +69,16 @@ public class FeedController {
                     @Min(1)
                     @Max(20)
                     int size,
-            @Parameter(description = "真实定位经度（GCJ-02）") @RequestParam(required = false) Double longitude,
-            @Parameter(description = "真实定位纬度（GCJ-02）") @RequestParam(required = false) Double latitude) {
+            @Parameter(description = "真实定位经度（GCJ-02），需与纬度同时提交") @RequestParam(required = false) Double longitude,
+            @Parameter(description = "真实定位纬度（GCJ-02），需与经度同时提交") @RequestParam(required = false) Double latitude) {
         String resolvedCity = cityCode;
+        String resolvedDistrict = null;
         if (locationService != null && longitude != null && latitude != null) {
-            resolvedCity = locationService.resolve(new LocationContextDTO(longitude, latitude, null)).cityCode();
+            var context = locationService.resolve(new LocationContextDTO(longitude, latitude, null));
+            resolvedCity = context.cityCode();
+            resolvedDistrict = context.districtCode();
         }
-        return Result.ok(postService.listRecommendedFeed(resolvedCity, cursor, offset, size));
+        return Result.ok(postService.listRecommendedFeed(resolvedCity, resolvedDistrict, cursor, offset, size));
     }
 
     @GetMapping("/v1/feeds/following")

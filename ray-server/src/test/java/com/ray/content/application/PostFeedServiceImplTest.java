@@ -93,6 +93,18 @@ class PostFeedServiceImplTest {
     }
 
     @Test
+    void recommendedFeedCanFilterByDistrict() {
+        when(postMapper.selectRecommendedInDistrict("630100", "630105", null, 0, 3))
+                .thenReturn(List.of(post(4L, LocalDateTime.of(2026, 9, 2, 13, 0), 5)));
+
+        CursorPageResult<PostCardVO> result =
+                service.listRecommendedFeed("630100", "630105", null, 0, 2);
+
+        assertEquals(List.of("4"), result.items().stream().map(PostCardVO::id).toList());
+        verify(postMapper).selectRecommendedInDistrict("630100", "630105", null, 0, 3);
+    }
+
+    @Test
     void followingFeedAccumulatesOffsetForTheSameTimestamp() {
         LocalDateTime time = LocalDateTime.of(2026, 9, 2, 12, 0);
         long cursor = time.atZone(java.time.ZoneId.of("Asia/Shanghai"))

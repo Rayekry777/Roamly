@@ -185,8 +185,9 @@ CREATE TABLE `post` (
   INDEX `idx_post_section_status_time` (`section_id`, `status`, `create_time`, `id`) USING BTREE,
   INDEX `idx_post_user_status_time` (`user_id`, `status`, `create_time`, `id`) USING BTREE,
   INDEX `idx_post_shop_status_time` (`shop_id`, `status`, `create_time`, `id`) USING BTREE,
-  INDEX `idx_post_city_status_time` (`city_code`, `status`, `create_time`, `id`) USING BTREE
-  ,INDEX `idx_post_city_geohash_status_time` (`city_code`, `location_geohash`, `status`, `create_time`, `id`) USING BTREE
+  INDEX `idx_post_city_status_time` (`city_code`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_post_city_district_status_time` (`city_code`, `district_code`, `status`, `create_time`, `id`) USING BTREE,
+  INDEX `idx_post_city_geohash_status_time` (`city_code`, `location_geohash`, `status`, `create_time`, `id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '统一社区动态' ROW_FORMAT = Dynamic;
 
 

@@ -319,14 +319,17 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return new PageResult<>(items, page, size, result.getTotal());
     }
 
-    /** 使用固定热度分值查询城市推荐流，确保游标可由数据库字段复算。 */
+    /** 使用固定热度分值查询城市或区县推荐流，确保游标可由数据库字段复算。 */
     @Override
     public CursorPageResult<PostCardVO> listRecommendedFeed(
-            String cityCode, Long cursor, int offset, int size) {
+            String cityCode, String districtCode, Long cursor, int offset, int size) {
         requireCursorOffset(cursor, offset);
         String normalizedCityCode = requireEnabledCity(cityCode);
-        List<ContentPost> posts = baseMapper.selectRecommended(
-                normalizedCityCode, cursor, offset, size + 1);
+        String normalizedDistrictCode = StringUtils.hasText(districtCode) ? districtCode.trim() : null;
+        List<ContentPost> posts = normalizedDistrictCode == null
+                ? baseMapper.selectRecommended(normalizedCityCode, cursor, offset, size + 1)
+                : baseMapper.selectRecommendedInDistrict(
+                        normalizedCityCode, normalizedDistrictCode, cursor, offset, size + 1);
         return toCursorPage(posts, cursor, offset, size, this::hotScore);
     }
 

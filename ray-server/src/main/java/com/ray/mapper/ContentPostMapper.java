@@ -46,6 +46,21 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
             @Param("offset") int offset,
             @Param("limit") int limit);
 
+    /** 按城市和区县固定热度分值查询推荐动态。 */
+    @Select(
+            "SELECT p.* FROM post p "
+                    + "WHERE p.status = 0 AND p.city_code = #{cityCode} "
+                    + "AND p.district_code = #{districtCode} "
+                    + "AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " <= #{cursor}) "
+                    + "ORDER BY " + HOT_SCORE_SQL + " DESC, p.create_time DESC, p.id DESC "
+                    + "LIMIT #{offset}, #{limit}")
+    List<ContentPost> selectRecommendedInDistrict(
+            @Param("cityCode") String cityCode,
+            @Param("districtCode") String districtCode,
+            @Param("cursor") Long cursor,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
+
     /** 按发布时间查询当前用户所关注作者的动态。 */
     @Select(
             "SELECT p.* FROM post p "
