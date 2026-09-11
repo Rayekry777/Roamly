@@ -1,6 +1,7 @@
 package com.ray.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,9 +13,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ray.enums.VoucherProductSort;
 import com.ray.result.PageResult;
 import com.ray.service.BusinessMediaService;
+import com.ray.service.LocationService;
 import com.ray.service.VoucherProductService;
 import com.ray.shared.config.MockMvcTestConfiguration;
 import java.util.List;
+import com.ray.vo.LocationContextVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,14 +26,20 @@ import org.springframework.test.web.servlet.MockMvc;
 class VoucherProductControllerTest {
     private VoucherProductService service;
     private BusinessMediaService mediaService;
+    private LocationService locationService;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         service = mock(VoucherProductService.class);
         mediaService = mock(BusinessMediaService.class);
+        locationService = mock(LocationService.class);
+        when(locationService.resolve(any()))
+                .thenReturn(new LocationContextVO(
+                        "310100", "上海", null, null, null,
+                        "上海", 121.47, 31.23, 30D, "READY"));
         mvc = MockMvcTestConfiguration.standalone(
-                new VoucherProductController(service, mediaService));
+                new VoucherProductController(service, mediaService, locationService));
     }
 
     @Test
@@ -64,6 +73,28 @@ class VoucherProductControllerTest {
                         .param("cityCode", "310100")
                         .param("page", "0"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resolvesCityFromCoordinatesInsteadOfTrustingClientCity() throws Exception {
+        when(locationService.resolve(any()))
+                .thenReturn(new LocationContextVO(
+                        "630100", "西宁", "630105", "城北区", null,
+                        "西宁 · 城北区", 101.749746, 36.742782, 30D, "READY"));
+        when(service.listPublic(
+                eq("630100"), eq(null), eq(null), eq(VoucherProductSort.RECOMMENDED),
+                eq(1), eq(10), eq(101.749746), eq(36.742782)))
+                .thenReturn(new PageResult<>(List.of(), 1, 10, 0));
+
+        mvc.perform(get("/v1/voucher-products")
+                        .param("cityCode", "330100")
+                        .param("longitude", "101.749746")
+                        .param("latitude", "36.742782"))
+                .andExpect(status().isOk());
+
+        verify(service).listPublic(
+                "630100", null, null, VoucherProductSort.RECOMMENDED,
+                1, 10, 101.749746, 36.742782);
     }
 
     @Test

@@ -1,9 +1,11 @@
 package com.ray.controller;
 
 import com.ray.enums.VoucherProductSort;
+import com.ray.dto.LocationContextDTO;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.BusinessMediaService;
+import com.ray.service.LocationService;
 import com.ray.service.VoucherProductService;
 import com.ray.exception.BusinessException;
 import com.ray.utils.converter.IdUtils;
@@ -27,6 +29,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,13 +43,23 @@ import org.springframework.validation.annotation.Validated;
 public class VoucherProductController {
     private final VoucherProductService service;
     private final BusinessMediaService mediaService;
+    private final LocationService locationService;
 
+    /** 保留无定位服务的单元测试构造方式；生产容器使用带定位服务的构造器。 */
     public VoucherProductController(VoucherProductService service, BusinessMediaService mediaService) {
-        this.service = service;
-        this.mediaService = mediaService;
+        this(service, mediaService, null);
     }
 
-    /** 按城市和消费者筛选条件分页查询当前可售商品。 */
+    /** 注入商品查询、媒体读取和真实定位解析能力。 */
+    @Autowired
+    public VoucherProductController(
+            VoucherProductService service, BusinessMediaService mediaService, LocationService locationService) {
+        this.service = service;
+        this.mediaService = mediaService;
+        this.locationService = locationService;
+    }
+
+    /** 按真实定位解析后的城市和消费者筛选条件分页查询当前可售商品。 */
     @GetMapping("/v1/voucher-products")
     @SecurityRequirements
     @Operation(summary = "查询同城团购商品", operationId = "listVoucherProducts")
@@ -62,6 +75,9 @@ public class VoucherProductController {
             @RequestParam(required = false) Double latitude) {
         if (page < 1 || size < 1 || size > 100) {
             throw BusinessException.badRequest("VALIDATION_FAILED", "分页参数不合法");
+        }
+        if (locationService != null && longitude != null && latitude != null) {
+            cityCode = locationService.resolve(new LocationContextDTO(longitude, latitude, null)).cityCode();
         }
         return Result.ok(service.listPublic(
                 cityCode, typeId == null ? null : IdUtils.parse(typeId, "typeId"), keyword,
