@@ -29,7 +29,7 @@ public class ObjectStorageProperties {
     public S3 getS3() { return s3; }
 
     public static class Local {
-        private String root = "./business-objects";
+        private String root = "./uploads/merchant";
         private String bucket = "roamly-business-local";
         public String getRoot() { return root; }
         public void setRoot(String root) { this.root = root; }

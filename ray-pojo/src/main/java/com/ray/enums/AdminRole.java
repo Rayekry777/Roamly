@@ -4,7 +4,8 @@ package com.ray.enums;
 public enum AdminRole {
     PLATFORM_ADMIN("平台超级管理员"),
     MERCHANT_REVIEWER("商户审核员"),
-    FINANCE("财务管理员");
+    FINANCE("财务管理员"),
+    CUSTOMER_SERVICE("客服");
 
     private final String label;
 

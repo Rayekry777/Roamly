@@ -5,9 +5,9 @@ import com.ray.dto.MerchantApplicationSaveDTO;
 import com.ray.entity.MerchantApplication;
 import com.ray.vo.MerchantApplicationVO;
 
-/** 维护当前店主的入驻草稿、预览和幂等提交。 */
+/** 维护当前游客的入驻草稿、预览和幂等提交。 */
 public interface MerchantApplicationService extends IService<MerchantApplication> {
-    /** 查询当前店主的唯一申请，尚未创建时返回空。 */
+    /** 查询当前游客的唯一申请，尚未创建时返回空。 */
     MerchantApplicationVO current();
 
     /** 以完整快照和乐观锁版本创建或更新草稿。 */

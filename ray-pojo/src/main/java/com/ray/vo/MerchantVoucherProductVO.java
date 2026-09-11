@@ -25,6 +25,8 @@ public record MerchantVoucherProductVO(
         List<BusinessMediaVO> detailMedia,
         Long priceAmount,
         Long marketAmount,
+        Long merchantSubsidyAmount,
+        Long platformDiscountAmount,
         Long faceValueAmount,
         Long minimumSpendAmount,
         Integer totalUseCount,

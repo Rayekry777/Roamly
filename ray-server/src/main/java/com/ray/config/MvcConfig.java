@@ -33,10 +33,21 @@ public class MvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/blogs/**")
-                .addResourceLocations(
-                        Path.of(uploadDir).toAbsolutePath().normalize().toUri().toString())
+        Path root = WorkspacePathResolver.resolve(uploadDir);
+        // 只公开消费者 user 媒体；商户经营媒体位于同一 uploads 根目录下但必须走
+        // /v1/merchant/business-media/images/{id}/content 的 Bearer 鉴权接口，
+        // 不能通过猜测 /media 路径直接读取。
+        registry.addResourceHandler("/media/user/**")
+                .addResourceLocations(directoryLocation(root.resolve("user")))
                 .setCacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic());
+        registry.addResourceHandler("/blogs/**")
+                .addResourceLocations(directoryLocation(root.resolve("user/blogs")))
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic());
+    }
+
+    private String directoryLocation(Path directory) {
+        String location = directory.toUri().toString();
+        return location.endsWith("/") ? location : location + "/";
     }
 
     @Override
@@ -66,7 +77,8 @@ public class MvcConfig implements WebMvcConfigurer {
                 && ("/v1/auth/sms-codes".equals(path)
                         || "/v1/auth/sessions".equals(path)
                         || "/v1/auth/password-sessions".equals(path)
-                        || "/v1/auth/registrations".equals(path)))
+                        || "/v1/auth/registrations".equals(path)
+                        || "/v1/location/context".equals(path)))
             return true;
         if (!"GET".equals(method)) return false;
         if (path.equals("/v1/cities")
@@ -92,7 +104,10 @@ public class MvcConfig implements WebMvcConfigurer {
 
     static boolean isMerchantPublic(String method, String path) {
         return "POST".equals(method)
-                && ("/v1/merchant/auth/sms-codes".equals(path) || "/v1/merchant/auth/login".equals(path));
+                && ("/v1/merchant/auth/sms-codes".equals(path)
+                        || "/v1/merchant/auth/login".equals(path)
+                        || "/v1/merchant/auth/registrations".equals(path)
+                        || "/v1/merchant/auth/password-sessions".equals(path));
     }
 
     static boolean isOptionalAuthentication(String method, String path) {

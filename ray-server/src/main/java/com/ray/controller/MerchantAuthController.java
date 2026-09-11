@@ -1,7 +1,9 @@
 package com.ray.controller;
 
 import com.ray.dto.LoginDTO;
-import com.ray.dto.SmsCodeDTO;
+import com.ray.dto.MerchantPasswordLoginDTO;
+import com.ray.dto.MerchantRegistrationDTO;
+import com.ray.dto.MerchantSmsCodeDTO;
 import com.ray.result.ErrorResult;
 import com.ray.result.Result;
 import com.ray.service.MerchantAuthService;
@@ -16,6 +18,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,8 +50,8 @@ public class MerchantAuthController {
                 description = "短信或认证服务不可用",
                 content = @Content(schema = @Schema(implementation = ErrorResult.class)))
     })
-    public ResponseEntity<Void> sendCode(@Valid @RequestBody SmsCodeDTO request) {
-        service.sendCode(request.phone());
+    public ResponseEntity<Void> sendCode(@Valid @RequestBody MerchantSmsCodeDTO request) {
+        service.sendCode(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -63,7 +66,28 @@ public class MerchantAuthController {
                 content = @Content(schema = @Schema(implementation = ErrorResult.class)))
     })
     public Result<AuthTokenVO> login(@Valid @RequestBody LoginDTO request) {
-        return Result.ok(service.login(request));
+        return Result.ok(service.loginByCode(request));
+    }
+
+    @PostMapping("/registrations")
+    @SecurityRequirements
+    @Operation(summary = "注册商户并登录", operationId = "registerMerchant")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "注册并登录成功", useReturnTypeSchema = true))
+    public Result<AuthTokenVO> register(@Valid @RequestBody MerchantRegistrationDTO request) {
+        return Result.ok(service.register(request));
+    }
+
+    @PostMapping("/password-sessions")
+    @SecurityRequirements
+    @Operation(summary = "商户密码登录", operationId = "createMerchantPasswordSession")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "登录成功", useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "401", description = "手机号或密码错误", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "429", description = "密码登录尝试过多", content = @Content(schema = @Schema(implementation = ErrorResult.class)))
+    })
+    public Result<AuthTokenVO> passwordLogin(
+            @Valid @RequestBody MerchantPasswordLoginDTO request, HttpServletRequest servletRequest) {
+        return Result.ok(service.loginByPassword(request, servletRequest.getRemoteAddr()));
     }
 
     @GetMapping("/me")

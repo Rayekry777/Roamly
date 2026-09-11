@@ -47,6 +47,7 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
     private static final int CLEANUP_BATCH_SIZE = 100;
     private static final String APPLICATION_OWNER = "MERCHANT_APPLICATION";
     private static final String VOUCHER_PRODUCT_OWNER = "VOUCHER_PRODUCT";
+    private static final String MERCHANT_ACCOUNT_OWNER = "MERCHANT_ACCOUNT";
 
     private final ObjectStoragePort storage;
     private final BusinessImageInspector inspector;
@@ -78,7 +79,7 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         BusinessMediaPurpose purpose = parsePurpose(purposeValue);
         MerchantAccount account = requireUploader(purpose);
         BusinessImageInspector.ImageMetadata image = inspector.inspect(file);
-        String objectKey = newObjectKey(account.getId(), image.extension());
+        String objectKey = newObjectKey(purpose, account.getId(), image.extension());
         try {
             storage.put(objectKey, image.mimeType(), image.content());
         } catch (ObjectStorageException exception) {
@@ -146,6 +147,52 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         } catch (ObjectStorageException exception) {
             throw unavailable(exception);
         }
+    }
+
+    /** 绑定当前账号的临时头像，并把旧头像标记为提交后删除。 */
+    @Override
+    @Transactional
+    public BusinessMediaVO bindMerchantAvatar(Long accountId, Long mediaId, Long previousMediaId) {
+        BusinessMediaAsset asset = getOne(new QueryWrapper<BusinessMediaAsset>()
+                .eq("id", mediaId)
+                .last("FOR UPDATE"));
+        requireOwned(accountId, asset);
+        requirePurpose(asset, BusinessMediaPurpose.MERCHANT_AVATAR);
+        if (!BusinessMediaStatus.TEMPORARY.name().equals(asset.getStatus())
+                || asset.getExpiresAt() == null
+                || !asset.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw BusinessException.conflict("BUSINESS_MEDIA_EXPIRED", "临时商户头像已过期或不可用");
+        }
+        boolean bound = update(new UpdateWrapper<BusinessMediaAsset>()
+                .eq("id", mediaId)
+                .eq("uploader_merchant_account_id", accountId)
+                .eq("status", BusinessMediaStatus.TEMPORARY.name())
+                .set("status", BusinessMediaStatus.BOUND.name())
+                .set("owner_type", MERCHANT_ACCOUNT_OWNER)
+                .set("owner_id", accountId)
+                .set("sort_order", 0)
+                .set("bound_at", LocalDateTime.now())
+                .set("expires_at", null));
+        if (!bound) throw BusinessException.conflict("MERCHANT_ACCOUNT_CONFLICT", "账号头像已发生变化");
+        asset.setStatus(BusinessMediaStatus.BOUND.name())
+                .setOwnerType(MERCHANT_ACCOUNT_OWNER)
+                .setOwnerId(accountId)
+                .setSortOrder(0)
+                .setExpiresAt(null);
+
+        if (previousMediaId != null && !previousMediaId.equals(mediaId)) {
+            BusinessMediaAsset previous = getOne(new QueryWrapper<BusinessMediaAsset>()
+                    .eq("id", previousMediaId)
+                    .last("FOR UPDATE"));
+            if (previous != null
+                    && BusinessMediaStatus.BOUND.name().equals(previous.getStatus())
+                    && BusinessMediaPurpose.MERCHANT_AVATAR.name().equals(previous.getPurpose())
+                    && MERCHANT_ACCOUNT_OWNER.equals(previous.getOwnerType())
+                    && accountId.equals(previous.getOwnerId())) {
+                markDeletedAfterCommit(previous, LocalDateTime.now());
+            }
+        }
+        return toView(asset);
     }
 
     /** 校验审核、归属、用途和生命周期后公开读取券展示媒体。 */
@@ -459,10 +506,10 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         if (!expired.isEmpty()) log.info("[商户经营媒体] 已处理过期临时媒体，数量={}", expired.size());
     }
 
-    private MerchantAccount requireEditableOwner() {
+    private MerchantAccount requireEditableApplicant() {
         MerchantAccount account = merchantAuthService.requireCurrentAccount();
-        if (!MerchantRole.OWNER.name().equals(account.getRole())) {
-            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "仅店主可维护入驻资料");
+        if (!MerchantRole.VISITOR.name().equals(account.getRole())) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "仅游客可维护入驻资料");
         }
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         if (status != MerchantAccountStatus.NOT_APPLIED && status != MerchantAccountStatus.REJECTED) {
@@ -472,8 +519,11 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
     }
 
     private MerchantAccount requireUploader(BusinessMediaPurpose purpose) {
+        if (purpose == BusinessMediaPurpose.MERCHANT_AVATAR) {
+            return merchantAuthService.requireCurrentAccount();
+        }
         if (purpose == BusinessMediaPurpose.LICENSE || purpose == BusinessMediaPurpose.GALLERY) {
-            return requireEditableOwner();
+            return requireEditableApplicant();
         }
         return requireVoucherManager();
     }
@@ -485,7 +535,7 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         if (status != MerchantAccountStatus.ACTIVE || account.getShopId() == null) {
             throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
         }
-        if (role != MerchantRole.OWNER && role != MerchantRole.MANAGER) {
+        if (role != MerchantRole.TENANT && role != MerchantRole.MANAGER) {
             throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "当前角色无权管理团购券");
         }
         return account;
@@ -662,10 +712,20 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
                 asset.getExpiresAt());
     }
 
-    private String newObjectKey(Long accountId, String extension) {
+    private String newObjectKey(BusinessMediaPurpose purpose, Long accountId, String extension) {
         LocalDate today = LocalDate.now();
-        return "merchant/" + accountId + "/" + today.getYear() + "/"
+        return purposeDirectory(purpose) + "/" + accountId + "/" + today.getYear() + "/"
                 + String.format("%02d", today.getMonthValue()) + "/" + UUID.randomUUID() + "." + extension;
+    }
+
+    private String purposeDirectory(BusinessMediaPurpose purpose) {
+        return switch (purpose) {
+            case MERCHANT_AVATAR -> "avatar";
+            case LICENSE -> "onboarding/license";
+            case GALLERY -> "onboarding/gallery";
+            case VOUCHER_COVER -> "voucher/cover";
+            case VOUCHER_DETAIL -> "voucher/detail";
+        };
     }
 
     private BusinessMediaAsset copyVoucherAsset(
@@ -676,7 +736,8 @@ public class BusinessMediaServiceImpl extends ServiceImpl<BusinessMediaAssetMapp
         } catch (ObjectStorageException exception) {
             throw unavailable(exception);
         }
-        String objectKey = newObjectKey(account.getId(), extension(source));
+        String objectKey = newObjectKey(
+                BusinessMediaPurpose.valueOf(source.getPurpose()), account.getId(), extension(source));
         try {
             storage.put(objectKey, source.getMimeType(), object.content());
         } catch (ObjectStorageException exception) {

@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @Schema(name = "MediaAssetVO", description = "临时媒体资产")
 public record MediaAssetVO(
         @Schema(type = "string", description = "媒体资产 ID", example = "10001") String id,
-        @Schema(description = "相对资源路径", example = "/blogs/1/2/example.jpg") String path,
+        @Schema(description = "相对资源路径", example = "/media/user/post/1/2026/09/example.jpg") String path,
         @Schema(description = "实际识别的 MIME 类型", example = "image/jpeg") String mimeType,
         @Schema(description = "文件字节数", example = "204800") long size,
         @Schema(description = "图片像素宽度", example = "1080") int width,

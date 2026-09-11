@@ -184,7 +184,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
     private AdminVoucherReviewListItemVO toListItem(VoucherProduct product) {
         Shop shop = shopMapper.selectById(product.getShopId());
         MerchantAccount account = accountMapper.selectOne(new QueryWrapper<MerchantAccount>()
-                .eq("shop_id", product.getShopId()).eq("role", "OWNER").last("limit 1"));
+                .eq("shop_id", product.getShopId()).eq("role", "TENANT").last("limit 1"));
         VoucherProductType type = VoucherProductType.valueOf(product.getProductType());
         VoucherReviewStatus review = VoucherReviewStatus.valueOf(product.getReviewStatus());
         VoucherSaleStatus sale = product.getSaleStatus() == null ? null : effectiveSaleStatus(product, shop, LocalDateTime.now());
@@ -198,7 +198,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
     private AdminVoucherReviewDetailVO toDetail(VoucherProduct product) {
         Shop shop = shopMapper.selectById(product.getShopId());
         MerchantAccount account = accountMapper.selectOne(new QueryWrapper<MerchantAccount>()
-                .eq("shop_id", product.getShopId()).eq("role", "OWNER").last("limit 1"));
+                .eq("shop_id", product.getShopId()).eq("role", "TENANT").last("limit 1"));
         return new AdminVoucherReviewDetailVO(toProductView(product), toShopSummary(shop),
                 account == null ? null : IdUtils.format(account.getId()), account == null ? null : account.getNickname());
     }
@@ -222,7 +222,8 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
                 .stream().map(t -> new VoucherProductTagVO(IdUtils.format(t.getId()), t.getText(), t.getIconKey(), t.getColorToken(), t.getSortOrder())).toList();
         return new MerchantVoucherProductVO(IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), type, type.label(), product.getTitle(), product.getSubTitle(),
                 IdUtils.format(product.getCoverMediaId()), cover, detailIds.stream().map(IdUtils::format).toList(), detailMedia,
-                product.getPriceAmount(), product.getMarketAmount(), product.getFaceValueAmount(), product.getMinimumSpendAmount(),
+                product.getPriceAmount(), product.getMarketAmount(), product.getMerchantSubsidyAmount(), product.getPlatformDiscountAmount(),
+                product.getFaceValueAmount(), product.getMinimumSpendAmount(),
                 product.getTotalUseCount(), product.getTotalStock(), product.getAvailableStock(), product.getSoldCount(), product.getPurchaseLimit(), product.getSaleBeginTime(), product.getSaleEndTime(), validity,
                 validity == null ? null : validity.label(), product.getValidBeginTime(), product.getValidEndTime(), product.getValidDays(), read(product.getUsageRulesJson(), RULES), read(product.getExcludedDatesJson(), DATES),
                 product.getReservationRequired(), product.getReservationNotice(), product.getStackable(), product.getRefundAnytime(), product.getRefundExpired(), items, review, review.label(), sale, sale == null ? null : sale.label(), product.getRejectionReason(), product.getSubmittedAt(), product.getVersion(), product.getCreateTime(), product.getUpdateTime(), details, tags, null, null, null);

@@ -21,6 +21,7 @@ scope: 消费者显式注册、短信/密码登录、本人资料、公开主页
 - `POST /v1/users/me/phone-change/sms-codes` 向新号码发码，`PUT /v1/users/me/phone` 校验旧密码、新号验证码和唯一性。
 - `POST /v1/users/me/password-change/sms-codes` 向当前号码发码，`PUT /v1/users/me/password` 校验旧密码、验证码和两次新密码。
 - `PUT /v1/users/me/city-preference` 只同步内部城市偏好；`GET /v1/users/{userId}/profile` 为匿名公开资料，不返回手机号、生日和城市偏好。
+- `POST /v1/media/images` 的 multipart 表单必须声明 `purpose=USER_AVATAR|POST|SHOP_REVIEW`；头像、动态和点评图片分别写入独立目录并在绑定时校验用途。
 - 昵称在确认更新时、手机号在请求换绑验证码时、密码在确认修改时分别校验新值不得与当前值相同，并返回明确的 `NICKNAME_UNCHANGED`、`PHONE_UNCHANGED` 或 `PASSWORD_UNCHANGED`。
 
 ## 数据与事务
@@ -28,7 +29,7 @@ scope: 消费者显式注册、短信/密码登录、本人资料、公开主页
 - `user` 保存唯一手机号、BCrypt `password_hash`、昵称、`nickname_updated_at`、头像路径和头像媒体 ID；昵称使用北京时间自然日限频并通过条件更新防并发。
 - `user_profile` 替代 `user_info`，只保存 `gender`、`birthday` 与内部 `current_city_code`；性别为 `UNDISCLOSED/MALE/FEMALE`。
 - 关注、粉丝与正常动态数从关系表实时统计，不保存冗余资料计数；普通动态继续读取内部城市偏好。
-- 头像使用 `media_asset` 的 `USER_AVATAR` 绑定类型；更新时锁定用户和新媒体，提交后清理旧头像文件。
+- 头像使用 `media_asset` 的 `USER_AVATAR` 绑定类型，存储路径为 `/media/user/avatar/{userId}/{year}/{month}/{uuid}`；更新时锁定用户和新媒体，提交后清理旧头像文件。历史 `/blogs/**` 仅兼容读取，新上传不再进入该目录。
 - 手机号与密码修改在事务成功后注销该用户全部消费者会话；验证码仅在业务成功后消费。
 
 ## 失败模式与验收

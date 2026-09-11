@@ -25,6 +25,7 @@ import com.ray.vo.MerchantApplicationReviewDetailVO;
 import com.ray.vo.MerchantApplicationReviewListItemVO;
 import com.ray.vo.MerchantApplicationReviewResultVO;
 import com.ray.vo.MerchantShopSummaryVO;
+import com.ray.vo.MerchantAccountProfileVO;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
@@ -47,6 +48,9 @@ import com.ray.vo.AdminVoucherReviewListItemVO;
 import com.ray.vo.AdminVoucherReviewResultVO;
 import com.ray.vo.MerchantVoucherPackageItemVO;
 import com.ray.vo.MerchantVoucherProductVO;
+import com.ray.vo.MerchantTodayFinanceVO;
+import com.ray.vo.ServiceFeePolicyVO;
+import com.ray.vo.RedemptionIncomeBreakdownVO;
 import com.ray.vo.VoucherProductSectionVO;
 import com.ray.vo.VoucherProductTagVO;
 import com.ray.vo.VoucherProductCashRuleVO;
@@ -309,6 +313,9 @@ public class OpenApiConfig {
         registerSchema(components, "CommissionRuleVO", CommissionRuleVO.class);
         registerSchema(components, "FundLedgerEntryVO", FundLedgerEntryVO.class);
         registerSchema(components, "MerchantFinanceSummaryVO", MerchantFinanceSummaryVO.class);
+        registerSchema(components, "MerchantTodayFinanceVO", MerchantTodayFinanceVO.class);
+        registerSchema(components, "ServiceFeePolicyVO", ServiceFeePolicyVO.class);
+        registerSchema(components, "RedemptionIncomeBreakdownVO", RedemptionIncomeBreakdownVO.class);
         registerSchema(components, "SettlementBatchVO", SettlementBatchVO.class);
         registerSchema(components, "AdminEventTicketVO", AdminEventTicketVO.class);
     }
@@ -330,6 +337,7 @@ public class OpenApiConfig {
     private void registerMerchantSchemas(Components components) {
         registerSchema(components, "MerchantShopSummaryVO", MerchantShopSummaryVO.class);
         registerSchema(components, "CurrentMerchantVO", CurrentMerchantVO.class);
+        registerSchema(components, "MerchantAccountProfileVO", MerchantAccountProfileVO.class);
         registerSchema(components, "BusinessPeriodDTO", BusinessPeriodDTO.class);
         registerSchema(components, "BusinessDayHoursDTO", BusinessDayHoursDTO.class);
         registerSchema(components, "MerchantApplicationSaveDTO", MerchantApplicationSaveDTO.class);

@@ -2,7 +2,8 @@ package com.ray.enums;
 
 /** 商户端固定角色。 */
 public enum MerchantRole {
-    OWNER("店主"),
+    VISITOR("游客"),
+    TENANT("租户"),
     MANAGER("店长"),
     VERIFIER("核销员");
 

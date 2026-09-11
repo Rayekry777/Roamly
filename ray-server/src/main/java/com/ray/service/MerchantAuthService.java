@@ -1,18 +1,27 @@
 package com.ray.service;
 
 import com.ray.dto.LoginDTO;
+import com.ray.dto.MerchantPasswordLoginDTO;
+import com.ray.dto.MerchantRegistrationDTO;
+import com.ray.dto.MerchantSmsCodeDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.vo.AuthTokenVO;
 import com.ray.vo.CurrentMerchantVO;
 import java.util.Collection;
 
-/** 商户短信认证、当前身份与经营状态门禁服务。 */
+/** 商户注册、短信/密码认证、当前身份与经营状态门禁服务。 */
 public interface MerchantAuthService {
-    /** 按环境短信策略发送商户验证码并限制重复发送。 */
-    void sendCode(String phone);
+    /** 按登录或注册场景发送商户验证码并限制重复发送。 */
+    void sendCode(MerchantSmsCodeDTO request);
 
-    /** 校验验证码并创建独立的 MERCHANT 登录域会话。 */
-    AuthTokenVO login(LoginDTO request);
+    /** 创建未入驻游客账号并签发独立的 MERCHANT 登录域会话。 */
+    AuthTokenVO register(MerchantRegistrationDTO request);
+
+    /** 校验验证码并为已有账号创建独立的 MERCHANT 登录域会话。 */
+    AuthTokenVO loginByCode(LoginDTO request);
+
+    /** 校验商户密码和失败次数后创建独立的 MERCHANT 登录域会话。 */
+    AuthTokenVO loginByPassword(MerchantPasswordLoginDTO request, String clientAddress);
 
     /** 返回当前登录商户账号、展示状态、门店摘要和固定权限。 */
     CurrentMerchantVO currentMerchant();

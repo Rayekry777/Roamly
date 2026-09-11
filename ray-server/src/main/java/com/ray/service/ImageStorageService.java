@@ -1,16 +1,12 @@
 package com.ray.service;
 
+import com.ray.enums.MediaUploadPurpose;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 探店图片本地存储服务。 */
+/** 消费者图片本地存储服务。 */
 public interface ImageStorageService {
-    /** 校验并保存单张探店图片。 */
-    default String store(MultipartFile image) {
-        return storeImage(image).path();
-    }
-
-    /** 校验并保存图片，同时返回数据库建档需要的元数据。 */
-    StoredImage storeImage(MultipartFile image);
+    /** 按用户和用途分类保存图片，同时返回数据库建档需要的元数据。 */
+    StoredImage storeImage(MultipartFile image, MediaUploadPurpose purpose, Long ownerUserId);
 
     /** 删除上传根目录内未使用的图片。 */
     void delete(String path);

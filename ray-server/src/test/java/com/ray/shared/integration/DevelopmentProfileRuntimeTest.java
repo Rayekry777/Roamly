@@ -47,14 +47,15 @@ class DevelopmentProfileRuntimeTest {
     @AfterEach
     void clearVerificationKeys() {
         redis.delete(List.of(
-                "roamly:merchant:sms-code:" + PHONE,
-                "roamly:merchant:sms-limit:" + PHONE));
+                "roamly:merchant:sms-code:LOGIN:" + PHONE,
+                "roamly:merchant:sms-limit:LOGIN:" + PHONE,
+                "roamly:merchant:sms-claim:LOGIN:" + PHONE));
     }
 
     @Test
     void seededPendingApplicationCanBeReviewedAndItsShopCanBeGoverned() throws Exception {
         ResponseEntity<Void> code = http.postForEntity(
-                "/v1/merchant/auth/sms-codes", Map.of("phone", PHONE), Void.class);
+                "/v1/merchant/auth/sms-codes", Map.of("phone", PHONE, "scene", "LOGIN"), Void.class);
         assertThat(code.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         ResponseEntity<String> session = http.postForEntity(
@@ -164,7 +165,7 @@ class DevelopmentProfileRuntimeTest {
 
     private String loginMerchant() throws Exception {
         ResponseEntity<Void> code = http.postForEntity(
-                "/v1/merchant/auth/sms-codes", Map.of("phone", PHONE), Void.class);
+                "/v1/merchant/auth/sms-codes", Map.of("phone", PHONE, "scene", "LOGIN"), Void.class);
         assertThat(code.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         ResponseEntity<String> session = http.postForEntity(
                 "/v1/merchant/auth/login",

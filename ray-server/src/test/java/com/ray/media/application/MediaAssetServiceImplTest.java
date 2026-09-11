@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.ray.entity.MediaAsset;
 import com.ray.enums.MediaAssetStatus;
+import com.ray.enums.MediaUploadPurpose;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MediaAssetMapper;
 import com.ray.service.CurrentUserProvider;
@@ -45,31 +46,42 @@ class MediaAssetServiceImplTest {
     void createsOwnedTemporaryMediaRecord() {
         MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[] {1});
         when(currentUserProvider.requireUserId()).thenReturn(7L);
-        when(imageStorageService.storeImage(file))
-                .thenReturn(new StoredImage("/blogs/1/2/photo.jpg", "image/jpeg", 1, 100, 200));
+        when(imageStorageService.storeImage(file, MediaUploadPurpose.POST, 7L))
+                .thenReturn(new StoredImage("/media/user/post/7/2026/09/photo.jpg", "image/jpeg", 1, 100, 200));
         when(mapper.insert(any(MediaAsset.class))).thenAnswer(invocation -> {
             invocation.<MediaAsset>getArgument(0).setId(99L);
             return 1;
         });
 
-        MediaAssetVO result = service.uploadImage(file);
+        MediaAssetVO result = service.uploadImage(file, "POST");
 
         assertEquals("99", result.id());
         assertEquals(100, result.width());
     }
 
     @Test
+    void rejectsUnknownUploadPurposeBeforeWritingFile() {
+        MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[] {1});
+        when(currentUserProvider.requireUserId()).thenReturn(7L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class, () -> service.uploadImage(file, "UNKNOWN"));
+
+        assertEquals("INVALID_IMAGE_PURPOSE", exception.code());
+    }
+
+    @Test
     void removesPhysicalFileWhenDatabaseInsertFails() {
         MockMultipartFile file = new MockMultipartFile("file", "photo.jpg", "image/jpeg", new byte[] {1});
         when(currentUserProvider.requireUserId()).thenReturn(7L);
-        when(imageStorageService.storeImage(file))
-                .thenReturn(new StoredImage("/blogs/1/2/photo.jpg", "image/jpeg", 1, 100, 200));
+        when(imageStorageService.storeImage(file, MediaUploadPurpose.POST, 7L))
+                .thenReturn(new StoredImage("/media/user/post/7/2026/09/photo.jpg", "image/jpeg", 1, 100, 200));
         when(mapper.insert(any(MediaAsset.class))).thenReturn(0);
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> service.uploadImage(file));
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.uploadImage(file, "POST"));
 
         assertEquals("IMAGE_STORE_FAILED", exception.code());
-        verify(imageStorageService).delete("/blogs/1/2/photo.jpg");
+        verify(imageStorageService).delete("/media/user/post/7/2026/09/photo.jpg");
     }
 
     @Test
@@ -138,6 +150,7 @@ class MediaAssetServiceImplTest {
         when(mapper.selectList(any())).thenReturn(List.of(new MediaAsset()
                 .setId(9L)
                 .setOwnerUserId(7L)
+                .setStoragePath("/media/user/post/7/2026/09/photo.jpg")
                 .setStatus(MediaAssetStatus.TEMPORARY.code())
                 .setExpireTime(LocalDateTime.now().minusSeconds(1))));
 
@@ -146,6 +159,38 @@ class MediaAssetServiceImplTest {
                 () -> service.lockTemporaryPostImages(7L, List.of(9L)));
 
         assertEquals("MEDIA_EXPIRED", exception.code());
+    }
+
+    @Test
+    void rejectsAvatarMediaUploadedForPost() {
+        when(mapper.selectList(any())).thenReturn(List.of(new MediaAsset()
+                .setId(9L)
+                .setOwnerUserId(7L)
+                .setStoragePath("/media/user/post/7/2026/09/photo.jpg")
+                .setStatus(MediaAssetStatus.TEMPORARY.code())
+                .setExpireTime(LocalDateTime.now().plusMinutes(10))));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.lockTemporaryAvatarImage(7L, 9L));
+
+        assertEquals("MEDIA_PURPOSE_MISMATCH", exception.code());
+    }
+
+    @Test
+    void rejectsLegacyBlogMediaForAvatar() {
+        when(mapper.selectList(any())).thenReturn(List.of(new MediaAsset()
+                .setId(10L)
+                .setOwnerUserId(7L)
+                .setStoragePath("/blogs/1/2/photo.jpg")
+                .setStatus(MediaAssetStatus.TEMPORARY.code())
+                .setExpireTime(LocalDateTime.now().plusMinutes(10))));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> service.lockTemporaryAvatarImage(7L, 10L));
+
+        assertEquals("MEDIA_PURPOSE_MISMATCH", exception.code());
     }
 
     @Test

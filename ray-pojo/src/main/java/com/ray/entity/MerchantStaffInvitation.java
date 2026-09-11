@@ -8,11 +8,26 @@ import lombok.Data;
 import lombok.experimental.Accessors;
 
 /** 商户员工邀请。 */
-@Data @Accessors(chain = true) @TableName("merchant_staff_invitation")
+@Data
+@Accessors(chain = true)
+@TableName("merchant_staff_invitation")
 public class MerchantStaffInvitation {
-    @TableId(value="id", type=IdType.INPUT) private Long id;
-    private Long shopId; private Long inviterAccountId; private String inviteTokenDigest;
-    private String targetPhone; private String targetRole; private String status;
-    private LocalDateTime expireTime; private LocalDateTime acceptedTime; private LocalDateTime revokedTime;
-    private Long acceptedAccountId; private LocalDateTime createTime; private LocalDateTime updateTime;
+    @TableId(value = "id", type = IdType.INPUT)
+    private Long id;
+
+    private Long shopId;
+    private Long inviterAccountId;
+    private String credentialDigest;
+    private String targetPhone;
+    private String targetRole;
+    private String status;
+    private LocalDateTime expireTime;
+    private LocalDateTime acceptedTime;
+    private LocalDateTime revokedTime;
+    private Long acceptedAccountId;
+    private String issueIdempotencyKey;
+    private String issueRequestFingerprint;
+    private String acceptanceIdempotencyKey;
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 }

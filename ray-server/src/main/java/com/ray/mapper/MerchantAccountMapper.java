@@ -9,12 +9,23 @@ import org.apache.ibatis.annotations.Select;
 
 /** 商户账号数据访问接口。 */
 public interface MerchantAccountMapper extends BaseMapper<MerchantAccount> {
-    /** 并发首次登录时只创建一次未入驻店主账号。 */
+    /** 并发注册时只创建一次未入驻游客账号。 */
     @Insert("""
-            INSERT IGNORE INTO merchant_account(phone, nickname, role, status, version)
-            VALUES(#{phone}, #{nickname}, 'OWNER', 'NOT_APPLIED', 0)
+            INSERT IGNORE INTO merchant_account(phone, password_hash, nickname, role, status, version)
+            VALUES(#{phone}, #{passwordHash}, #{nickname}, 'VISITOR', 'NOT_APPLIED', 0)
             """)
-    int insertNotAppliedOwner(@Param("phone") String phone, @Param("nickname") String nickname);
+    int insertNotAppliedVisitor(
+            @Param("phone") String phone,
+            @Param("passwordHash") String passwordHash,
+            @Param("nickname") String nickname);
+
+    /** 按手机号锁定账号，串行决定邀请与公司归属。 */
+    @Select("SELECT * FROM merchant_account WHERE phone=#{phone} FOR UPDATE")
+    MerchantAccount selectByPhoneForUpdate(@Param("phone") String phone);
+
+    /** 按 ID 锁定账号，串行决定入驻或接受邀请。 */
+    @Select("SELECT * FROM merchant_account WHERE id=#{id} FOR UPDATE")
+    MerchantAccount selectByIdForUpdate(@Param("id") Long id);
 
     /** 按门店和状态加锁读取账号，供治理事务执行选择性联动。 */
     @Select("""

@@ -31,12 +31,13 @@ final class MerchantPermissionCatalog {
     private MerchantPermissionCatalog() {}
 
     static List<String> permissionsFor(MerchantRole role, MerchantAccountStatus status) {
-        if (status == MerchantAccountStatus.NOT_APPLIED || status == MerchantAccountStatus.REJECTED) {
-            return role == MerchantRole.OWNER ? List.of(PROFILE_READ, ONBOARDING_WRITE) : List.of(PROFILE_READ);
+        if (role == MerchantRole.VISITOR
+                && (status == MerchantAccountStatus.NOT_APPLIED || status == MerchantAccountStatus.REJECTED)) {
+            return List.of(PROFILE_READ, ONBOARDING_WRITE);
         }
         if (status != MerchantAccountStatus.ACTIVE) return List.of(PROFILE_READ);
         return switch (role) {
-            case OWNER -> List.of(
+            case TENANT -> List.of(
                     PROFILE_READ,
                     SHOP_MANAGE,
                     VOUCHER_MANAGE,
@@ -49,6 +50,7 @@ final class MerchantPermissionCatalog {
                 PROFILE_READ, SHOP_READ, VOUCHER_MANAGE, ORDER_READ, REDEMPTION_MANAGE,
                 AFTER_SALES_READ, AFTER_SALES_CREATE, FINANCE_READ);
             case VERIFIER -> List.of(PROFILE_READ, REDEMPTION_MANAGE);
+            case VISITOR -> List.of(PROFILE_READ);
         };
     }
 }

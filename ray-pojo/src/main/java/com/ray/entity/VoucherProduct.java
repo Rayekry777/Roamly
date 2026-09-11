@@ -24,6 +24,10 @@ public class VoucherProduct implements Serializable {
     private String detailMediaIdsJson;
     private Long priceAmount;
     private Long marketAmount;
+    /** 单份商品由商家承担的营销补贴，单位分。 */
+    private Long merchantSubsidyAmount;
+    /** 单份商品由平台承担的优惠，单位分。 */
+    private Long platformDiscountAmount;
     private Long faceValueAmount;
     private Long minimumSpendAmount;
     private Integer totalUseCount;

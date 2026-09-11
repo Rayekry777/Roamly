@@ -1,7 +1,9 @@
 package com.ray.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.ray.config.WorkspacePathResolver;
 import com.ray.exception.BusinessException;
+import com.ray.enums.MediaUploadPurpose;
 import com.ray.service.ImageStorageService;
 import jakarta.annotation.PostConstruct;
 import java.awt.image.BufferedImage;
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -32,7 +35,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     private final Path root;
 
     public ImageStorageServiceImpl(@Value("${ray.upload.image-dir}") String directory) {
-        root = Path.of(directory).toAbsolutePath().normalize();
+        root = WorkspacePathResolver.resolve(directory);
     }
 
     @PostConstruct
@@ -45,9 +48,12 @@ public class ImageStorageServiceImpl implements ImageStorageService {
         }
     }
 
-    /** 校验图片类型和有效尺寸后写入本地上传目录。 */
+    /** 校验图片类型和有效尺寸后按用户及用途写入分类目录。 */
     @Override
-    public StoredImage storeImage(MultipartFile image) {
+    public StoredImage storeImage(MultipartFile image, MediaUploadPurpose purpose, Long ownerUserId) {
+        if (purpose == null || ownerUserId == null || ownerUserId <= 0) {
+            throw BusinessException.badRequest("INVALID_IMAGE_PURPOSE", "图片上传用途无效");
+        }
         if (image == null || image.isEmpty()) throw BusinessException.badRequest("EMPTY_IMAGE", "上传文件不能为空");
         if (image.getSize() > MAX_SIZE) throw new BusinessException(413, "MEDIA_TOO_LARGE", "单张图片不能超过10MB");
         Path target = null;
@@ -57,7 +63,7 @@ public class ImageStorageServiceImpl implements ImageStorageService {
             if (content.length > MAX_SIZE)
                 throw new BusinessException(413, "MEDIA_TOO_LARGE", "单张图片不能超过10MB");
             ImageInfo info = inspect(image, content);
-            path = newPath(info.extension());
+            path = newPath(purpose, ownerUserId, info.extension());
             target = resolve(path);
             Files.createDirectories(target.getParent());
             Files.write(target, content, StandardOpenOption.CREATE_NEW);
@@ -185,15 +191,30 @@ public class ImageStorageServiceImpl implements ImageStorageService {
 
     private Path resolve(String path) {
         String normalized = StrUtil.removePrefix(StrUtil.removePrefix(path, "/"), "\\");
-        Path target = root.resolve(normalized).normalize();
+        String relative;
+        if (normalized.startsWith("media/")) {
+            relative = StrUtil.removePrefix(normalized, "media/");
+        } else if (normalized.startsWith("blogs/")) {
+            // 兼容历史消费者媒体：旧记录统一迁入 uploads/user/blogs。
+            relative = "user/" + normalized;
+        } else {
+            throw BusinessException.badRequest("INVALID_IMAGE_PATH", "图片路径无效");
+        }
+        Path target = root.resolve(relative).normalize();
         if (!target.startsWith(root)) throw BusinessException.badRequest("INVALID_IMAGE_PATH", "图片路径无效");
         return target;
     }
 
-    private String newPath(String suffix) {
-        String id = UUID.randomUUID().toString();
-        int hash = id.hashCode();
-        return StrUtil.format("/blogs/{}/{}/{}.{}", hash & 0xf, (hash >> 4) & 0xf, id, suffix);
+    private String newPath(MediaUploadPurpose purpose, Long ownerUserId, String suffix) {
+        LocalDate today = LocalDate.now();
+        return StrUtil.format(
+                "/media/user/{}/{}/{}/{}/{}.{}",
+                purpose.directory(),
+                ownerUserId,
+                today.getYear(),
+                String.format("%02d", today.getMonthValue()),
+                UUID.randomUUID(),
+                suffix);
     }
 
     private void deletePartialFile(Path target, String path) {

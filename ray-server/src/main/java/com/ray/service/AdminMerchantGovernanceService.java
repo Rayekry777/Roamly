@@ -33,11 +33,11 @@ public interface AdminMerchantGovernanceService {
     /** 读取指定申请拥有的已绑定私有媒体。 */
     AdminMediaContent readApplicationMedia(String applicationId, String mediaId);
 
-    /** 幂等审核通过申请并在同一事务中创建活动门店和激活店主。 */
+    /** 幂等审核通过申请并在同一事务中创建活动门店和激活租户。 */
     MerchantApplicationReviewResultVO approve(
             String applicationId, String idempotencyKey, MerchantApplicationApprovalDTO request);
 
-    /** 幂等驳回申请并在同一事务中迁移店主状态。 */
+    /** 幂等驳回申请并在同一事务中迁移游客状态。 */
     MerchantApplicationReviewResultVO reject(
             String applicationId, String idempotencyKey, MerchantApplicationRejectionDTO request);
 
@@ -45,7 +45,7 @@ public interface AdminMerchantGovernanceService {
     PageResult<AdminShopListItemVO> listShops(
             ShopStatus status, String cityCode, Long shopTypeId, String keyword, int page, int size);
 
-    /** 查询门店来源、店主、账号和最近治理详情。 */
+    /** 查询门店来源、租户、账号和最近治理详情。 */
     AdminShopDetailVO getShop(String shopId);
 
     /** 幂等停用门店并只联动当前活动账号。 */

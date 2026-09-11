@@ -21,7 +21,7 @@ affectedEnds: 后端、商户小程序
 
 - 商户账号展示状态只允许 `NOT_APPLIED`（未入驻）、`PENDING`（审核中）、`ACTIVE`（已激活）、`REJECTED`（审核未通过）、`DISABLED`（已停用），状态来源为服务端当前身份。
 - 本阶段新增 `merchant_account`，但不写入驻业务资料；表结构和约束以数据库契约为准。
-- 未激活账号只有认证、当前身份和后续入驻访问能力；已激活权限由 `OWNER`（店主）、`MANAGER`（店长）、`VERIFIER`（核销员）角色确定。
+- 注册账号使用 `VISITOR`（游客）；未激活账号只有认证、当前身份和后续入驻访问能力；已激活权限由 `TENANT`（租户）、`MANAGER`（店长）、`VERIFIER`（核销员）角色确定。
 
 ## 后端
 

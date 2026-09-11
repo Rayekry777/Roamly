@@ -1,6 +1,7 @@
 package com.ray.storage;
 
 import com.ray.config.ObjectStorageProperties;
+import com.ray.config.WorkspacePathResolver;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,7 +17,7 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
     private final String bucket;
 
     public LocalObjectStorageAdapter(ObjectStorageProperties properties) {
-        this.root = Path.of(properties.getLocal().getRoot()).toAbsolutePath().normalize();
+        this.root = WorkspacePathResolver.resolve(properties.getLocal().getRoot());
         this.bucket = requireText(properties.getLocal().getBucket(), "本地对象存储桶不能为空");
         try {
             Files.createDirectories(root);
@@ -49,6 +50,10 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
     public StoredObject get(String objectKey) {
         try {
             Path target = resolve(objectKey);
+            if (!Files.isRegularFile(target)) {
+                Path compatible = legacyAlias(objectKey);
+                if (compatible != null) target = compatible;
+            }
             if (!Files.isRegularFile(target)) throw new ObjectStorageException("经营媒体对象不存在");
             return new StoredObject(Files.readAllBytes(target), contentType(target));
         } catch (IOException exception) {
@@ -61,6 +66,8 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
     public void delete(String objectKey) {
         try {
             Files.deleteIfExists(resolve(objectKey));
+            Path compatible = legacyAlias(objectKey);
+            if (compatible != null) Files.deleteIfExists(compatible);
         } catch (IOException exception) {
             throw new ObjectStorageException("经营媒体删除失败", exception);
         }
@@ -73,6 +80,20 @@ public class LocalObjectStorageAdapter implements ObjectStoragePort {
         Path target = root.resolve(objectKey).normalize();
         if (!target.startsWith(root) || target.equals(root)) throw new ObjectStorageException("经营媒体对象键无效");
         return target;
+    }
+
+    private Path legacyAlias(String objectKey) {
+        if (objectKey.startsWith("merchant/")) {
+            // 旧商户对象键统一归档到 accounts，避免在 merchant 下再次嵌套同名目录。
+            return resolve("legacy/accounts/" + objectKey.substring("merchant/".length()));
+        }
+        if (objectKey.startsWith("seed/merchant/application-") && objectKey.endsWith("-license.png")) {
+            return resolve("seed/onboarding/license/" + objectKey.substring("seed/merchant/".length()));
+        }
+        if ("seed/merchant/voucher-3105-cover.png".equals(objectKey)) {
+            return resolve("seed/voucher/cover/voucher-3105-cover.png");
+        }
+        return null;
     }
 
     private String contentType(Path path) {

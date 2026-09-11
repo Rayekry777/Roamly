@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(158, operationIds.size());
+        assertEquals(185, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -153,11 +153,22 @@ class OpenApiAndAuthRuntimeTest {
                 document, "/v1/admin/voucher-reviews/{productId}/rejection", "post", "Idempotency-Key");
         assertRequiredParameter(
                 document, "/v1/voucher-products/{productId}/orders", "post", "Idempotency-Key");
+        assertTrue(document.at("/paths/~1v1~1media~1images/post/requestBody/content/multipart~1form-data").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/requestBody/content/multipart~1form-data").isObject());
         assertTrue(document.path("paths").has("/v1/voucher-products/{productId}/order-confirmations"));
         assertEquals(0, document.at("/paths/~1v1~1merchant~1auth~1login/post/security").size());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/429").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1sms-codes/post/responses/503").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1auth~1me/get/responses/401").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1staff-invitations/post/responses/403").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1staff-invitations/post/responses/404").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1staff-invitations/post/responses/409").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1staff-invitations/post/responses/503").isObject());
+        assertTrue(document.at("/paths/~1v1~1merchant~1staff-invitations~1acceptance/post/responses/429").isObject());
+        assertRequiredParameter(
+                document, "/v1/merchant/staff-invitations", "post", "Idempotency-Key");
+        assertRequiredParameter(
+                document, "/v1/merchant/staff-invitations/acceptance", "post", "Idempotency-Key");
         assertTrue(document.at("/paths/~1v1~1merchant~1application/post/responses/405").isMissingNode());
         assertTrue(document.at("/paths/~1v1~1merchant~1application~1submission/post/responses/409").isObject());
         assertTrue(document.at("/paths/~1v1~1merchant~1business-media~1images/post/responses/413").isObject());
@@ -224,6 +235,9 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("UserVoucherVO"));
         assertTrue(schemaNames.contains("AdminAuditLogVO"));
         assertTrue(schemaNames.contains("CurrentMerchantVO"));
+        assertTrue(schemaNames.contains("MerchantStaffInvitationCreateDTO"));
+        assertTrue(schemaNames.contains("MerchantStaffAcceptanceDTO"));
+        assertTrue(schemaNames.contains("MerchantStaffInvitationVO"));
         assertTrue(schemaNames.contains("MerchantShopSummaryVO"));
         assertTrue(schemaNames.contains("MerchantApplicationSaveDTO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("MerchantApplicationVO"), "schemas=" + schemaNames);
@@ -249,18 +263,81 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("AdminVoucherReviewListItemVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminVoucherReviewDetailVO"), "schemas=" + schemaNames);
         assertTrue(schemaNames.contains("AdminVoucherReviewResultVO"), "schemas=" + schemaNames);
-        assertFalse(schemaNames.contains("PostCreateDTO"));
-        assertFalse(schemaNames.contains("PostUpdateDTO"));
         assertFalse(schemaNames.contains("ApiResponse"));
         assertFalse(schemaNames.contains("ApiErrorResponse"));
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));
+        assertSchemaProperties(
+                document,
+                "CurrentMerchantVO",
+                Set.of(
+                        "id",
+                        "maskedPhone",
+                        "nickname",
+                        "avatarContentPath",
+                        "role",
+                        "roleLabel",
+                        "status",
+                        "statusLabel",
+                        "shop",
+                        "canAcceptStaffInvitation",
+                        "permissions"));
+        assertSchemaProperties(document, "MerchantStaffAcceptanceDTO", Set.of("credentialCode"));
+        assertSchemaProperties(
+                document,
+                "MerchantStaffInvitationVO",
+                Set.of(
+                        "id",
+                        "phone",
+                        "role",
+                        "roleLabel",
+                        "status",
+                        "expireTime",
+                        "remainingSeconds",
+                        "credentialCode"));
+        assertTrue(document.at("/components/schemas/AdminShopListItemVO/properties/tenantName").isObject());
+        assertFalse(document.at("/components/schemas/AdminShopListItemVO/properties/ownerName").isObject());
+        assertTrue(document.at("/components/schemas/AdminShopDetailVO/properties/tenantAccountId").isObject());
+        assertFalse(document.at("/components/schemas/AdminShopDetailVO/properties/ownerAccountId").isObject());
         assertSchemaProperties(document, "ErrorResult", Set.of("code", "message", "fieldErrors"));
         assertSchemaProperties(document, "VoucherRedemptionPreviewDTO", Set.of("code"));
         assertSchemaProperties(document, "VoucherRedemptionPreviewVO", Set.of("previewToken", "voucherId", "codeLast4",
                 "productTitle", "productType", "productTypeLabel", "benefitText", "validityText", "usageRules",
                 "remainingUseCount", "expiresAt"));
-        assertSchemaProperties(document, "VoucherRedemptionVO", Set.of("id", "voucherId", "shopId", "operatorId",
-                "status", "useCount", "remainingUseCount", "redeemedTime", "reversedTime", "reversalReason"));
+        assertSchemaProperties(
+                document,
+                "VoucherRedemptionVO",
+                Set.of(
+                        "id",
+                        "voucherId",
+                        "orderId",
+                        "productId",
+                        "shopId",
+                        "operatorId",
+                        "productTitle",
+                        "productCover",
+                        "shopName",
+                        "operatorName",
+                        "voucherCode",
+                        "redemptionMethod",
+                        "merchantNote",
+                        "status",
+                        "statusLabel",
+                        "useCount",
+                        "remainingUseCount",
+                        "orderSource",
+                        "dealChannel",
+                        "contentAddress",
+                        "promoterName",
+                        "promoterRole",
+                        "orderTime",
+                        "paidTime",
+                        "redeemedTime",
+                        "reversedTime",
+                        "reversalReason",
+                        "income",
+                        "canReverse",
+                        "canAssistRefund",
+                        "refundId"));
         assertSchemaProperties(document, "PageResult", Set.of("items", "page", "size", "total"));
         assertSchemaProperties(
                 document,
@@ -341,8 +418,17 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/admin/voucher-reviews/{productId}/rejection",
                 "POST /v1/merchant/auth/sms-codes",
                 "POST /v1/merchant/auth/login",
+                "POST /v1/merchant/auth/registrations",
+                "POST /v1/merchant/auth/password-sessions",
                 "GET /v1/merchant/auth/me",
                 "POST /v1/merchant/auth/logout",
+                "GET /v1/merchant/account/profile",
+                "PUT /v1/merchant/account/nickname",
+                "PUT /v1/merchant/account/avatar",
+                "POST /v1/merchant/account/phone-change/sms-codes",
+                "PUT /v1/merchant/account/phone",
+                "POST /v1/merchant/account/password-change/sms-codes",
+                "PUT /v1/merchant/account/password",
                 "POST /v1/merchant/business-media/images",
                 "DELETE /v1/merchant/business-media/images/{mediaId}",
                 "GET /v1/merchant/business-media/images/{mediaId}/content",
@@ -426,7 +512,12 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/refunds/{id}",
                 "POST /v1/users/me/vouchers/{voucherId}/refunds",
                 "POST /v1/users/me/refunds",
+                "POST /v1/users/me/orders/{orderId}/payments/prepare",
                 "POST /v1/users/me/orders/{orderId}/payments",
+                "POST /v1/users/me/customer-service/tickets",
+                "GET /v1/users/me/customer-service/tickets",
+                "GET /v1/users/me/customer-service/tickets/{id}",
+                "POST /v1/users/me/customer-service/tickets/{id}/messages",
                 "GET /v1/merchant/staff",
                 "POST /v1/merchant/staff-invitations",
                 "POST /v1/merchant/staff-invitations/acceptance",
@@ -438,10 +529,15 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/redemptions",
                 "POST /v1/merchant/redemptions/{id}/reversal",
                 "GET /v1/merchant/redemptions",
+                "GET /v1/merchant/redemptions/{id}",
+                "GET /v1/merchant/redemptions/{id}/income-breakdown",
+                "PUT /v1/merchant/redemptions/{id}/note",
                 "GET /v1/merchant/after-sales",
                 "GET /v1/merchant/after-sales/candidate",
                 "GET /v1/merchant/after-sales/{id}",
                 "POST /v1/merchant/after-sales",
+                "POST /v1/merchant/customer-service/tickets",
+                "GET /v1/merchant/customer-service/tickets",
                 "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
                 "GET /v1/admin/refunds",
                 "GET /v1/admin/refunds/{id}",
@@ -451,10 +547,18 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/admin/refunds",
                 "GET /v1/admin/redemptions",
                 "GET /v1/admin/redemptions/{id}",
+                "GET /v1/admin/customer-service/tickets",
+                "GET /v1/admin/customer-service/tickets/{id}",
+                "POST /v1/admin/customer-service/tickets/{id}/claim",
+                "POST /v1/admin/customer-service/tickets/{id}/messages",
+                "POST /v1/admin/customer-service/tickets/{id}/internal-notes",
+                "PUT /v1/admin/customer-service/tickets/{id}/status",
                 "GET /v1/admin/commission-rules",
                 "PUT /v1/admin/commission-rules",
                 "GET /v1/admin/ledger-entries",
                 "GET /v1/merchant/finance/summary",
+                "GET /v1/merchant/finance/today",
+                "GET /v1/merchant/finance/service-fee-policy",
                 "GET /v1/admin/finance/summary",
                 "GET /v1/admin/settlements",
                 "GET /v1/admin/settlements/{id}",
@@ -639,7 +743,7 @@ class OpenApiAndAuthRuntimeTest {
             headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
             ResponseEntity<String> response = http.postForEntity(
                     "/v1/auth/sms-codes",
-                    new HttpEntity<>("{\"phone\":\"13800138000\",\"scene\":\"LOGIN\"}", headers),
+                    new HttpEntity<>("{\"phone\":\"13456789011\",\"scene\":\"LOGIN\"}", headers),
                     String.class);
             assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
             assertEquals(
@@ -647,7 +751,7 @@ class OpenApiAndAuthRuntimeTest {
                     objectMapper.readTree(response.getBody()).path("code").asText());
             ResponseEntity<String> merchantResponse = http.postForEntity(
                     "/v1/merchant/auth/sms-codes",
-                    new HttpEntity<>("{\"phone\":\"13900000001\"}", headers),
+                    new HttpEntity<>("{\"phone\":\"13900000001\",\"scene\":\"LOGIN\"}", headers),
                     String.class);
             assertEquals(HttpStatus.SERVICE_UNAVAILABLE, merchantResponse.getStatusCode());
             assertEquals(

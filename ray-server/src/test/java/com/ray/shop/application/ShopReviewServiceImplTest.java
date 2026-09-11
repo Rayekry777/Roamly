@@ -32,6 +32,7 @@ class ShopReviewServiceImplTest {
     private CurrentUserProvider currentUserProvider;
     private ShopReviewServiceImpl service;
     private ShopCacheService shopCacheService;
+    private UserVoucherMapper userVoucherMapper;
 
     @BeforeEach
     void setUp() {
@@ -39,16 +40,18 @@ class ShopReviewServiceImplTest {
         reviewMapper = mock(ShopReviewMapper.class);
         currentUserProvider = mock(CurrentUserProvider.class);
         shopCacheService = mock(ShopCacheService.class);
+        userVoucherMapper = mock(UserVoucherMapper.class);
         service = new ShopReviewServiceImpl(
                 shopMapper,
                 mock(ShopReviewMediaMapper.class),
                 mock(MediaAssetService.class),
                 currentUserProvider,
                 mock(UserService.class),
-                mock(UserVoucherMapper.class),
+                userVoucherMapper,
                 shopCacheService);
         ReflectionTestUtils.setField(service, "baseMapper", reviewMapper);
         when(currentUserProvider.requireUserId()).thenReturn(7L);
+        when(userVoucherMapper.findLatestUsedVoucherId(7L, 4L)).thenReturn(7001L);
         when(shopMapper.selectById(4L)).thenReturn(new Shop().setId(4L).setStatus(ShopStatus.ACTIVE.name()));
     }
 

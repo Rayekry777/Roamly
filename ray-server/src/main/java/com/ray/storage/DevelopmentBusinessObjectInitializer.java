@@ -18,12 +18,12 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(prefix = "ray.storage", name = "mode", havingValue = "LOCAL", matchIfMissing = true)
 public class DevelopmentBusinessObjectInitializer implements ApplicationRunner {
     static final List<String> SEED_OBJECT_KEYS = List.of(
-            "seed/merchant/application-3-license.png",
-            "seed/merchant/application-4-license.png",
-            "seed/merchant/application-9101-license.png",
-            "seed/merchant/application-9102-license.png",
-            "seed/merchant/application-9103-license.png",
-            "seed/merchant/voucher-3105-cover.png");
+            "seed/onboarding/license/application-3-license.png",
+            "seed/onboarding/license/application-4-license.png",
+            "seed/onboarding/license/application-9101-license.png",
+            "seed/onboarding/license/application-9102-license.png",
+            "seed/onboarding/license/application-9103-license.png",
+            "seed/voucher/cover/voucher-3105-cover.png");
 
     private final ObjectStoragePort objectStorage;
     private final Resource seedLicense;

@@ -2,24 +2,30 @@ package com.ray.service.impl;
 
 import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpLogic;
+import cn.hutool.crypto.digest.BCrypt;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.ray.config.SmsProperties;
 import com.ray.dto.LoginDTO;
+import com.ray.dto.MerchantPasswordLoginDTO;
+import com.ray.dto.MerchantRegistrationDTO;
+import com.ray.dto.MerchantSmsCodeDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.Shop;
 import com.ray.enums.MerchantAccountDisabledSource;
 import com.ray.enums.MerchantAccountStatus;
 import com.ray.enums.MerchantRole;
 import com.ray.enums.ShopStatus;
+import com.ray.enums.SmsCodeScene;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MerchantAccountMapper;
+import com.ray.mapper.MerchantApplicationMapper;
 import com.ray.mapper.ShopMapper;
 import com.ray.service.MerchantAuthService;
 import com.ray.utils.validation.RegexUtils;
 import com.ray.vo.AuthTokenVO;
 import com.ray.vo.CurrentMerchantVO;
 import com.ray.vo.MerchantShopSummaryVO;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -28,17 +34,25 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-/** 使用独立 Sa-Token 登录域实现商户短信登录、身份恢复和状态门禁。 */
+/** 使用独立验证码场景、BCrypt 和 Sa-Token 实现商户认证与经营门禁。 */
 @Slf4j
 @Service
 public class MerchantAuthServiceImpl implements MerchantAuthService {
     private static final String CODE_PREFIX = "roamly:merchant:sms-code:";
     private static final String SEND_LIMIT_PREFIX = "roamly:merchant:sms-limit:";
-    private static final Duration SEND_INTERVAL = Duration.ofSeconds(60);
+    private static final String CODE_CLAIM_PREFIX = "roamly:merchant:sms-claim:";
+    private static final String PASSWORD_FAILURE_PREFIX = "roamly:merchant:password-failure:";
     private static final long CODE_TTL_MINUTES = 2;
+    private static final long SEND_INTERVAL_SECONDS = 60;
+    private static final long FAILURE_WINDOW_MINUTES = 15;
+    private static final int MAX_FAILURES = 5;
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO";
 
     private final MerchantAccountMapper mapper;
+    private final MerchantApplicationMapper applicationMapper;
     private final ShopMapper shopMapper;
     private final StringRedisTemplate redis;
     private final SmsProperties smsProperties;
@@ -46,69 +60,104 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
 
     public MerchantAuthServiceImpl(
             MerchantAccountMapper mapper,
+            MerchantApplicationMapper applicationMapper,
             ShopMapper shopMapper,
             StringRedisTemplate redis,
             SmsProperties smsProperties,
             @Qualifier("merchantStpLogic") StpLogic merchantStpLogic) {
         this.mapper = mapper;
+        this.applicationMapper = applicationMapper;
         this.shopMapper = shopMapper;
         this.redis = redis;
         this.smsProperties = smsProperties;
         this.merchantStpLogic = merchantStpLogic;
     }
 
-    /** 写入独立商户验证码键，60 秒内不允许重复发送。 */
+    /** 校验账号存在性并按登录或注册场景保存单次验证码。 */
     @Override
-    public void sendCode(String phone) {
-        validatePhone(phone);
-        if (smsProperties.getMode() == SmsProperties.Mode.DISABLED) {
-            throw new BusinessException(503, "SMS_SERVICE_UNAVAILABLE", "短信服务暂不可用");
+    public void sendCode(MerchantSmsCodeDTO request) {
+        validatePhone(request.phone());
+        MerchantAccount existing = findByPhone(request.phone());
+        if (request.scene() == SmsCodeScene.LOGIN && existing == null) {
+            throw BusinessException.notFound("MERCHANT_ACCOUNT_NOT_REGISTERED", "该手机号尚未注册商户账号");
         }
+        if (request.scene() == SmsCodeScene.REGISTRATION && existing != null) {
+            throw BusinessException.conflict("PHONE_ALREADY_REGISTERED", "该手机号已注册商户账号");
+        }
+        storeCode(request.scene().name(), request.phone());
+    }
+
+    /** 原子创建未入驻游客账号，注册成功后直接签发商户会话。 */
+    @Override
+    @Transactional
+    public AuthTokenVO register(MerchantRegistrationDTO request) {
+        if (!request.password().equals(request.confirmPassword())) {
+            throw BusinessException.badRequest("PASSWORD_CONFIRMATION_MISMATCH", "两次输入的密码不一致");
+        }
+        String scene = SmsCodeScene.REGISTRATION.name();
+        claimCode(scene, request.phone(), request.code());
         try {
-            Boolean accepted = redis.opsForValue().setIfAbsent(SEND_LIMIT_PREFIX + phone, "1", SEND_INTERVAL);
-            if (!Boolean.TRUE.equals(accepted)) {
-                Long seconds = redis.getExpire(SEND_LIMIT_PREFIX + phone, TimeUnit.SECONDS);
-                long retryAfter = seconds == null || seconds < 1 ? SEND_INTERVAL.toSeconds() : seconds;
-                throw new BusinessException(429, "SMS_SEND_TOO_FREQUENT", "请" + retryAfter + "秒后再获取验证码");
+            if (findByPhone(request.phone()) != null) {
+                throw BusinessException.conflict("PHONE_ALREADY_REGISTERED", "该手机号已注册商户账号");
             }
-            redis.opsForValue().set(
-                    CODE_PREFIX + phone, smsProperties.requireMockCode(), CODE_TTL_MINUTES, TimeUnit.MINUTES);
-            log.debug("[商户登录] 模拟短信验证码已写入缓存，手机号={}", maskPhone(phone));
-        } catch (DataAccessException exception) {
-            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+            int inserted = mapper.insertNotAppliedVisitor(
+                    request.phone(), hashPassword(request.password()), "Roamly 商户 " + request.phone().substring(7));
+            if (inserted != 1) {
+                throw BusinessException.conflict("PHONE_ALREADY_REGISTERED", "该手机号已注册商户账号");
+            }
+            MerchantAccount account = findByPhone(request.phone());
+            if (account == null) throw new IllegalStateException("商户账号创建后无法读取");
+            consumeCode(scene, request.phone());
+            log.info("[商户注册] 注册成功，merchantAccountId={}，手机号={}", account.getId(), maskPhone(account.getPhone()));
+            return login(account);
+        } catch (RuntimeException exception) {
+            releaseCodeClaim(scene, request.phone());
+            throw exception;
         }
     }
 
-    /** 首次登录创建未入驻店主账号，随后签发独立商户 Token。 */
+    /** 验证短信并只允许已注册商户账号登录。 */
     @Override
-    public AuthTokenVO login(LoginDTO request) {
-        validatePhone(request.phone());
-        String cacheCode;
+    public AuthTokenVO loginByCode(LoginDTO request) {
+        String scene = SmsCodeScene.LOGIN.name();
+        claimCode(scene, request.phone(), request.code());
         try {
-            cacheCode = redis.opsForValue().get(CODE_PREFIX + request.phone());
-        } catch (DataAccessException exception) {
-            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+            MerchantAccount account = findByPhone(request.phone());
+            if (account == null) {
+                throw BusinessException.notFound("MERCHANT_ACCOUNT_NOT_REGISTERED", "该手机号尚未注册商户账号");
+            }
+            consumeCode(scene, request.phone());
+            log.info("[商户登录] 短信登录成功，merchantAccountId={}，status={}", account.getId(), account.getStatus());
+            return login(account);
+        } catch (RuntimeException exception) {
+            releaseCodeClaim(scene, request.phone());
+            throw exception;
         }
-        if (cacheCode == null || !cacheCode.equals(request.code())) {
-            throw BusinessException.badRequest("INVALID_SMS_CODE", "验证码错误或已过期");
-        }
+    }
 
-        MerchantAccount account = findByPhone(request.phone());
-        if (account == null) account = createNotAppliedOwner(request.phone());
-        mapper.update(
-                null,
-                Wrappers.<MerchantAccount>lambdaUpdate()
-                        .eq(MerchantAccount::getId, account.getId())
-                        .set(MerchantAccount::getLastLoginTime, LocalDateTime.now()));
-        try {
-            redis.delete(CODE_PREFIX + request.phone());
-            merchantStpLogic.login(account.getId());
-        } catch (DataAccessException exception) {
-            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+    /** 使用统一错误文案校验密码，并按手机号和客户端地址限制失败尝试。 */
+    @Override
+    public AuthTokenVO loginByPassword(MerchantPasswordLoginDTO request, String clientAddress) {
+        String failureKey = PASSWORD_FAILURE_PREFIX
+                + DigestUtil.sha256Hex(request.phone() + "|" + clientAddress).substring(0, 32);
+        if (readFailures(failureKey) >= MAX_FAILURES) {
+            throw new BusinessException(429, "PASSWORD_LOGIN_LIMITED", "登录失败次数过多，请15分钟后重试");
         }
-        SaTokenInfo token = merchantStpLogic.getTokenInfo();
-        log.info("[商户登录] 商户账号登录成功，merchantAccountId={}，status={}", account.getId(), account.getStatus());
-        return new AuthTokenVO("Bearer", token.getTokenValue(), token.getTokenTimeout());
+        MerchantAccount account = findByPhone(request.phone());
+        String hash = account == null || account.getPasswordHash() == null
+                ? DUMMY_PASSWORD_HASH
+                : account.getPasswordHash();
+        boolean matched = BCrypt.checkpw(request.password(), hash);
+        if (account == null || !matched) {
+            long failures = registerFailure(failureKey);
+            if (failures >= MAX_FAILURES) {
+                throw new BusinessException(429, "PASSWORD_LOGIN_LIMITED", "登录失败次数过多，请15分钟后重试");
+            }
+            throw new BusinessException(401, "AUTHENTICATION_FAILED", "手机号或密码错误");
+        }
+        deleteKey(failureKey);
+        log.info("[商户登录] 密码登录成功，merchantAccountId={}，status={}", account.getId(), account.getStatus());
+        return login(account);
     }
 
     /** 返回数据库中的权威身份，不为缺失门店生成占位信息。 */
@@ -118,16 +167,23 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         MerchantRole role = MerchantRole.valueOf(account.getRole());
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         MerchantShopSummaryVO shop = account.getShopId() == null ? null : shopSummary(account.getShopId());
+        boolean canAcceptStaffInvitation = role == MerchantRole.VISITOR
+                && status == MerchantAccountStatus.NOT_APPLIED
+                && account.getShopId() == null
+                && applicationMapper.selectOne(Wrappers.<com.ray.entity.MerchantApplication>lambdaQuery()
+                        .eq(com.ray.entity.MerchantApplication::getMerchantAccountId, account.getId())
+                        .last("limit 1")) == null;
         return new CurrentMerchantVO(
                 account.getId().toString(),
                 maskPhone(account.getPhone()),
                 account.getNickname(),
-                account.getAvatarUrl(),
+                avatarContentPath(account.getAvatarMediaId()),
                 role,
                 role.label(),
                 status,
                 status.label(),
                 shop,
+                canAcceptStaffInvitation,
                 MerchantPermissionCatalog.permissionsFor(role, status));
     }
 
@@ -138,11 +194,14 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         log.info("[商户登出] 当前商户登录令牌已失效");
     }
 
-    /** 认证接口允许读取停用状态，其他经营请求必须为已激活账号。 */
+    /** 账号资料允许全部已登录状态访问，经营请求继续执行状态和门店门禁。 */
     @Override
     public void assertRequestAllowed(String method, String path) {
         MerchantAccount account = requireCurrentAccount();
-        if (path.startsWith("/v1/merchant/auth/")) return;
+        if (path.startsWith("/v1/merchant/auth/")
+                || path.startsWith("/v1/merchant/account/")
+                || path.startsWith("/v1/merchant/business-media/")) return;
+        if ("POST".equals(method) && "/v1/merchant/staff-invitations/acceptance".equals(path)) return;
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         if (status == MerchantAccountStatus.DISABLED) {
             merchantStpLogic.logout();
@@ -194,7 +253,7 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         return account;
     }
 
-    /** 批量注销审核或治理影响账号的全部商户端会话。 */
+    /** 注销审核、治理或账号安全变更影响账号的全部商户端会话。 */
     @Override
     public void invalidateAllSessions(Collection<Long> merchantAccountIds) {
         merchantAccountIds.stream().distinct().forEach(merchantStpLogic::logout);
@@ -203,29 +262,132 @@ public class MerchantAuthServiceImpl implements MerchantAuthService {
         }
     }
 
+    static String hashPassword(String password) {
+        return BCrypt.hashpw(password, BCrypt.gensalt(10));
+    }
+
+    private AuthTokenVO login(MerchantAccount account) {
+        mapper.update(
+                null,
+                Wrappers.<MerchantAccount>lambdaUpdate()
+                        .eq(MerchantAccount::getId, account.getId())
+                        .set(MerchantAccount::getLastLoginTime, LocalDateTime.now()));
+        try {
+            merchantStpLogic.login(account.getId());
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+        SaTokenInfo token = merchantStpLogic.getTokenInfo();
+        return new AuthTokenVO("Bearer", token.getTokenValue(), token.getTokenTimeout());
+    }
+
     private MerchantAccount findByPhone(String phone) {
         return mapper.selectOne(Wrappers.<MerchantAccount>lambdaQuery().eq(MerchantAccount::getPhone, phone));
     }
 
-    private MerchantAccount createNotAppliedOwner(String phone) {
-        mapper.insertNotAppliedOwner(phone, "Roamly 商户 " + phone.substring(7));
-        MerchantAccount account = findByPhone(phone);
-        if (account == null) throw new IllegalStateException("商户账号创建后无法读取");
-        return account;
-    }
-
     private MerchantShopSummaryVO shopSummary(Long shopId) {
         Shop shop = shopMapper.selectById(shopId);
-        if (shop == null) {
-            throw BusinessException.conflict("MERCHANT_SHOP_NOT_FOUND", "商户账号绑定的门店不存在");
-        }
+        if (shop == null) throw BusinessException.conflict("MERCHANT_SHOP_NOT_FOUND", "商户账号绑定的门店不存在");
         return new MerchantShopSummaryVO(shop.getId().toString(), shop.getName(), shop.getAddress());
     }
 
-    private void validatePhone(String phone) {
-        if (RegexUtils.isPhoneInvalid(phone)) {
-            throw BusinessException.badRequest("INVALID_PHONE", "手机号格式错误");
+    private String avatarContentPath(Long mediaId) {
+        return mediaId == null ? null : "/v1/merchant/business-media/images/" + mediaId + "/content";
+    }
+
+    private void storeCode(String scene, String phone) {
+        if (smsProperties.getMode() == SmsProperties.Mode.DISABLED) {
+            throw new BusinessException(503, "SMS_SERVICE_UNAVAILABLE", "短信服务暂不可用");
         }
+        try {
+            String limitKey = SEND_LIMIT_PREFIX + scene + ":" + phone;
+            Boolean accepted = redis.opsForValue()
+                    .setIfAbsent(limitKey, "1", SEND_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            if (!Boolean.TRUE.equals(accepted)) {
+                Long seconds = redis.getExpire(limitKey, TimeUnit.SECONDS);
+                long retryAfter = seconds == null || seconds < 1 ? SEND_INTERVAL_SECONDS : seconds;
+                throw new BusinessException(429, "SMS_SEND_TOO_FREQUENT", "请" + retryAfter + "秒后再获取验证码");
+            }
+            redis.opsForValue().set(codeKey(scene, phone), smsProperties.requireMockCode(), CODE_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+        log.debug("[商户验证码] 模拟验证码已写入缓存，场景={}，手机号={}", scene, maskPhone(phone));
+    }
+
+    private void verifyCode(String scene, String phone, String code) {
+        try {
+            String cached = redis.opsForValue().get(codeKey(scene, phone));
+            if (cached == null || !cached.equals(code)) {
+                throw BusinessException.badRequest("INVALID_SMS_CODE", "验证码错误或已过期");
+            }
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+    }
+
+    private void claimCode(String scene, String phone, String code) {
+        verifyCode(scene, phone, code);
+        try {
+            Boolean claimed = redis.opsForValue()
+                    .setIfAbsent(claimKey(scene, phone), "1", CODE_TTL_MINUTES, TimeUnit.MINUTES);
+            if (!Boolean.TRUE.equals(claimed)) {
+                throw BusinessException.badRequest("INVALID_SMS_CODE", "验证码错误或已过期");
+            }
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+    }
+
+    private void consumeCode(String scene, String phone) {
+        deleteKey(codeKey(scene, phone));
+        deleteKey(claimKey(scene, phone));
+    }
+
+    private void releaseCodeClaim(String scene, String phone) {
+        deleteKey(claimKey(scene, phone));
+    }
+
+    private long readFailures(String key) {
+        try {
+            String value = redis.opsForValue().get(key);
+            return value == null ? 0 : Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            redis.delete(key);
+            return 0;
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+    }
+
+    private long registerFailure(String key) {
+        try {
+            Long failures = redis.opsForValue().increment(key);
+            if (failures != null && failures == 1L) redis.expire(key, FAILURE_WINDOW_MINUTES, TimeUnit.MINUTES);
+            return failures == null ? 1 : failures;
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+    }
+
+    private void deleteKey(String key) {
+        try {
+            redis.delete(key);
+        } catch (DataAccessException exception) {
+            throw new BusinessException(503, "MERCHANT_AUTH_SERVICE_UNAVAILABLE", "商户认证服务暂不可用", exception);
+        }
+    }
+
+    private String codeKey(String scene, String phone) {
+        return CODE_PREFIX + scene + ":" + phone;
+    }
+
+    private String claimKey(String scene, String phone) {
+        return CODE_CLAIM_PREFIX + scene + ":" + phone;
+    }
+
+    private void validatePhone(String phone) {
+        if (RegexUtils.isPhoneInvalid(phone)) throw BusinessException.badRequest("INVALID_PHONE", "手机号格式错误");
     }
 
     private String maskPhone(String phone) {

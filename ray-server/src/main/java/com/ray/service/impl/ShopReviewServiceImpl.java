@@ -98,6 +98,10 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
         if (baseMapper.selectByShopAndUser(shopId, userId) != null) {
             throw BusinessException.conflict("REVIEW_ALREADY_EXISTS", "你已经点评过该商户");
         }
+        Long verifiedVoucherId = userVoucherMapper.findLatestUsedVoucherId(userId, shopId);
+        if (verifiedVoucherId == null) {
+            throw BusinessException.forbidden("REVIEW_REQUIRES_REDEEMED_VOUCHER", "完成该门店消费核销后才能点评");
+        }
         List<Long> mediaIds = parseMediaIds(dto.mediaIds());
         mediaAssetService.lockTemporaryShopReviewImages(userId, mediaIds);
         ShopReview review = new ShopReview()
@@ -106,7 +110,7 @@ public class ShopReviewServiceImpl extends ServiceImpl<ShopReviewMapper, ShopRev
                 .setScore(dto.score())
                 .setContent(dto.content())
                 .setStatus(ReviewStatus.NORMAL.code());
-        review.setVerifiedUserVoucherId(null);
+        review.setVerifiedUserVoucherId(verifiedVoucherId);
         try {
             if (baseMapper.insert(review) != 1) {
                 throw new IllegalStateException("点评写入失败");

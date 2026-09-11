@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ray.entity.MediaAsset;
 import com.ray.enums.MediaAssetBoundType;
 import com.ray.enums.MediaAssetStatus;
+import com.ray.enums.MediaUploadPurpose;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.MediaAssetMapper;
 import com.ray.service.CurrentUserProvider;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,12 +51,13 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
         this.temporaryRetentionHours = temporaryRetentionHours;
     }
 
-    /** 先写入物理文件，再在同一调用中创建临时媒体记录。 */
+    /** 按声明用途写入分类目录，再在同一调用中创建临时媒体记录。 */
     @Override
     @Transactional
-    public MediaAssetVO uploadImage(MultipartFile image) {
+    public MediaAssetVO uploadImage(MultipartFile image, String purposeValue) {
         Long userId = currentUserProvider.requireUserId();
-        StoredImage stored = imageStorageService.storeImage(image);
+        MediaUploadPurpose purpose = parsePurpose(purposeValue);
+        StoredImage stored = imageStorageService.storeImage(image, purpose, userId);
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(temporaryRetentionHours);
         MediaAsset asset = new MediaAsset()
                 .setOwnerUserId(userId)
@@ -129,22 +132,23 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
     /** 加锁校验媒体存在性、所有权、临时状态和有效期。 */
     @Override
     public List<MediaAsset> lockTemporaryPostImages(Long ownerUserId, List<Long> mediaIds) {
-        return lockTemporaryImages(ownerUserId, mediaIds);
+        return lockTemporaryImages(ownerUserId, mediaIds, MediaUploadPurpose.POST);
     }
 
     /** 锁定点评图片，复用统一的媒体所有权与生命周期校验。 */
     @Override
     public List<MediaAsset> lockTemporaryShopReviewImages(Long ownerUserId, List<Long> mediaIds) {
-        return lockTemporaryImages(ownerUserId, mediaIds);
+        return lockTemporaryImages(ownerUserId, mediaIds, MediaUploadPurpose.SHOP_REVIEW);
     }
 
     /** 锁定当前用户的一张临时图片作为待绑定头像。 */
     @Override
     public MediaAsset lockTemporaryAvatarImage(Long ownerUserId, Long mediaId) {
-        return lockTemporaryImages(ownerUserId, List.of(mediaId)).getFirst();
+        return lockTemporaryImages(ownerUserId, List.of(mediaId), MediaUploadPurpose.USER_AVATAR).getFirst();
     }
 
-    private List<MediaAsset> lockTemporaryImages(Long ownerUserId, List<Long> mediaIds) {
+    private List<MediaAsset> lockTemporaryImages(
+            Long ownerUserId, List<Long> mediaIds, MediaUploadPurpose expectedPurpose) {
         if (mediaIds.isEmpty()) return List.of();
         List<Long> lockOrder = mediaIds.stream().sorted().toList();
         List<MediaAsset> assets = list(new QueryWrapper<MediaAsset>()
@@ -160,6 +164,9 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
             if (!ownerUserId.equals(asset.getOwnerUserId())) {
                 throw BusinessException.forbidden("MEDIA_NOT_OWNED", "无权使用该媒体资产");
             }
+            if (!matchesPurpose(asset, ownerUserId, expectedPurpose)) {
+                throw BusinessException.conflict("MEDIA_PURPOSE_MISMATCH", "图片用途与当前业务不一致，请重新上传");
+            }
             if (Integer.valueOf(MediaAssetStatus.BOUND.code()).equals(asset.getStatus())) {
                 throw BusinessException.conflict("MEDIA_ALREADY_BOUND", "媒体资产已绑定其他业务");
             }
@@ -173,6 +180,25 @@ public class MediaAssetServiceImpl extends ServiceImpl<MediaAssetMapper, MediaAs
             }
         }
         return assets.stream().sorted(Comparator.comparing(MediaAsset::getId)).toList();
+    }
+
+    private boolean matchesPurpose(MediaAsset asset, Long ownerUserId, MediaUploadPurpose purpose) {
+        String path = asset.getStoragePath();
+        if (path == null) return false;
+        // /blogs/** 仅为历史动态/点评媒体保留读取兼容，禁止拿旧动态图片冒充头像。
+        if (path.startsWith("/blogs/")) {
+            return purpose != MediaUploadPurpose.USER_AVATAR;
+        }
+        return path.startsWith("/media/user/" + purpose.directory() + "/" + ownerUserId + "/");
+    }
+
+    private MediaUploadPurpose parsePurpose(String value) {
+        try {
+            return MediaUploadPurpose.valueOf(value == null ? "" : value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw BusinessException.badRequest(
+                    "INVALID_IMAGE_PURPOSE", "图片用途仅支持 USER_AVATAR、POST 或 SHOP_REVIEW");
+        }
     }
 
     /** 使用状态条件更新防止媒体在未锁定情况下被重复占用。 */

@@ -15,6 +15,8 @@ springdoc:
     enabled: false
 
 ray:
+  merchant-invitation:
+    hmac-secret: ${RAY_MERCHANT_INVITATION_HMAC_SECRET}
   qr:
     hmac-secret: ${RAY_QR_HMAC_SECRET}
   payment:

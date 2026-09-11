@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-/** 商户端店主与员工账号持久化模型。 */
+/** 商户端游客、租户与员工账号持久化模型。 */
 @Data
 @Accessors(chain = true)
 @TableName("merchant_account")
@@ -17,8 +17,9 @@ public class MerchantAccount implements Serializable {
     private Long id;
 
     private String phone;
+    private String passwordHash;
     private String nickname;
-    private String avatarUrl;
+    private Long avatarMediaId;
     private String role;
     private String status;
     private Long shopId;

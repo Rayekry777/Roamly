@@ -4,6 +4,8 @@ import com.ray.enums.ShopSort;
 import com.ray.result.PageResult;
 import com.ray.result.Result;
 import com.ray.service.ShopService;
+import com.ray.service.LocationService;
+import com.ray.dto.LocationContextDTO;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.ShopVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +19,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,9 +32,16 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "商户")
 public class ShopController {
     private final ShopService shopService;
+    private final LocationService locationService;
 
     public ShopController(ShopService shopService) {
+        this(shopService, null);
+    }
+
+    @Autowired
+    public ShopController(ShopService shopService, LocationService locationService) {
         this.shopService = shopService;
+        this.locationService = locationService;
     }
 
     @GetMapping("/{shopId}")
@@ -61,6 +71,9 @@ public class ShopController {
             @Parameter(description = "团购商品 ID，仅返回该商品真实适用门店") @RequestParam(required = false) String productId,
             @Parameter(description = "经度，需与 latitude 同时提供") @RequestParam(required = false) Double longitude,
             @Parameter(description = "纬度，需与 longitude 同时提供") @RequestParam(required = false) Double latitude) {
+        if (locationService != null && longitude != null && latitude != null) {
+            cityCode = locationService.resolve(new LocationContextDTO(longitude, latitude, null)).cityCode();
+        }
         Long parsedTypeId = typeId == null ? null : IdUtils.parse(typeId, "typeId");
         if (productId != null && !productId.isBlank()) {
             return Result.ok(shopService.listShops(

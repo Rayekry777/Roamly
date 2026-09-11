@@ -5,7 +5,8 @@ public enum BusinessMediaPurpose {
     LICENSE("营业执照"),
     GALLERY("经营图片"),
     VOUCHER_COVER("券封面"),
-    VOUCHER_DETAIL("券详情图");
+    VOUCHER_DETAIL("券详情图"),
+    MERCHANT_AVATAR("商户头像");
 
     private final String label;
 

@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 /** 管理商户私有经营媒体的上传、读取、绑定与清理。 */
 public interface BusinessMediaService extends IService<BusinessMediaAsset> {
-    /** 上传并创建当前店主拥有的临时经营图片。 */
+    /** 上传并创建当前游客拥有的入驻临时经营图片。 */
     BusinessMediaVO uploadImage(MultipartFile file, String purpose);
 
     /** 幂等删除当前商户拥有且未绑定的临时媒体。 */
@@ -17,6 +17,9 @@ public interface BusinessMediaService extends IService<BusinessMediaAsset> {
 
     /** 鉴权读取当前商户拥有且仍有效的私有内容。 */
     BusinessMediaContent readContent(Long mediaId);
+
+    /** 将当前商户上传的临时头像绑定到账号，并在提交后清理旧头像。 */
+    BusinessMediaVO bindMerchantAvatar(Long accountId, Long mediaId, Long previousMediaId);
 
     /** 读取审核通过商品拥有的已绑定券媒体，不依赖商户会话。 */
     BusinessMediaContent readPublicVoucherContent(Long productId, Long mediaId);

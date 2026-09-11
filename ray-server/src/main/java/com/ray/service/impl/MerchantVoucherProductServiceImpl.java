@@ -373,6 +373,8 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 detailMediaIds,
                 request.priceAmount(),
                 request.marketAmount(),
+                request.merchantSubsidyAmount() == null ? 0L : request.merchantSubsidyAmount(),
+                request.platformDiscountAmount() == null ? 0L : request.platformDiscountAmount(),
                 request.faceValueAmount(),
                 request.minimumSpendAmount(),
                 request.totalUseCount(),
@@ -418,6 +420,8 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .set("detail_media_ids_json", json(snapshot.detailMediaIds()))
                 .set("price_amount", snapshot.priceAmount())
                 .set("market_amount", snapshot.marketAmount())
+                .set("merchant_subsidy_amount", snapshot.merchantSubsidyAmount())
+                .set("platform_discount_amount", snapshot.platformDiscountAmount())
                 .set("face_value_amount", snapshot.faceValueAmount())
                 .set("minimum_spend_amount", snapshot.minimumSpendAmount())
                 .set("total_use_count", snapshot.totalUseCount())
@@ -445,6 +449,12 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
     }
 
     private void validateDraft(VoucherProductType type, DraftSnapshot draft) {
+        long price = draft.priceAmount() == null ? 0L : draft.priceAmount();
+        long merchantSubsidy = draft.merchantSubsidyAmount() == null ? 0L : draft.merchantSubsidyAmount();
+        long platformDiscount = draft.platformDiscountAmount() == null ? 0L : draft.platformDiscountAmount();
+        if (merchantSubsidy + platformDiscount > price) {
+            throw incomplete("商家营销补贴与平台优惠合计不能超过商品售价");
+        }
         if (draft.saleBeginTime() != null
                 && draft.saleEndTime() != null
                 && !draft.saleBeginTime().isBefore(draft.saleEndTime())) {
@@ -748,6 +758,8 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .setDetailMediaIdsJson("[]")
                 .setPriceAmount(source.getPriceAmount())
                 .setMarketAmount(source.getMarketAmount())
+                .setMerchantSubsidyAmount(source.getMerchantSubsidyAmount())
+                .setPlatformDiscountAmount(source.getPlatformDiscountAmount())
                 .setFaceValueAmount(source.getFaceValueAmount())
                 .setMinimumSpendAmount(source.getMinimumSpendAmount())
                 .setTotalUseCount(source.getTotalUseCount())
@@ -819,6 +831,8 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 detailMedia,
                 product.getPriceAmount(),
                 product.getMarketAmount(),
+                product.getMerchantSubsidyAmount(),
+                product.getPlatformDiscountAmount(),
                 product.getFaceValueAmount(),
                 product.getMinimumSpendAmount(),
                 product.getTotalUseCount(),
@@ -864,7 +878,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
         if (status != MerchantAccountStatus.ACTIVE || account.getShopId() == null) {
             throw BusinessException.forbidden("MERCHANT_ACTIVATION_REQUIRED", "商户账号尚未激活");
         }
-        if (role != MerchantRole.OWNER && role != MerchantRole.MANAGER) {
+        if (role != MerchantRole.TENANT && role != MerchantRole.MANAGER) {
             throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "当前角色无权管理团购券");
         }
         return account;
@@ -988,6 +1002,8 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
             List<Long> detailMediaIds,
             Long priceAmount,
             Long marketAmount,
+            Long merchantSubsidyAmount,
+            Long platformDiscountAmount,
             Long faceValueAmount,
             Long minimumSpendAmount,
             Integer totalUseCount,

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.ray.config.ObjectStorageProperties;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +38,30 @@ class LocalObjectStorageAdapterTest {
         assertThrows(ObjectStorageException.class, () -> storage.put("../outside.png", "image/png", new byte[] {1}));
         assertThrows(ObjectStorageException.class, () -> storage.put("/absolute.png", "image/png", new byte[] {1}));
         assertThrows(ObjectStorageException.class, () -> storage.put("merchant\\bad.png", "image/png", new byte[] {1}));
+    }
+
+    @Test
+    void readsLegacyMerchantObjectFromCompatibilityDirectory() throws IOException {
+        byte[] content = {4, 3, 2, 1};
+        Path legacy = root.resolve("legacy/accounts/7/old-avatar.png");
+        Files.createDirectories(legacy.getParent());
+        Files.write(legacy, content);
+
+        ObjectStoragePort.StoredObject stored = storage().get("merchant/7/old-avatar.png");
+
+        assertArrayEquals(content, stored.content());
+    }
+
+    @Test
+    void mapsLegacySeedKeyToCategorizedSeedFile() throws IOException {
+        byte[] content = {9, 8, 7};
+        Path categorized = root.resolve("seed/onboarding/license/application-3-license.png");
+        Files.createDirectories(categorized.getParent());
+        Files.write(categorized, content);
+
+        ObjectStoragePort.StoredObject stored = storage().get("seed/merchant/application-3-license.png");
+
+        assertArrayEquals(content, stored.content());
     }
 
     private LocalObjectStorageAdapter storage() {

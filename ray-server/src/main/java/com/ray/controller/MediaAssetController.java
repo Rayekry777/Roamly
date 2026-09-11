@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +33,7 @@ public class MediaAssetController {
         this.mediaAssetService = mediaAssetService;
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "上传临时图片", operationId = "uploadImage")
     @ApiResponses(
             @ApiResponse(
@@ -41,8 +42,10 @@ public class MediaAssetController {
                     useReturnTypeSchema = true))
     public ResponseEntity<Result<MediaAssetVO>> uploadImage(
             @Parameter(description = "JPEG、PNG 或 WebP 图片，最大 10MB", required = true)
-            @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(mediaAssetService.uploadImage(file)));
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "USER_AVATAR（用户头像）、POST（动态图片）或 SHOP_REVIEW（点评图片）", required = true)
+            @RequestParam("purpose") String purpose) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(mediaAssetService.uploadImage(file, purpose)));
     }
 
     @DeleteMapping("/{mediaId}")
