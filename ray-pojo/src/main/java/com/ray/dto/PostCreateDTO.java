@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import java.util.List;
 
 /** 创建统一动态的请求。 */
@@ -41,7 +43,15 @@ public record PostCreateDTO(
                 String sectionId,
         @Pattern(regexp = "^[1-9]\\d*$")
                 @Schema(type = "string", description = "探店商户 ID，仅探店时提交", pattern = "^[1-9]\\d*$", example = "4")
-                String shopId) {
+        String shopId,
+        @DecimalMin("-180.0") @DecimalMax("180.0") Double longitude,
+        @DecimalMin("-90.0") @DecimalMax("90.0") Double latitude,
+        @Size(max = 128) String locationLabel) {
+    public PostCreateDTO(String title, String content, List<String> mediaIds, Boolean shopVisit,
+                         String sectionId, String shopId) {
+        this(title, content, mediaIds, shopVisit, sectionId, shopId, null, null, null);
+    }
+
     public PostCreateDTO {
         mediaIds = mediaIds == null ? List.of() : List.copyOf(mediaIds);
     }
