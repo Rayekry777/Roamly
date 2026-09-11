@@ -71,6 +71,8 @@ sa-token:
   is-print: false
 
 ray:
+  merchant-invitation:
+    hmac-secret: ${RAY_MERCHANT_INVITATION_HMAC_SECRET:dev-only-merchant-invitation-secret-change-in-production}
   payment:
     mode: ${RAY_PAYMENT_MODE:MOCK}
   cache:
@@ -81,7 +83,8 @@ ray:
     coordination:
       lock-wait: 1s
   upload:
-    image-dir: ${IMAGE_UPLOAD_DIR:./uploads}
+    # 统一本地文件根目录；消费者与商户分别使用 user/merchant 子目录。
+    image-dir: ${MEDIA_STORAGE_ROOT:./uploads}
     temporary-retention-hours: ${MEDIA_TEMPORARY_RETENTION_HOURS:24}
     cleanup-initial-delay-ms: ${MEDIA_CLEANUP_INITIAL_DELAY_MS:60000}
     cleanup-interval-ms: ${MEDIA_CLEANUP_INTERVAL_MS:3600000}
@@ -91,7 +94,7 @@ ray:
     cleanup-initial-delay-ms: ${BUSINESS_MEDIA_CLEANUP_INITIAL_DELAY_MS:90000}
     cleanup-interval-ms: ${BUSINESS_MEDIA_CLEANUP_INTERVAL_MS:3600000}
     local:
-      root: ${OBJECT_STORAGE_LOCAL_ROOT:./business-objects}
+      root: ${MEDIA_STORAGE_ROOT:./uploads}/merchant
       bucket: ${OBJECT_STORAGE_LOCAL_BUCKET:roamly-business-local}
     s3:
       path-style-access: ${S3_PATH_STYLE_ACCESS:true}

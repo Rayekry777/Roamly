@@ -12,6 +12,8 @@ public final class AdminPermissions {
     public static final String COMMISSION_MANAGE = "admin:commission:manage";
     public static final String SETTLEMENT_MANAGE = "admin:settlement:manage";
     public static final String AUDIT_READ = "admin:audit:read";
+    public static final String CUSTOMER_SERVICE_READ = "admin:customer-service:read";
+    public static final String CUSTOMER_SERVICE_MANAGE = "admin:customer-service:manage";
 
     private AdminPermissions() {}
 }
