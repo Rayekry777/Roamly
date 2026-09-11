@@ -22,7 +22,11 @@ INSERT INTO `district`
   (`id`, `code`, `city_code`, `name`, `center_longitude`, `center_latitude`, `service_radius_km`, `status`, `sort`)
 VALUES
   (1, '330105', '330100', '拱墅区', 120.149192, 30.316078, 35.00, 1, 1),
-  (2, '630105', '630100', '城北区', 101.749746, 36.742782, 35.00, 1, 1);
+  (2, '330106', '330100', '西湖区', 120.130000, 30.260000, 35.00, 1, 2),
+  (3, '330102', '330100', '上城区', 120.170000, 30.250000, 35.00, 1, 3),
+  (4, '630105', '630100', '城北区', 101.749746, 36.742782, 35.00, 1, 1),
+  (5, '630102', '630100', '城东区', 101.800000, 36.600000, 35.00, 1, 2),
+  (6, '630103', '630100', '城中区', 101.780000, 36.620000, 35.00, 1, 3);
 
 INSERT INTO `content_section`
   (`id`, `code`, `name`, `description`, `allow_shop_visit`, `status`, `sort`)
@@ -55,7 +59,9 @@ VALUES
   (1, '103 茶餐厅', 1, '330100', '330105', 'https://example.com/images/tea-restaurant.jpg', '大关', '金华路锦昌文华苑 29 号', 120.149192, 30.316078, 80, 1, 2, 45, '10:00-22:00', 'ACTIVE', 9101, '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"10:00","close":"22:00"}]}]', '2026-08-01 10:00:00', 0),
   (2, '漫游咖啡实验室', 1, '330100', '330105', 'https://example.com/images/coffee-lab.jpg', '运河上街', '台州路 2 号', 120.151954, 30.324970, 68, 1, 2, 45, '09:00-21:00', 'ACTIVE', 9102, '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]}]', '2026-08-02 10:00:00', 0),
   (3, '周末放映厅', 2, '330100', '330105', 'https://example.com/images/cinema.jpg', '拱宸桥', '丽水路 58 号', 120.146659, 30.312742, 120, 0, 0, 0, '13:00-23:00', 'ACTIVE', 9103, '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"13:00","close":"23:00"}]}]', '2026-08-03 10:00:00', 0),
-  (4, '城北校园漫游咖啡', 1, '630100', '630105', 'https://example.com/images/xining-coffee.jpg', '城北区', '青海师范大学（城北校区）附近', 101.749746, 36.742782, 32, 12, 0, 0, '09:00-21:00', 'ACTIVE', 9104, '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]}]', '2026-09-10 10:00:00', 0);
+  (4, '城北校园漫游咖啡', 1, '630100', '630105', 'https://example.com/images/xining-coffee.jpg', '城北区', '青海师范大学（城北校区）附近', 101.749746, 36.742782, 32, 12, 0, 0, '09:00-21:00', 'ACTIVE', 9104, '[{"dayOfWeek":"MONDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"TUESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"WEDNESDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"THURSDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"FRIDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SATURDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]},{"dayOfWeek":"SUNDAY","closed":false,"periods":[{"open":"09:00","close":"21:00"}]}]', '2026-09-10 10:00:00', 0),
+  (5, '西湖边的慢时光', 2, '330100', '330106', 'https://example.com/images/west-lake.jpg', '西湖区', '北山街 18 号', 120.130000, 30.260000, 95, 86, 0, 46, '10:00-22:00', 'ACTIVE', 9201, '[]', '2026-09-10 10:00:00', 0),
+  (6, '城东夜食集', 1, '630100', '630102', 'https://example.com/images/xining-east.jpg', '城东区', '建国路 66 号', 101.800000, 36.600000, 55, 48, 0, 44, '11:00-23:00', 'ACTIVE', 9202, '[]', '2026-09-10 10:00:00', 0);
 
 INSERT INTO `merchant_account`
   (`id`, `phone`, `password_hash`, `nickname`, `avatar_media_id`, `role`, `status`, `shop_id`, `disabled_source`, `disabled_reason`, `disabled_at`, `version`)
@@ -121,12 +127,20 @@ VALUES
   (502, 2, 'seed/reviews/tea-set.jpg', 'image/jpeg', 96000, 1080, 1080, 1, 2, 4001, NULL, '2026-09-02 13:00:00', '2026-09-02 13:10:00');
 
 INSERT INTO `post`
-  (`id`, `user_id`, `section_id`, `shop_visit`, `shop_id`, `city_code`, `title`, `content`, `liked_count`, `comment_count`, `status`, `create_time`, `update_time`)
+  (`id`, `user_id`, `section_id`, `shop_visit`, `shop_id`, `city_code`, `district_code`, `title`, `content`, `liked_count`, `comment_count`, `status`, `create_time`, `update_time`)
 VALUES
-  (1001, 1, 1, 0, NULL, '330100', '傍晚的运河散步', '下班后沿着运河走了一圈，风很舒服。', 2, 1, 0, '2026-09-01 18:30:00', '2026-09-01 18:30:00'),
-  (1002, 2, 2, 1, 1, '330100', '一顿很满足的茶餐厅晚餐', '菠萝油和奶茶都很适合周末慢慢吃。', 2, 2, 0, '2026-09-02 12:10:00', '2026-09-02 12:10:00'),
-  (1003, 3, 4, 1, 3, '330100', '周末的电影和朋友', '适合和朋友一起放空半天的小地方。', 1, 0, 0, '2026-09-02 16:20:00', '2026-09-02 16:20:00'),
-  (1004, 1, 1, 1, 4, '630100', '城北校区附近的咖啡时间', '在青海师范大学城北校区附近找到一家适合自习的咖啡店。', 0, 0, 0, '2026-09-10 12:00:00', '2026-09-10 12:00:00');
+  (1001, 1, 1, 0, NULL, '330100', '330105', '傍晚的运河散步', '下班后沿着运河走了一圈，风很舒服。', 2, 1, 0, '2026-09-01 18:30:00', '2026-09-01 18:30:00'),
+  (1002, 2, 2, 1, 1, '330100', '330105', '一顿很满足的茶餐厅晚餐', '菠萝油和奶茶都很适合周末慢慢吃。', 2, 2, 0, '2026-09-02 12:10:00', '2026-09-02 12:10:00'),
+  (1003, 3, 4, 1, 3, '330100', '330105', '周末的电影和朋友', '适合和朋友一起放空半天的小地方。', 1, 0, 0, '2026-09-02 16:20:00', '2026-09-02 16:20:00'),
+  (1004, 1, 1, 1, 4, '630100', '630105', '城北校区附近的咖啡时间', '在青海师范大学城北校区附近找到一家适合自习的咖啡店。', 0, 0, 0, '2026-09-10 12:00:00', '2026-09-10 12:00:00'),
+  (1101, 1, 1, 0, NULL, '330100', '330106', '西湖边的晚风', '沿着北山街慢慢走，湖边的风很适合放松。', 3, 0, 0, '2026-09-11 10:00:00', '2026-09-11 10:00:00'),
+  (1102, 2, 3, 1, 5, '330100', '330106', '西湖边的周末早午餐', '窗边的位置可以看到湖景，适合周末约会。', 3, 0, 0, '2026-09-11 09:00:00', '2026-09-11 09:00:00'),
+  (1103, 3, 1, 0, NULL, '330100', '330102', '上城夜骑路线', '从老街骑到江边，夜景和小店都很有意思。', 3, 0, 0, '2026-09-11 08:00:00', '2026-09-11 08:00:00'),
+  (1104, 1, 1, 0, NULL, '330100', NULL, '杭州周末随手记', '没有特别规划的一天，也能发现城市里的小惊喜。', 2, 0, 0, '2026-09-11 07:00:00', '2026-09-11 07:00:00'),
+  (1105, 2, 2, 1, 4, '630100', '630105', '城北区咖啡地图', '把学校周边适合学习和聊天的咖啡店整理了一遍。', 3, 0, 0, '2026-09-11 10:30:00', '2026-09-11 10:30:00'),
+  (1106, 3, 1, 0, NULL, '630100', '630102', '城东夜市逛吃记录', '建国路一带晚上很热闹，适合和朋友一起逛。', 3, 0, 0, '2026-09-11 09:30:00', '2026-09-11 09:30:00'),
+  (1107, 1, 1, 0, NULL, '630100', '630103', '西宁老城散步', '城中区的老街建筑很有味道，适合慢慢走。', 3, 0, 0, '2026-09-11 08:30:00', '2026-09-11 08:30:00'),
+  (1108, 2, 1, 0, NULL, '630100', NULL, '西宁秋日随笔', '天气转凉以后，城市的节奏也慢了下来。', 1, 0, 0, '2026-09-11 07:30:00', '2026-09-11 07:30:00');
 
 INSERT INTO `post_media` (`id`, `post_id`, `media_asset_id`, `sort`, `create_time`)
 VALUES (1, 1001, 501, 0, '2026-09-01 18:30:00');
@@ -136,7 +150,28 @@ INSERT INTO `post_like` (`id`, `post_id`, `user_id`, `create_time`) VALUES
   (2, 1001, 3, '2026-09-01 18:41:00'),
   (3, 1002, 1, '2026-09-02 12:15:00'),
   (4, 1002, 3, '2026-09-02 12:16:00'),
-  (5, 1003, 1, '2026-09-02 16:30:00');
+  (5, 1003, 1, '2026-09-02 16:30:00'),
+  (6, 1101, 1, '2026-09-11 10:05:00'),
+  (7, 1101, 2, '2026-09-11 10:06:00'),
+  (8, 1101, 3, '2026-09-11 10:07:00'),
+  (9, 1102, 1, '2026-09-11 09:05:00'),
+  (10, 1102, 2, '2026-09-11 09:06:00'),
+  (11, 1102, 3, '2026-09-11 09:07:00'),
+  (12, 1103, 1, '2026-09-11 08:05:00'),
+  (13, 1103, 2, '2026-09-11 08:06:00'),
+  (14, 1103, 3, '2026-09-11 08:07:00'),
+  (15, 1104, 2, '2026-09-11 07:05:00'),
+  (16, 1104, 3, '2026-09-11 07:06:00'),
+  (17, 1105, 1, '2026-09-11 10:35:00'),
+  (18, 1105, 2, '2026-09-11 10:36:00'),
+  (19, 1105, 3, '2026-09-11 10:37:00'),
+  (20, 1106, 1, '2026-09-11 09:35:00'),
+  (21, 1106, 2, '2026-09-11 09:36:00'),
+  (22, 1106, 3, '2026-09-11 09:37:00'),
+  (23, 1107, 1, '2026-09-11 08:35:00'),
+  (24, 1107, 2, '2026-09-11 08:36:00'),
+  (25, 1107, 3, '2026-09-11 08:37:00'),
+  (26, 1108, 2, '2026-09-11 07:35:00');
 
 INSERT INTO `post_comment`
   (`id`, `post_id`, `user_id`, `root_id`, `parent_id`, `reply_to_user_id`, `content`, `liked_count`, `reply_count`, `author_replied`, `status`, `create_time`, `update_time`)
@@ -259,6 +294,32 @@ VALUES
    '[]', '[]', 0, NULL, 0, 0, 0, 'APPROVED', 'ENDED', NULL,
    'seed-product-3110-submit', REPEAT('9', 64), '2026-06-20 09:00:00', 'APPROVAL',
    'seed-product-3110-approve', REPEAT('0', 64), '2026-06-20 10:00:00', 2, 2);
+
+-- 推荐排序样例：同城不同区县、不同销量和距离的可售商品。
+INSERT INTO `voucher_product`
+  (`id`, `shop_id`, `product_type`, `title`, `sub_title`, `detail_media_ids_json`,
+   `price_amount`, `market_amount`, `total_stock`, `available_stock`, `sold_count`,
+   `sale_begin_time`, `sale_end_time`, `validity_type`, `valid_days`,
+   `usage_rules_json`, `excluded_dates_json`, `review_status`, `sale_status`)
+VALUES
+  (3201, 5, 'PACKAGE', '西湖双人下午茶', '西湖区门店推荐样例', '[]',
+   6800, 9800, 200, 180, 20, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE'),
+  (3202, 5, 'CASH', '西湖门店 50 元代金券', '西湖区高销量样例', '[]',
+   4200, 5000, 300, 260, 80, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE'),
+  (3203, 6, 'PACKAGE', '城东夜食双人餐', '城东区距离衰减样例', '[]',
+   7600, 10800, 160, 145, 15, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE'),
+  (3204, 6, 'CASH', '城东夜宵代金券', '城东区低销量样例', '[]',
+   3000, 4000, 100, 98, 2, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE'),
+  (3205, 4, 'DISCOUNT', '城北校园咖啡折扣券', '当前定位区县样例', '[]',
+   1800, 2400, 120, 70, 50, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE'),
+  (3206, 2, 'CASH', '运河咖啡小额代金券', '拱墅区同城对照样例', '[]',
+   2600, 3200, 100, 97, 3, '2026-01-01 00:00:00', '2027-12-31 23:59:59',
+   'DAYS_AFTER_PURCHASE', 30, '[]', '[]', 'APPROVED', 'ON_SALE');
 
 INSERT INTO `voucher_package_item`
   (`id`, `product_id`, `name`, `quantity`, `unit`, `unit_price_amount`, `sort_order`)

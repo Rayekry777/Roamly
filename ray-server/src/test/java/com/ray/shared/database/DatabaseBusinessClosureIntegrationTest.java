@@ -154,7 +154,7 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(49, count("select available_stock from voucher_product where id=3004"));
         assertEquals(1, count("select sold_count from voucher_product where id=3004"));
         assertEquals(4, count("select count(distinct product_type) from voucher_product"));
-        assertEquals(4, count("select count(*) from voucher_product "
+        assertEquals(10, count("select count(*) from voucher_product "
                 + "where review_status='APPROVED' and sale_status='ON_SALE'"));
         assertEquals(1, count("select count(*) from voucher_product where id=3105 "
                 + "and review_status='PENDING' and sale_status is null and cover_media_id=8201"));

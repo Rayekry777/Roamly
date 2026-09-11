@@ -118,11 +118,11 @@ demoDataClosureStatus: 已实现
 
 | 领域 | 数量与状态覆盖 |
 |---|---|
-| 账号与字典 | 5 个管理员、10 个商户账号、3 个消费者、2 个城市、2 个区县、5 个内容分区、3 个门店分类 |
-| 入驻与门店 | 5 条入驻申请，覆盖 `PENDING/REJECTED/APPROVED`；3 家活动门店；6 条绑定经营媒体 |
+| 账号与字典 | 5 个管理员、10 个商户账号、3 个消费者、2 个城市、6 个区县、5 个内容分区、3 个门店分类 |
+| 入驻与门店 | 5 条入驻申请，覆盖 `PENDING/REJECTED/APPROVED`；6 家活动门店；6 条绑定经营媒体 |
 | 商户员工 | 4 条邀请，完整覆盖 `PENDING/ACCEPTED/REVOKED/EXPIRED`；租户、店长、核销员和员工停用样例 |
-| 社区与点评 | 3 条动态、5 个动态点赞、3 条评论/回复、5 个评论点赞、3 个关注、3 个分区关注、4 条点评和已核销消费点评 |
-| 券商品 | 14 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
+| 社区与点评 | 12 条动态、26 个动态点赞、3 条评论/回复、5 个评论点赞、3 个关注、3 个分区关注、4 条点评和已核销消费点评 |
+| 券商品 | 20 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
 | 订单与支付 | 14 笔订单，覆盖 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
 | 券包与退款 | 12 张用户券，覆盖 `UNUSED/PARTIALLY_USED/USED/EXPIRED/REFUNDING/REFUNDED`；5 条退款覆盖全部退款状态 |
 | 核销与资金 | 5 条核销/撤销、2 条佣金规则、14 条八类账本分录、4 个结算批次覆盖 `PROCESSING/SUCCEEDED/FAILED`、10 条结算明细、9 条审计记录 |

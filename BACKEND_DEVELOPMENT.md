@@ -102,6 +102,7 @@ deviceAcceptanceStatus: 不适用
 - 商品公开发现接口与门店列表使用相同规则：提供完整真实经纬度时由服务端重新解析城市并覆盖客户端 `cityCode`；未提供经纬度时才使用 `cityCode` 作为兼容入口。
 - 普通动态保存发布时区县和粗粒度位置标签；不保存用户完整精确坐标。定位失败不再由首页使用旧城市替代。
 - `city` 与 `district` 是独立字典，门店和动态分别保存 `city_code`、`district_code`；商户入驻时校验区县归属城市，审核建店时写入两个编码。
+- 地域隔离、推荐公式、开发种子区县/门店/商品/动态和验收场景详见 [地域推荐与测试数据细节](./docs/project-details/LOCATION_RECOMMENDATION_AND_TEST_DATA.md)。
 - 管理端 SSE 使用已登录管理员申请的 30 秒一次性事件票据连接；事件流不依赖浏览器 `EventSource` 的 Bearer Header，票据消费后仍实时校验管理员账号为启用状态。
 - Knife4j 为 `/doc.html`，OpenAPI 为 `/v3/api-docs`，Swagger UI 禁用；全局声明 400、500，私有接口声明 401，并按行为声明 403、404、409、413、429、503。
 
