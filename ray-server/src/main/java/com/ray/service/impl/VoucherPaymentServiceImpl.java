@@ -106,7 +106,7 @@ public class VoucherPaymentServiceImpl implements VoucherPaymentService {
         }
         settlementService.confirmPaid(orderId, now);
         financeService.append(new FundLedgerEntryVO(null, order.getShopId().toString(), order.getId().toString(), null,
-                "ORDER-" + order.getId(), "PAYMENT_FROZEN", "CREDIT", order.getPayAmount(), 500, now));
+                "ORDER-" + order.getId(), "PAYMENT_FROZEN", "CREDIT", order.getPayAmount(), null, null, now));
         if (realtimeEvents != null) realtimeEvents.publish("PAYMENT_UPDATED", orderId.toString(), order.getShopId());
         return toVO(tx, orderMapper.selectById(orderId));
     }

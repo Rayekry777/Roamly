@@ -7,6 +7,8 @@ import com.ray.service.FinanceService;
 import com.ray.vo.CommissionRuleVO;
 import com.ray.vo.FundLedgerEntryVO;
 import com.ray.vo.MerchantFinanceSummaryVO;
+import com.ray.vo.MerchantTodayFinanceVO;
+import com.ray.vo.ServiceFeePolicyVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController
 @SecurityRequirement(name = "BearerAuth")
@@ -43,4 +47,13 @@ public class FinanceController {
     @GetMapping("/v1/merchant/finance/summary")
     @Operation(summary = "查询商户财务摘要", operationId = "getMerchantFinanceSummary")
     public Result<MerchantFinanceSummaryVO> summary() { return Result.ok(service.merchantSummary()); }
+    @GetMapping("/v1/merchant/finance/today")
+    @Operation(summary = "查询商户今日团购收银", operationId = "getMerchantTodayFinance")
+    public Result<MerchantTodayFinanceVO> today(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return Result.ok(service.merchantToday(date));
+    }
+    @GetMapping("/v1/merchant/finance/service-fee-policy")
+    @Operation(summary = "查询当前门店软件服务费规则", operationId = "getMerchantServiceFeePolicy")
+    public Result<ServiceFeePolicyVO> serviceFeePolicy() { return Result.ok(service.merchantServiceFeePolicy()); }
 }

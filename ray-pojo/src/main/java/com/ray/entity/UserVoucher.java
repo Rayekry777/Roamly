@@ -26,6 +26,11 @@ public class UserVoucher implements Serializable {
     private String voucherCodeLast4;
     private Integer totalUseCount;
     private Integer remainingUseCount;
+    /** 单券价格分摊快照，金额单位均为分。 */
+    private Long saleAmount;
+    private Long merchantSubsidyAmount;
+    private Long platformDiscountAmount;
+    private Long customerPaidAmount;
     private String status;
     private LocalDateTime validBeginTime;
     private LocalDateTime expireTime;

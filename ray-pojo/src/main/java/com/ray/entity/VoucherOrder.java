@@ -46,8 +46,21 @@ public class VoucherOrder implements Serializable {
     /** 订单总金额，单位分。 */
     private Long totalAmount;
 
+    /** 订单级商家营销补贴快照，单位分。 */
+    private Long merchantSubsidyAmount;
+
+    /** 订单级平台优惠快照，单位分。 */
+    private Long platformDiscountAmount;
+
     /** 实际支付金额，单位分。 */
     private Long payAmount;
+
+    /** 下单来源、成交渠道和带货归因快照；没有归因时允许为空。 */
+    private String orderSource;
+    private String dealChannel;
+    private String promoterRole;
+    private String promoterName;
+    private String contentAddress;
 
     /**
      * 支付方式 1：余额支付；2：支付宝；3：微信

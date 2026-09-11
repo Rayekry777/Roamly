@@ -15,6 +15,8 @@ public record VoucherOrderVO(
         Integer quantity,
         Long unitAmount,
         Long totalAmount,
+        Long merchantSubsidyAmount,
+        Long platformDiscountAmount,
         Long payAmount,
         String status,
         LocalDateTime createdTime,
@@ -23,7 +25,12 @@ public record VoucherOrderVO(
         LocalDateTime expireTime,
         @Schema(description = "商品封面鉴权读取路径") String productCover,
         @Schema(description = "券型", allowableValues = {"PACKAGE", "CASH", "DISCOUNT", "MULTI_USE"}) String productType,
-        @Schema(description = "券型中文名称") String productTypeLabel) {
+        @Schema(description = "券型中文名称") String productTypeLabel,
+        String orderSource,
+        String dealChannel,
+        String promoterRole,
+        String promoterName,
+        String contentAddress) {
     /** 兼容不需要商品封面的管理端和商户端订单摘要。 */
     public VoucherOrderVO(
             String id, String orderNo, String userId, String shopId, String productId,
@@ -31,7 +38,8 @@ public record VoucherOrderVO(
             Long payAmount, String status, LocalDateTime createdTime,
             LocalDateTime paidTime, LocalDateTime cancelledTime, LocalDateTime expireTime) {
         this(id, orderNo, userId, shopId, productId, productTitle, quantity, unitAmount,
-                totalAmount, payAmount, status, createdTime, paidTime, cancelledTime, expireTime, null, null, null);
+                totalAmount, 0L, 0L, payAmount, status, createdTime, paidTime, cancelledTime, expireTime,
+                null, null, null, null, null, null, null, null);
     }
 
     /** 为不返回商品详情的订单摘要保留旧的封面构造入口。 */
@@ -42,6 +50,7 @@ public record VoucherOrderVO(
             LocalDateTime paidTime, LocalDateTime cancelledTime, LocalDateTime expireTime,
             String productCover) {
         this(id, orderNo, userId, shopId, productId, productTitle, quantity, unitAmount, totalAmount,
-                payAmount, status, createdTime, paidTime, cancelledTime, expireTime, productCover, null, null);
+                0L, 0L, payAmount, status, createdTime, paidTime, cancelledTime, expireTime,
+                productCover, null, null, null, null, null, null, null);
     }
 }

@@ -43,8 +43,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 消费者单券退款申请与管理端审核状态流转实现。 */
@@ -63,6 +65,9 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
     private final AdminAuthService adminAuth;
     private final RedisIdWorker idWorker;
     private RealtimeEventPublisher realtimeEvents;
+    /** Mock 渠道结果：SUCCESS（默认）、FAIL_ONCE、ALWAYS_FAIL、DELAYED。 */
+    @Value("${ray.refund.mock.outcome:SUCCESS}")
+    private String mockOutcome;
     public VoucherRefundServiceImpl(VoucherRefundMapper refundMapper, UserVoucherMapper voucherMapper,
             VoucherOrderMapper orderMapper, VoucherProductMapper productMapper, CurrentUserProvider userProvider,
             AdminAuthService adminAuth, RedisIdWorker idWorker, PaymentTransactionMapper paymentTransactionMapper,
@@ -101,6 +106,8 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         VoucherRefund refund = new VoucherRefund().setId(idWorker.nextId("voucher-refund")).setVoucherId(voucherId)
                 .setOrderId(order.getId()).setVoucherIds(String.valueOf(voucherId)).setUserId(userId).setShopId(order.getShopId()).setSource("CONSUMER").setApplicantId(userId)
                 .setAmount(amount).setStatus(VoucherRefundStatus.REQUESTED.name())
+                .setDecisionStatus(com.ray.enums.RefundDecisionStatus.AUTO_APPROVED.name())
+                .setExecutionStatus(com.ray.enums.RefundExecutionStatus.NOT_STARTED.name()).setRetryCount(0)
                 .setReason(request.reasonCode()).setDescription(request.description()).setIdempotencyKey(key)
                 .setRequestedTime(LocalDateTime.now());
         try { refundMapper.insert(refund); } catch (DuplicateKeyException ex) {
@@ -138,38 +145,15 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         VoucherRefund r = refundMapper.selectById(id); if (r == null) throw BusinessException.notFound("REFUND_NOT_FOUND", "退款记录不存在");
         if (!VoucherRefundStatus.REQUESTED.name().equals(r.getStatus()) && !VoucherRefundStatus.FAILED.name().equals(r.getStatus())) return toVO(r);
         if (approve) {
-            r.setStatus(VoucherRefundStatus.PROCESSING.name());
-            r.setApprovedAmount(r.getAmount()).setApprovedTime(LocalDateTime.now());
-            refundMapper.updateById(r);
-            int updated = 0;
-            for (Long voucherId : refundVoucherIds(r)) updated += voucherMapper.update(null, new UpdateWrapper<UserVoucher>().eq("id", voucherId)
-                    .eq("status", UserVoucherStatus.REFUNDING.name()).set("status", UserVoucherStatus.REFUNDED.name())
-                    .set("refund_time", LocalDateTime.now()));
-            if (updated != refundVoucherIds(r).size()) throw BusinessException.conflict("VOUCHER_REFUND_STATE_CONFLICT", "用户券状态已变化");
-            r.setStatus(VoucherRefundStatus.SUCCEEDED.name()).setProcessedTime(LocalDateTime.now());
-            r.setPaymentProvider(paymentTransactionMapper.findLatestByOrder(r.getOrderId()) == null ? null
-                    : paymentTransactionMapper.findLatestByOrder(r.getOrderId()).getProvider());
-            finance.append(new com.ray.vo.FundLedgerEntryVO(null,
-                    r.getShopId() == null ? null : r.getShopId().toString(), r.getOrderId().toString(),
-                    r.getVoucherId().toString(), "REFUND-" + r.getId(), "REFUND_REVERSED", "DEBIT",
-                    -Math.abs(r.getAmount()), null, LocalDateTime.now()));
-            long refunded = refundMapper.selectCount(new QueryWrapper<VoucherRefund>().eq("order_id", r.getOrderId())
-                    .eq("status", VoucherRefundStatus.SUCCEEDED.name()));
-            VoucherOrder order = orderMapper.selectById(r.getOrderId());
-            int quantity = order == null || order.getQuantity() == null ? 1 : order.getQuantity();
-            if (refunded >= quantity) {
-                orderMapper.update(null, new UpdateWrapper<VoucherOrder>().eq("id", r.getOrderId())
-                        .set("status", VoucherOrderStatus.REFUNDED.name()).set("refund_time", LocalDateTime.now()));
-                paymentTransactionMapper.update(null, new UpdateWrapper<com.ray.entity.PaymentTransaction>()
-                        .eq("order_id", r.getOrderId()).eq("status", "SUCCEEDED").set("status", "REFUNDED"));
-            } else {
-                paymentTransactionMapper.update(null, new UpdateWrapper<com.ray.entity.PaymentTransaction>()
-                        .eq("order_id", r.getOrderId()).eq("status", "SUCCEEDED").set("status", "PARTIALLY_REFUNDED"));
-            }
+            r.setDecisionStatus(com.ray.enums.RefundDecisionStatus.APPROVED.name())
+                    .setExecutionStatus(com.ray.enums.RefundExecutionStatus.NOT_STARTED.name())
+                    .setApprovedAmount(r.getAmount()).setApprovedTime(LocalDateTime.now());
         } else {
             // Keep the consumer's reason code in the public contract; the approval note is
             // intentionally not modeled as a consumer-editable refund reason.
-            r.setStatus(VoucherRefundStatus.REJECTED.name()).setRejectReason(reason).setProcessedTime(LocalDateTime.now());
+            r.setStatus(VoucherRefundStatus.REJECTED.name()).setDecisionStatus(com.ray.enums.RefundDecisionStatus.REJECTED.name())
+                    .setExecutionStatus(com.ray.enums.RefundExecutionStatus.NOT_STARTED.name())
+                    .setRejectReason(reason).setProcessedTime(LocalDateTime.now());
             for (Long voucherId : refundVoucherIds(r)) {
                 voucherMapper.update(null, new UpdateWrapper<UserVoucher>().eq("id", voucherId)
                         .eq("status", UserVoucherStatus.REFUNDING.name()).set("status", UserVoucherStatus.UNUSED.name()));
@@ -184,6 +168,109 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         refundMapper.updateById(r);
         if (realtimeEvents != null) realtimeEvents.publish("REFUND_UPDATED", id.toString(), null);
         return toVO(r);
+    }
+
+    /** 异步退款执行器：审批只产生决定，渠道执行另由后台任务推进。 */
+    @Scheduled(fixedDelayString = "${ray.refund.scan-interval-ms:5000}")
+    public void scanApprovedRefunds() {
+        List<VoucherRefund> pending = refundMapper.selectList(new QueryWrapper<VoucherRefund>()
+                .in("decision_status", com.ray.enums.RefundDecisionStatus.AUTO_APPROVED.name(), com.ray.enums.RefundDecisionStatus.APPROVED.name())
+                .in("execution_status", com.ray.enums.RefundExecutionStatus.NOT_STARTED.name(), com.ray.enums.RefundExecutionStatus.PROCESSING.name())
+                .last("LIMIT 20"));
+        pending.forEach(this::executeRefund);
+    }
+
+    /**
+     * 自动退款扫描：次日将已过期且仍未使用、商品允许过期退款的券转为自动退款单。
+     * 幂等键固定为 AUTO-EXPIRED:{券ID}，重复扫描不会重复建单。
+     */
+    @Override
+    @Scheduled(cron = "${ray.refund.expired.scan-cron:0 10 0 * * *}", zone = "${ray.refund.expired.zone:Asia/Shanghai}")
+    @Transactional
+    public int scanExpiredVouchers() {
+        LocalDateTime now = LocalDateTime.now();
+        List<UserVoucher> expired = voucherMapper.selectList(new QueryWrapper<UserVoucher>()
+                .eq("status", UserVoucherStatus.UNUSED.name()).le("expire_time", now).isNotNull("expire_time")
+                .last("LIMIT 200"));
+        int created = 0;
+        for (UserVoucher voucher : expired) {
+            VoucherProduct product = productMapper.selectById(voucher.getProductId());
+            if (product == null || !Boolean.TRUE.equals(product.getRefundExpired())) continue;
+            VoucherOrder order = orderMapper.selectById(voucher.getOrderId());
+            if (order == null || !VoucherOrderStatus.PAID.name().equals(order.getStatus())) continue;
+            String key = "AUTO-EXPIRED:" + voucher.getId();
+            if (refundMapper.selectOne(new QueryWrapper<VoucherRefund>().eq("idempotency_key", key)) != null) continue;
+            long amount = refundAmount(order, voucher);
+            VoucherRefund refund = new VoucherRefund().setId(idWorker.nextId("voucher-refund"))
+                    .setVoucherId(voucher.getId()).setVoucherIds(String.valueOf(voucher.getId())).setOrderId(order.getId())
+                    .setUserId(order.getUserId()).setShopId(order.getShopId()).setSource("SYSTEM").setApplicantId(null)
+                    .setAmount(amount).setApprovedAmount(amount).setStatus(VoucherRefundStatus.REQUESTED.name())
+                    .setDecisionStatus(com.ray.enums.RefundDecisionStatus.AUTO_APPROVED.name())
+                    .setExecutionStatus(com.ray.enums.RefundExecutionStatus.NOT_STARTED.name()).setRetryCount(0)
+                    .setReason("EXPIRED_AUTO").setDescription("有效期结束自动退款").setIdempotencyKey(key)
+                    .setRequestedTime(now).setApprovedTime(now);
+            try {
+                refundMapper.insert(refund);
+                int locked = voucherMapper.update(null, new UpdateWrapper<UserVoucher>().eq("id", voucher.getId())
+                        .eq("status", UserVoucherStatus.UNUSED.name()).set("status", UserVoucherStatus.REFUNDING.name()));
+                if (locked != 1) {
+                    refundMapper.deleteById(refund.getId());
+                    continue;
+                }
+                orderMapper.update(null, new UpdateWrapper<VoucherOrder>().eq("id", order.getId())
+                        .eq("status", VoucherOrderStatus.PAID.name()).set("status", VoucherOrderStatus.REFUNDING.name()));
+                created++;
+            } catch (DuplicateKeyException ignored) {
+                // 并发扫描时由唯一幂等键保证只保留一张自动退款单。
+            }
+        }
+        return created;
+    }
+
+    @Transactional
+    protected void executeRefund(VoucherRefund r) {
+        LocalDateTime now = LocalDateTime.now();
+        String outcome = mockOutcome == null ? "SUCCESS" : mockOutcome.trim().toUpperCase(Locale.ROOT);
+        if ("DELAYED".equals(outcome)
+                && com.ray.enums.RefundExecutionStatus.PROCESSING.name().equals(r.getExecutionStatus())
+                && r.getExecutionStartedTime() != null && r.getExecutionStartedTime().isAfter(now.minusSeconds(10))) {
+            return;
+        }
+        if ("DELAYED".equals(outcome)
+                && com.ray.enums.RefundExecutionStatus.NOT_STARTED.name().equals(r.getExecutionStatus())) {
+            r.setStatus(VoucherRefundStatus.PROCESSING.name()).setExecutionStatus(com.ray.enums.RefundExecutionStatus.PROCESSING.name())
+                    .setExecutionStartedTime(now).setRetryCount((r.getRetryCount() == null ? 0 : r.getRetryCount()) + 1);
+            refundMapper.updateById(r);
+            return;
+        }
+        r.setStatus(VoucherRefundStatus.PROCESSING.name()).setExecutionStatus(com.ray.enums.RefundExecutionStatus.PROCESSING.name())
+                .setExecutionStartedTime(now).setRetryCount((r.getRetryCount() == null ? 0 : r.getRetryCount()) + 1);
+        refundMapper.updateById(r);
+        try {
+            int attempt = r.getRetryCount() == null ? 1 : r.getRetryCount();
+            if ("ALWAYS_FAIL".equals(outcome) || ("FAIL_ONCE".equals(outcome) && attempt == 1)) {
+                throw BusinessException.conflict("MOCK_REFUND_FAILED", "Mock 渠道模拟退款失败，可重试");
+            }
+            int updated = 0;
+            for (Long voucherId : refundVoucherIds(r)) updated += voucherMapper.update(null, new UpdateWrapper<UserVoucher>().eq("id", voucherId)
+                    .eq("status", UserVoucherStatus.REFUNDING.name()).set("status", UserVoucherStatus.REFUNDED.name()).set("refund_time", now));
+            if (updated != refundVoucherIds(r).size()) throw BusinessException.conflict("VOUCHER_REFUND_STATE_CONFLICT", "用户券状态已变化");
+            r.setStatus(VoucherRefundStatus.SUCCEEDED.name()).setExecutionStatus(com.ray.enums.RefundExecutionStatus.SUCCEEDED.name()).setProcessedTime(LocalDateTime.now())
+                    .setPaymentProvider(paymentTransactionMapper.findLatestByOrder(r.getOrderId()) == null ? null : paymentTransactionMapper.findLatestByOrder(r.getOrderId()).getProvider());
+            finance.recordRefundSuccess(r, now);
+            long refunded = refundMapper.selectCount(new QueryWrapper<VoucherRefund>().eq("order_id", r.getOrderId()).eq("status", VoucherRefundStatus.SUCCEEDED.name()));
+            VoucherOrder order = orderMapper.selectById(r.getOrderId());
+            int quantity = order == null || order.getQuantity() == null ? 1 : order.getQuantity();
+            if (refunded >= quantity) {
+                orderMapper.update(null, new UpdateWrapper<VoucherOrder>().eq("id", r.getOrderId()).set("status", VoucherOrderStatus.REFUNDED.name()).set("refund_time", now));
+                paymentTransactionMapper.update(null, new UpdateWrapper<com.ray.entity.PaymentTransaction>().eq("order_id", r.getOrderId()).eq("status", "SUCCEEDED").set("status", "REFUNDED"));
+            } else paymentTransactionMapper.update(null, new UpdateWrapper<com.ray.entity.PaymentTransaction>().eq("order_id", r.getOrderId()).eq("status", "SUCCEEDED").set("status", "PARTIALLY_REFUNDED"));
+        } catch (RuntimeException ex) {
+            r.setStatus(VoucherRefundStatus.FAILED.name()).setExecutionStatus(com.ray.enums.RefundExecutionStatus.FAILED.name())
+                    .setFailureCode("MOCK_CHANNEL_ERROR").setLastFailureTime(LocalDateTime.now()).setFailureMessage(ex.getMessage());
+        }
+        refundMapper.updateById(r);
+        if (realtimeEvents != null) realtimeEvents.publish("REFUND_UPDATED", r.getId().toString(), r.getShopId());
     }
 
     /** 以字符串业务 ID 发起商户退款申请，并由服务端重新校验资格。 */
@@ -350,6 +437,8 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
                 .setOrderId(orderId).setVoucherIds(ids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(",")))
                 .setUserId(userId == null ? order.getUserId() : userId).setShopId(order.getShopId())
                 .setSource(source).setApplicantId(applicantId).setAmount(amount).setStatus(VoucherRefundStatus.REQUESTED.name())
+                .setDecisionStatus(com.ray.enums.RefundDecisionStatus.AUTO_APPROVED.name())
+                .setExecutionStatus(com.ray.enums.RefundExecutionStatus.NOT_STARTED.name()).setRetryCount(0)
                 .setReason(reason).setDescription(description).setIdempotencyKey(key).setRequestedTime(LocalDateTime.now());
     }
 

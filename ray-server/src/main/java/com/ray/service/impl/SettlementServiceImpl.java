@@ -8,7 +8,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;import com.ba
   if(settlementDate==null)throw BusinessException.badRequest("SETTLEMENT_DATE_REQUIRED","结算日期不能为空");
   LocalDate ledgerDate=settlementDate.minusDays(1); LocalDateTime from=ledgerDate.atStartOfDay(); LocalDateTime to=settlementDate.atStartOfDay();
   List<FundLedgerEntry> entries=ledgerMapper.selectList(new QueryWrapper<FundLedgerEntry>().ge("occurred_time",from).lt("occurred_time",to).isNotNull("shop_id")
-    .in("entry_type","REDEMPTION_RECOGNIZED","COMMISSION_RECOGNIZED","REDEMPTION_REVERSED","COMMISSION_REVERSED","REFUND_REVERSED","SETTLEMENT_ADJUSTMENT")
+    .in("entry_type","REDEMPTION_RECOGNIZED","SERVICE_FEE_RECOGNIZED","COMMISSION_RECOGNIZED",
+      "REDEMPTION_REVERSED","SERVICE_FEE_REVERSED","COMMISSION_REVERSED",
+      "REFUND_REVENUE_REVERSED","SERVICE_FEE_REFUNDED","SETTLEMENT_ADJUSTMENT")
     .orderByAsc("shop_id","occurred_time","id"));
   Map<Long,List<FundLedgerEntry>> byShop=entries.stream().collect(Collectors.groupingBy(FundLedgerEntry::getShopId,LinkedHashMap::new,Collectors.toList()));
   byShop.forEach((shopId,shopEntries)->{
@@ -24,8 +26,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;import com.ba
  }
  private long settlementAmount(FundLedgerEntry entry){
   long amount=entry.getAmount()==null?0:entry.getAmount();
-  if("COMMISSION_RECOGNIZED".equals(entry.getEntryType())) return -Math.abs(amount);
-  if("COMMISSION_REVERSED".equals(entry.getEntryType())) return Math.abs(amount);
+  if("SERVICE_FEE_RECOGNIZED".equals(entry.getEntryType())||"COMMISSION_RECOGNIZED".equals(entry.getEntryType())) return -Math.abs(amount);
+  if("SERVICE_FEE_REVERSED".equals(entry.getEntryType())||"COMMISSION_REVERSED".equals(entry.getEntryType())
+    ||"SERVICE_FEE_REFUNDED".equals(entry.getEntryType())) return Math.abs(amount);
   return amount>0&&"DEBIT".equals(entry.getAccountSide())?-amount:amount;
  }
  @Override public byte[] export(String resource,boolean isAdmin){if(isAdmin)admin.requirePermission(AdminPermissions.SETTLEMENT_MANAGE);else merchant.requireCurrentAccount();List<String[]> rows=new ArrayList<>();rows.add(new String[]{"ID","门店ID","金额(分)","状态","时间"});if("ledger".equals(resource)){for(FundLedgerEntry e:ledgerMapper.selectList(new QueryWrapper<FundLedgerEntry>().orderByDesc("occurred_time").last("LIMIT 10000")))rows.add(new String[]{IdUtils.format(e.getId()),IdUtils.format(e.getShopId()),String.valueOf(e.getAmount()),e.getEntryType(),String.valueOf(e.getOccurredTime())});}else{for(SettlementBatch b:batchMapper.selectList(new QueryWrapper<SettlementBatch>().orderByDesc("settlement_date").last("LIMIT 10000")))rows.add(new String[]{IdUtils.format(b.getId()),IdUtils.format(b.getShopId()),String.valueOf(b.getTotalAmount()),b.getStatus(),String.valueOf(b.getSettlementDate())});}return xlsx(rows);}

@@ -95,6 +95,10 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
                         .setSequenceNo(sequence).setProductId(order.getProductId()).setShopId(order.getShopId())
                         .setVoucherCode(code).setVoucherCodeHmac(cn.hutool.crypto.digest.DigestUtil.sha256Hex(code))
                         .setVoucherCodeLast4(code.substring(8)).setTotalUseCount(useCount).setRemainingUseCount(useCount)
+                        .setSaleAmount(splitPart(order.getTotalAmount(), quantity, sequence))
+                        .setMerchantSubsidyAmount(splitPart(order.getMerchantSubsidyAmount(), quantity, sequence))
+                        .setPlatformDiscountAmount(splitPart(order.getPlatformDiscountAmount(), quantity, sequence))
+                        .setCustomerPaidAmount(splitPart(order.getPayAmount(), quantity, sequence))
                         .setStatus(UserVoucherStatus.UNUSED.name())
                         .setValidBeginTime(validFrom).setExpireTime(expireTime);
                 try {
@@ -114,5 +118,12 @@ public class VoucherSettlementServiceImpl implements VoucherSettlementService {
         StringBuilder code = new StringBuilder(12);
         for (int index = 0; index < 12; index++) code.append(RANDOM.nextInt(10));
         return code.toString();
+    }
+
+    private long splitPart(Long amount, int parts, int index) {
+        long safeAmount = amount == null ? 0L : amount;
+        int safeParts = Math.max(1, parts);
+        long base = safeAmount / safeParts;
+        return index == safeParts ? base + safeAmount % safeParts : base;
     }
 }

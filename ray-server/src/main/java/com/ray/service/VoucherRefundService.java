@@ -30,4 +30,6 @@ public interface VoucherRefundService {
     VoucherRefundVO merchantRequest(MerchantRefundDTO request, String idempotencyKey);
     VoucherRefundVO adminRequest(AdminRefundDTO request, String idempotencyKey);
     VoucherRefundVO consumerRequest(ConsumerRefundDTO request, String idempotencyKey);
+    /** 扫描已过期且支持自动退款的未使用券，生成幂等的自动退款单。 */
+    int scanExpiredVouchers();
 }

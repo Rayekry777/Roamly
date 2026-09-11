@@ -95,10 +95,14 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 && alreadyPurchased + quantity > product.getPurchaseLimit())
             throw BusinessException.conflict("VOUCHER_PURCHASE_LIMIT_REACHED", "超过每人限购数量");
         long total = amount(product.getPriceAmount(), quantity);
+        long merchantSubsidy = amount(orZero(product.getMerchantSubsidyAmount()), quantity);
+        long platformDiscount = amount(orZero(product.getPlatformDiscountAmount()), quantity);
+        long payAmount = payable(total, merchantSubsidy, platformDiscount);
         LocalDateTime now = LocalDateTime.now();
         return new VoucherOrderConfirmationVO(
                 IdUtils.format(product.getId()), IdUtils.format(product.getShopId()), product.getTitle(),
-                product.getPriceAmount(), quantity, 1, maxQuantity, total, total,
+                product.getPriceAmount(), quantity, 1, maxQuantity, total,
+                merchantSubsidy, platformDiscount, payAmount,
                 product.getAvailableStock(), now, now.plusMinutes(15));
     }
 
@@ -156,9 +160,14 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             throw BusinessException.conflict("VOUCHER_OUT_OF_STOCK", "商品库存不足或已下架");
         long orderId = idWorker.nextId("voucher-order");
         long amount = amount(product.getPriceAmount(), quantity);
+        long merchantSubsidy = amount(orZero(product.getMerchantSubsidyAmount()), quantity);
+        long platformDiscount = amount(orZero(product.getPlatformDiscountAmount()), quantity);
+        long payAmount = payable(amount, merchantSubsidy, platformDiscount);
         VoucherOrder order = new VoucherOrder().setId(orderId).setUserId(userId).setProductId(productId)
                 .setShopId(product.getShopId()).setProductTitle(product.getTitle()).setUnitPrice(product.getPriceAmount())
-                .setQuantity(quantity).setTotalAmount(amount).setPayAmount(amount)
+                .setQuantity(quantity).setTotalAmount(amount).setMerchantSubsidyAmount(merchantSubsidy)
+                .setPlatformDiscountAmount(platformDiscount).setPayAmount(payAmount)
+                .setOrderSource("ROAMLY").setDealChannel("DIRECT")
                 .setStatus(VoucherOrderStatus.PENDING_PAYMENT.name()).setPayType(3)
                 .setPaymentExpireTime(now.plusMinutes(15)).setIdempotencyKey(idempotencyKey)
                 .setRequestFingerprint(fingerprint);
@@ -332,9 +341,11 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return new VoucherOrderVO(IdUtils.format(order.getId()), IdUtils.format(order.getId()), IdUtils.format(order.getUserId()),
                 IdUtils.format(order.getShopId()), IdUtils.format(order.getProductId()), order.getProductTitle(),
                 order.getQuantity() == null ? 1 : order.getQuantity(), order.getUnitPrice(), order.getTotalAmount(),
+                orZero(order.getMerchantSubsidyAmount()), orZero(order.getPlatformDiscountAmount()),
                 order.getPayAmount(), status, order.getCreateTime(), order.getPayTime(),
                 status.equals(VoucherOrderStatus.CANCELED.name()) ? order.getUpdateTime() : null, expire, productCover,
-                productType, productTypeLabel);
+                productType, productTypeLabel, order.getOrderSource(), order.getDealChannel(), order.getPromoterRole(),
+                order.getPromoterName(), order.getContentAddress());
     }
 
     private String productTypeLabel(String productType) {
@@ -371,6 +382,17 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (unitAmount == null || unitAmount < 0) throw BusinessException.conflict("VOUCHER_PRICE_CHANGED", "商品价格暂不可用");
         try { return Math.multiplyExact(unitAmount, (long) quantity); }
         catch (ArithmeticException exception) { throw BusinessException.badRequest("ORDER_AMOUNT_INVALID", "订单金额超出允许范围"); }
+    }
+
+    private long payable(long saleAmount, long merchantSubsidy, long platformDiscount) {
+        if (merchantSubsidy < 0 || platformDiscount < 0 || merchantSubsidy + platformDiscount > saleAmount) {
+            throw BusinessException.badRequest("ORDER_DISCOUNT_INVALID", "商家补贴和平台优惠不能超过商品售价");
+        }
+        return saleAmount - merchantSubsidy - platformDiscount;
+    }
+
+    private long orZero(Long value) {
+        return value == null ? 0L : value;
     }
 
     private UserVoucherVO toVoucherVO(UserVoucher voucher) {

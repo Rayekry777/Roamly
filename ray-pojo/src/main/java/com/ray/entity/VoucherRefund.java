@@ -30,6 +30,13 @@ public class VoucherRefund {
     private String failureCode;
     private String failureMessage;
     private String providerRefundNo;
+    /** 退款业务决定与渠道执行分别建模。 */
+    private String decisionStatus;
+    private String executionStatus;
+    private Long ticketId;
+    private LocalDateTime executionStartedTime;
+    private LocalDateTime lastFailureTime;
+    private Integer retryCount;
     private Long approvedAmount;
     private String paymentProvider;
     private LocalDateTime approvedTime;

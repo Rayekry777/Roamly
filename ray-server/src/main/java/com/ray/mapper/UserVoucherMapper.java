@@ -18,4 +18,10 @@ public interface UserVoucherMapper extends BaseMapper<UserVoucher> {
     @org.apache.ibatis.annotations.Select("SELECT COUNT(*) > 0 FROM user_voucher "
             + "WHERE user_id = #{userId} AND shop_id = #{shopId} AND status = 'USED'")
     boolean existsUsedAtShop(@Param("userId") Long userId, @Param("shopId") Long shopId);
+
+    /** 返回可作为消费认证来源的最近一张已核销券。 */
+    @org.apache.ibatis.annotations.Select("SELECT id FROM user_voucher "
+            + "WHERE user_id = #{userId} AND shop_id = #{shopId} AND status = 'USED' "
+            + "ORDER BY use_time DESC, id DESC LIMIT 1")
+    Long findLatestUsedVoucherId(@Param("userId") Long userId, @Param("shopId") Long shopId);
 }

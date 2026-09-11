@@ -87,7 +87,7 @@ class MerchantVoucherProductServiceImplTest {
 
     @Test
     void createsTypedDraftAndWritesMerchantAudit() {
-        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.OWNER));
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.TENANT));
         ArgumentCaptor<VoucherProduct> inserted = ArgumentCaptor.forClass(VoucherProduct.class);
         when(productMapper.insert(inserted.capture())).thenAnswer(invocation -> {
             invocation.getArgument(0, VoucherProduct.class).setId(3201L);
@@ -125,7 +125,7 @@ class MerchantVoucherProductServiceImplTest {
 
     @Test
     void rejectsSubmissionWhenDraftIsIncomplete() {
-        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.OWNER));
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.TENANT));
         when(productMapper.selectByIdForUpdate(3101L)).thenReturn(new VoucherProduct()
                 .setId(3101L)
                 .setShopId(10L)
@@ -148,7 +148,7 @@ class MerchantVoucherProductServiceImplTest {
 
     @Test
     void submitsCompleteCashVoucherAndReturnsPendingFact() {
-        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.OWNER));
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.TENANT));
         VoucherProduct draft = completeCash(VoucherReviewStatus.DRAFT, 0);
         VoucherProduct pending = completeCash(VoucherReviewStatus.PENDING, 1)
                 .setSubmissionIdempotencyKey("stage20-submit")
@@ -170,7 +170,7 @@ class MerchantVoucherProductServiceImplTest {
 
     @Test
     void offSaleApprovedVoucherIsIdempotentAndReturnsOffSaleFact() {
-        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.OWNER));
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.TENANT));
         VoucherProduct product = new VoucherProduct()
                 .setId(3103L)
                 .setShopId(10L)
