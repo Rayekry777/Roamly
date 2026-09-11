@@ -39,7 +39,7 @@ demoDataClosureStatus: 已实现
 | `content_section` | 官方内容分区 | 平台级 | `code` 唯一 |
 | `section_follow` | 用户关注分区 | 用户级 | `user_id,section_id` 唯一 |
 | `media_asset` | 临时/已绑定媒体 | 用户级 | 存储路径唯一；归属与状态索引 |
-| `post` | 统一动态 | 城市/用户级 | 分区、作者、商户、城市、城市+区县推荐和粗粒度位置索引 |
+| `post` | 统一动态 | 城市/用户级 | 分区、作者、商户、城市过滤、区县推荐软加权和粗粒度位置索引 |
 | `post_media` | 动态媒体顺序 | 动态级 | 动态顺序与媒体各自唯一 |
 | `post_like` | 动态点赞事实 | 用户/动态级 | `post_id,user_id` 唯一 |
 | `post_comment` | 根评论与回复 | 动态级 | 根讨论、父评论、状态索引 |

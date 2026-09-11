@@ -319,18 +319,21 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return new PageResult<>(items, page, size, result.getTotal());
     }
 
-    /** 使用固定热度分值查询城市或区县推荐流，确保游标可由数据库字段复算。 */
+    /** 使用城市硬过滤和区县软加权查询推荐流，确保游标可由数据库字段复算。 */
     @Override
     public CursorPageResult<PostCardVO> listRecommendedFeed(
             String cityCode, String districtCode, Long cursor, int offset, int size) {
         requireCursorOffset(cursor, offset);
         String normalizedCityCode = requireEnabledCity(cityCode);
         String normalizedDistrictCode = StringUtils.hasText(districtCode) ? districtCode.trim() : null;
-        List<ContentPost> posts = normalizedDistrictCode == null
-                ? baseMapper.selectRecommended(normalizedCityCode, cursor, offset, size + 1)
-                : baseMapper.selectRecommendedInDistrict(
-                        normalizedCityCode, normalizedDistrictCode, cursor, offset, size + 1);
-        return toCursorPage(posts, cursor, offset, size, this::hotScore);
+        List<ContentPost> posts = baseMapper.selectRecommended(
+                normalizedCityCode, normalizedDistrictCode, cursor, offset, size + 1);
+        return toCursorPage(
+                posts,
+                cursor,
+                offset,
+                size,
+                post -> recommendedScore(post, normalizedDistrictCode));
     }
 
     /** 以数据库关注关系为事实来源查询时间线，避免 Redis 缺失导致漏动态。 */
@@ -525,6 +528,11 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return createdHour
                 + (long) valueOrZero(post.getLikedCount()) * 1000
                 + (long) valueOrZero(post.getCommentCount()) * 2000;
+    }
+
+    private long recommendedScore(ContentPost post, String districtCode) {
+        long baseScore = hotScore(post);
+        return baseScore * (districtCode != null && districtCode.equals(post.getDistrictCode()) ? 120L : 100L);
     }
 
     private ContentPost requireVisiblePost(Long postId, boolean lock) {

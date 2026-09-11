@@ -81,7 +81,7 @@ class PostFeedServiceImplTest {
                 post(3L, LocalDateTime.of(2026, 9, 2, 12, 0), 6),
                 post(2L, LocalDateTime.of(2026, 9, 2, 11, 0), 4),
                 post(1L, LocalDateTime.of(2026, 9, 2, 10, 0), 2));
-        when(postMapper.selectRecommended("330100", null, 0, 3)).thenReturn(posts);
+        when(postMapper.selectRecommended("330100", null, null, 0, 3)).thenReturn(posts);
 
         CursorPageResult<PostCardVO> result =
                 service.listRecommendedFeed(" 330100 ", null, 0, 2);
@@ -89,19 +89,23 @@ class PostFeedServiceImplTest {
         assertEquals(List.of("3", "2"), result.items().stream().map(PostCardVO::id).toList());
         assertTrue(result.hasMore());
         assertEquals(1, result.nextOffset());
-        verify(postMapper).selectRecommended("330100", null, 0, 3);
+        verify(postMapper).selectRecommended("330100", null, null, 0, 3);
     }
 
     @Test
-    void recommendedFeedCanFilterByDistrict() {
-        when(postMapper.selectRecommendedInDistrict("630100", "630105", null, 0, 3))
-                .thenReturn(List.of(post(4L, LocalDateTime.of(2026, 9, 2, 13, 0), 5)));
+    void recommendedFeedBoostsDistrictWithoutFilteringOtherCityPosts() {
+        ContentPost districtPost = post(4L, LocalDateTime.of(2026, 9, 2, 12, 0), 5)
+                .setDistrictCode("630105");
+        ContentPost otherDistrictPost = post(5L, LocalDateTime.of(2026, 9, 2, 13, 0), 5)
+                .setDistrictCode("630106");
+        when(postMapper.selectRecommended("630100", "630105", null, 0, 3))
+                .thenReturn(List.of(districtPost, otherDistrictPost));
 
         CursorPageResult<PostCardVO> result =
                 service.listRecommendedFeed("630100", "630105", null, 0, 2);
 
-        assertEquals(List.of("4"), result.items().stream().map(PostCardVO::id).toList());
-        verify(postMapper).selectRecommendedInDistrict("630100", "630105", null, 0, 3);
+        assertEquals(List.of("4", "5"), result.items().stream().map(PostCardVO::id).toList());
+        verify(postMapper).selectRecommended("630100", "630105", null, 0, 3);
     }
 
     @Test
@@ -184,6 +188,7 @@ class PostFeedServiceImplTest {
                 .setSectionId(1L)
                 .setShopVisit(0)
                 .setCityCode("330100")
+                .setDistrictCode(null)
                 .setContent("动态 " + id)
                 .setLikedCount(likedCount)
                 .setCommentCount(0)

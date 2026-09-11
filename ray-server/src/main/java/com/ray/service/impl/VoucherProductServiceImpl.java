@@ -89,21 +89,29 @@ public class VoucherProductServiceImpl extends ServiceImpl<VoucherProductMapper,
         this.objectMapper = objectMapper;
     }
 
-    /** 按城市、分类、关键词和排序分页读取当前可售商品。 */
+    /** 按城市查询商品；真实定位区县和距离仅参与综合推荐排序。 */
     @Override
     public PageResult<VoucherProductListItemVO> listPublic(
             String cityCode, Long typeId, String keyword, VoucherProductSort sort,
             int page, int size, Double longitude, Double latitude) {
+        return listPublic(cityCode, null, typeId, keyword, sort, page, size, longitude, latitude);
+    }
+
+    @Override
+    public PageResult<VoucherProductListItemVO> listPublic(
+            String cityCode, String districtCode, Long typeId, String keyword, VoucherProductSort sort,
+            int page, int size, Double longitude, Double latitude) {
         String normalizedCityCode = requireEnabledCity(cityCode);
+        String normalizedDistrictCode = StringUtils.hasText(districtCode) ? districtCode.trim() : null;
         validateCoordinates(longitude, latitude);
-        if (sort == VoucherProductSort.DISTANCE && longitude == null) {
+        if (sort == VoucherProductSort.DISTANCE && (longitude == null || latitude == null)) {
             throw BusinessException.badRequest(
                     "DISTANCE_REQUIRES_COORDINATES", "DISTANCE 排序必须同时提供 longitude 和 latitude");
         }
         String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
         int offset = Math.multiplyExact(page - 1, size);
         List<VoucherProduct> rows = baseMapper.selectPublicPage(
-                normalizedCityCode, typeId, normalizedKeyword, sort.name(),
+                normalizedCityCode, normalizedDistrictCode, typeId, normalizedKeyword, sort.name(),
                 longitude, latitude, offset, size);
         long total = baseMapper.countPublic(normalizedCityCode, typeId, normalizedKeyword);
         return new PageResult<>(rows.stream().map(this::toListItem).toList(), page, size, total);

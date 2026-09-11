@@ -15,6 +15,11 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
             "(CAST(p.liked_count AS SIGNED) * 1000 + CAST(p.comment_count AS SIGNED) * 2000 "
                     + "+ FLOOR(UNIX_TIMESTAMP(p.create_time) / 3600))";
 
+    /** 当前区县只参与排序，不改变城市候选集；使用整数缩放保持游标可复算。 */
+    String RECOMMENDED_SCORE_SQL =
+            "(" + HOT_SCORE_SQL + " * CASE WHEN #{districtCode} IS NOT NULL "
+                    + "AND p.district_code = #{districtCode} THEN 120 ELSE 100 END)";
+
     /** 在动态仍正常可见时增加点赞冗余计数。 */
     @Update("UPDATE post SET liked_count = liked_count + 1 WHERE id = #{postId} AND status = 0")
     int incrementLikedCount(@Param("postId") Long postId);
@@ -33,28 +38,14 @@ public interface ContentPostMapper extends BaseMapper<ContentPost> {
     @Update("UPDATE post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId} AND status = 0")
     int decrementCommentCount(@Param("postId") Long postId);
 
-    /** 按固定热度分值查询指定城市的推荐动态。 */
+    /** 按城市查询推荐动态；有区县上下文时命中区县获得软加权。 */
     @Select(
-            "SELECT p.* FROM post p "
+            "<script>SELECT p.* FROM post p "
                     + "WHERE p.status = 0 AND p.city_code = #{cityCode} "
-                    + "AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " <= #{cursor}) "
-                    + "ORDER BY " + HOT_SCORE_SQL + " DESC, p.create_time DESC, p.id DESC "
-                    + "LIMIT #{offset}, #{limit}")
+                    + "AND (#{cursor} IS NULL OR " + RECOMMENDED_SCORE_SQL + " &lt;= #{cursor}) "
+                    + "ORDER BY " + RECOMMENDED_SCORE_SQL + " DESC, p.create_time DESC, p.id DESC "
+                    + "LIMIT #{offset}, #{limit}</script>")
     List<ContentPost> selectRecommended(
-            @Param("cityCode") String cityCode,
-            @Param("cursor") Long cursor,
-            @Param("offset") int offset,
-            @Param("limit") int limit);
-
-    /** 按城市和区县固定热度分值查询推荐动态。 */
-    @Select(
-            "SELECT p.* FROM post p "
-                    + "WHERE p.status = 0 AND p.city_code = #{cityCode} "
-                    + "AND p.district_code = #{districtCode} "
-                    + "AND (#{cursor} IS NULL OR " + HOT_SCORE_SQL + " <= #{cursor}) "
-                    + "ORDER BY " + HOT_SCORE_SQL + " DESC, p.create_time DESC, p.id DESC "
-                    + "LIMIT #{offset}, #{limit}")
-    List<ContentPost> selectRecommendedInDistrict(
             @Param("cityCode") String cityCode,
             @Param("districtCode") String districtCode,
             @Param("cursor") Long cursor,

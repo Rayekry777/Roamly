@@ -45,7 +45,7 @@ class VoucherProductControllerTest {
     @Test
     void forwardsDiscoveryFiltersAndCoordinates() throws Exception {
         when(service.listPublic(
-                eq("310100"), eq(12L), eq("咖啡"), eq(VoucherProductSort.DISTANCE),
+                eq("310100"), eq(null), eq(12L), eq("咖啡"), eq(VoucherProductSort.DISTANCE),
                 eq(2), eq(20), eq(121.47), eq(31.23)))
                 .thenReturn(new PageResult<>(List.of(), 2, 20, 0));
 
@@ -63,7 +63,7 @@ class VoucherProductControllerTest {
                 .andExpect(jsonPath("$.data.items").isArray());
 
         verify(service).listPublic(
-                "310100", 12L, "咖啡", VoucherProductSort.DISTANCE,
+                "310100", null, 12L, "咖啡", VoucherProductSort.DISTANCE,
                 2, 20, 121.47, 31.23);
     }
 
@@ -82,7 +82,7 @@ class VoucherProductControllerTest {
                         "630100", "西宁", "630105", "城北区", null,
                         "西宁 · 城北区", 101.749746, 36.742782, 30D, "READY"));
         when(service.listPublic(
-                eq("630100"), eq(null), eq(null), eq(VoucherProductSort.RECOMMENDED),
+                eq("630100"), eq("630105"), eq(null), eq(null), eq(VoucherProductSort.RECOMMENDED),
                 eq(1), eq(10), eq(101.749746), eq(36.742782)))
                 .thenReturn(new PageResult<>(List.of(), 1, 10, 0));
 
@@ -93,7 +93,7 @@ class VoucherProductControllerTest {
                 .andExpect(status().isOk());
 
         verify(service).listPublic(
-                "630100", null, null, VoucherProductSort.RECOMMENDED,
+                "630100", "630105", null, null, VoucherProductSort.RECOMMENDED,
                 1, 10, 101.749746, 36.742782);
     }
 

@@ -76,11 +76,14 @@ public class VoucherProductController {
         if (page < 1 || size < 1 || size > 100) {
             throw BusinessException.badRequest("VALIDATION_FAILED", "分页参数不合法");
         }
+        String districtCode = null;
         if (locationService != null && longitude != null && latitude != null) {
-            cityCode = locationService.resolve(new LocationContextDTO(longitude, latitude, null)).cityCode();
+            var context = locationService.resolve(new LocationContextDTO(longitude, latitude, null));
+            cityCode = context.cityCode();
+            districtCode = context.districtCode();
         }
         return Result.ok(service.listPublic(
-                cityCode, typeId == null ? null : IdUtils.parse(typeId, "typeId"), keyword,
+                cityCode, districtCode, typeId == null ? null : IdUtils.parse(typeId, "typeId"), keyword,
                 sort, page, size, longitude, latitude));
     }
 

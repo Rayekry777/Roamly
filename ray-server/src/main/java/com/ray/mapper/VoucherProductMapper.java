@@ -9,6 +9,15 @@ import org.apache.ibatis.annotations.Update;
 
 /** 团购商品数据访问接口。 */
 public interface VoucherProductMapper extends BaseMapper<VoucherProduct> {
+    /** 商品综合推荐基础分叠加区县匹配和真实距离衰减。 */
+    String RECOMMENDED_SCORE_SQL =
+            "((LN(1 + CAST(vp.sold_count AS DECIMAL(20, 6))) * 100 + COALESCE(s.score, 0) * 2) "
+                    + "* CASE WHEN #{districtCode} IS NOT NULL AND s.district_code = #{districtCode} "
+                    + "THEN 1.15 ELSE 1.0 END "
+                    + "* CASE WHEN #{longitude} IS NOT NULL AND #{latitude} IS NOT NULL "
+                    + "THEN 1 / (1 + COALESCE(ST_Distance_Sphere(POINT(s.x, s.y), "
+                    + "POINT(#{longitude}, #{latitude})), 1000000) / 3000) ELSE 1.0 END)";
+
     /** 按城市、门店分类、关键词和排序读取消费者可见商品。 */
     @Select("<script>SELECT vp.*, s.name AS shop_name, s.type_id AS shop_type_id, "
             + "SUBSTRING_INDEX(s.images, ',', 1) AS shop_cover, s.address AS shop_address, "
@@ -29,10 +38,11 @@ public interface VoucherProductMapper extends BaseMapper<VoucherProduct> {
             + "<when test='sort == \"SALES\"'>ORDER BY vp.sold_count DESC, vp.id DESC </when>"
             + "<when test='sort == \"DISTANCE\"'>ORDER BY distance ASC, vp.id DESC </when>"
             + "<when test='sort == \"PRICE_ASC\"'>ORDER BY vp.price_amount ASC, vp.id DESC </when>"
-            + "<otherwise>ORDER BY vp.sold_count DESC, s.score DESC, vp.id DESC </otherwise>"
+            + "<otherwise>ORDER BY " + RECOMMENDED_SCORE_SQL + " DESC, vp.id DESC </otherwise>"
             + "</choose>LIMIT #{offset}, #{size}</script>")
     List<VoucherProduct> selectPublicPage(
             @Param("cityCode") String cityCode,
+            @Param("districtCode") String districtCode,
             @Param("typeId") Long typeId,
             @Param("keyword") String keyword,
             @Param("sort") String sort,
