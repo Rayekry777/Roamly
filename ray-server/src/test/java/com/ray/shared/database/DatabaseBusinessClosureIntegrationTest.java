@@ -75,13 +75,13 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasThirtyNineCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasFortyThreeCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(39, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(43, tableNames.size(), "当前表=" + tableNames);
         List<String> seededTables = List.of(
-                "admin_user", "operation_audit_log", "city", "content_section", "section_follow",
+                "admin_user", "operation_audit_log", "city", "district", "content_section", "section_follow",
                 "media_asset", "post", "post_media", "post_like", "post_comment", "post_comment_like",
                 "follow", "shop", "merchant_account", "merchant_staff_invitation", "merchant_application",
                 "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_profile",
@@ -89,6 +89,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 "voucher_product_cash_rule", "voucher_product_discount_rule", "voucher_product_multi_use_rule",
                 "voucher_order", "payment_transaction", "voucher_refund", "user_voucher", "user_voucher_qr_code",
                 "voucher_redemption", "commission_rule", "fund_ledger_entry",
+                "customer_service_ticket", "customer_service_message", "customer_service_attachment",
                 "settlement_batch", "settlement_item");
         assertEquals(tableNames, seededTables.stream().sorted().toList());
         seededTables.forEach(table -> assertTrue(
@@ -102,6 +103,8 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("shop_review", "uk_review_shop_user"));
         assertEquals(1, indexCount("user_voucher", "uk_user_voucher_order"));
         assertEquals(1, indexCount("admin_user", "uk_admin_user_username"));
+        assertEquals(1, indexCount("district", "uk_district_code"));
+        assertEquals(1, indexCount("district", "idx_district_city_status_sort"));
         assertEquals(1, indexCount("operation_audit_log", "idx_audit_actor_time"));
         assertEquals(1, indexCount("merchant_account", "uk_merchant_account_phone"));
         assertEquals(1, indexCount("merchant_application", "uk_merchant_application_account"));
@@ -113,6 +116,7 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, indexCount("voucher_package_item", "uk_voucher_package_item_product_sort"));
         assertEquals(1, indexCount("shop", "uk_shop_source_application"));
         assertEquals(1, indexCount("shop", "idx_shop_status_city_type"));
+        assertEquals(1, indexCount("shop", "idx_shop_status_city_district"));
         assertEquals(1, count("select count(*) from admin_user where username='admin' "
                 + "and role='PLATFORM_ADMIN' and status='ACTIVE' and force_password_change=0"));
         assertEquals(3, count("select count(*) from admin_user where status='ACTIVE'"));
@@ -193,22 +197,22 @@ class DatabaseBusinessClosureIntegrationTest {
     @Test
     @Order(2)
     void merchantVoucherAuthoringClosesMediaVersionCopySubmissionAndRoleIsolation() throws Exception {
-        String ownerToken = loginMerchantWithCode("13900000001");
+        String tenantToken = loginMerchantWithCode("13900000001");
         assertEquals(HttpStatus.OK, exchange(
-                        "/v1/merchant/orders", HttpMethod.GET, null, ownerToken)
+                        "/v1/merchant/orders", HttpMethod.GET, null, tenantToken)
                 .getStatusCode());
         ResponseEntity<String> seeded = exchange(
-                "/v1/merchant/voucher-products?page=1&size=20", HttpMethod.GET, null, ownerToken);
+                "/v1/merchant/voucher-products?page=1&size=20", HttpMethod.GET, null, tenantToken);
         assertEquals(HttpStatus.OK, seeded.getStatusCode());
         assertEquals(13, data(seeded).path("items").size());
 
-        String coverId = uploadBusinessImage(ownerToken, "VOUCHER_COVER", "voucher-cover.png");
-        String detailId = uploadBusinessImage(ownerToken, "VOUCHER_DETAIL", "voucher-detail.png");
+        String coverId = uploadBusinessImage(tenantToken, "VOUCHER_COVER", "voucher-cover.png");
+        String detailId = uploadBusinessImage(tenantToken, "VOUCHER_DETAIL", "voucher-detail.png");
         ResponseEntity<String> created = exchange(
                 "/v1/merchant/voucher-products",
                 HttpMethod.POST,
                 Map.of("productType", "CASH"),
-                ownerToken);
+                tenantToken);
         assertEquals(HttpStatus.CREATED, created.getStatusCode());
         String productId = data(created).path("id").asText();
         assertEquals("DRAFT", data(created).path("reviewStatus").asText());
@@ -219,7 +223,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 "/v1/merchant/voucher-products/" + productId,
                 HttpMethod.PUT,
                 complete,
-                ownerToken);
+                tenantToken);
         assertEquals(HttpStatus.OK, saved.getStatusCode());
         assertEquals(1, data(saved).path("version").asInt());
         assertEquals(1, data(saved).path("detailMedia").size());
@@ -229,20 +233,20 @@ class DatabaseBusinessClosureIntegrationTest {
                         "/v1/merchant/business-media/images/" + coverId + "/content",
                         HttpMethod.GET,
                         null,
-                        ownerToken)
+                        tenantToken)
                 .getStatusCode());
 
         assertEquals(HttpStatus.CONFLICT, exchange(
                         "/v1/merchant/voucher-products/" + productId,
                         HttpMethod.PUT,
                         complete,
-                        ownerToken)
+                        tenantToken)
                 .getStatusCode());
         ResponseEntity<String> submitted = exchangeCommand(
                 "/v1/merchant/voucher-products/" + productId + "/submission",
                 "stage20-submit-0001",
                 Map.of("version", 1),
-                ownerToken);
+                tenantToken);
         assertEquals(HttpStatus.OK, submitted.getStatusCode());
         assertEquals("PENDING", data(submitted).path("reviewStatus").asText());
         assertEquals(2, data(submitted).path("version").asInt());
@@ -250,24 +254,24 @@ class DatabaseBusinessClosureIntegrationTest {
                 "/v1/merchant/voucher-products/" + productId + "/submission",
                 "stage20-submit-0001",
                 Map.of("version", 1),
-                ownerToken);
+                tenantToken);
         assertEquals(HttpStatus.OK, replay.getStatusCode());
         assertEquals(2, data(replay).path("version").asInt());
         assertEquals(HttpStatus.CONFLICT, exchangeCommand(
                         "/v1/merchant/voucher-products/" + productId + "/submission",
                         "stage20-submit-0002",
                         Map.of("version", 1),
-                        ownerToken)
+                        tenantToken)
                 .getStatusCode());
         assertEquals(HttpStatus.NOT_FOUND, exchange(
-                        "/v1/merchant/voucher-products/3002", HttpMethod.GET, null, ownerToken)
+                        "/v1/merchant/voucher-products/3002", HttpMethod.GET, null, tenantToken)
                 .getStatusCode());
 
         ResponseEntity<String> copied = exchange(
                 "/v1/merchant/voucher-products/" + productId + "/copies",
                 HttpMethod.POST,
                 null,
-                ownerToken);
+                tenantToken);
         assertEquals(HttpStatus.CREATED, copied.getStatusCode());
         String copiedId = data(copied).path("id").asText();
         String copiedCoverId = data(copied).path("coverMediaId").asText();
@@ -281,7 +285,7 @@ class DatabaseBusinessClosureIntegrationTest {
                         "/v1/merchant/voucher-products/" + copiedId,
                         HttpMethod.DELETE,
                         null,
-                        ownerToken)
+                        tenantToken)
                 .getStatusCode());
         assertEquals(0, count("select count(*) from voucher_product where id=" + copiedId));
 
@@ -304,27 +308,27 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(5, count("select count(*) from operation_audit_log where actor_type='MERCHANT' "
                 + "and object_type='VOUCHER_PRODUCT' and action like 'MERCHANT_VOUCHER_%'"));
 
-        // Keep the following governance scenario focused on the seeded shop owner.
+        // Keep the following governance scenario focused on the seeded shop tenant.
         jdbc.update("delete from merchant_account where id in (20,21)");
     }
 
     @Test
     @Order(3)
     void realMerchantOnboardingClosesMediaDraftConflictSubmissionAndIsolation() throws Exception {
-        String ownerToken = loginMerchantWithCode("13900000008");
-        assertTrue(data(exchange("/v1/merchant/application", HttpMethod.GET, null, ownerToken)).isNull());
+        String visitorToken = loginMerchantWithCode("13900000008");
+        assertTrue(data(exchange("/v1/merchant/application", HttpMethod.GET, null, visitorToken)).isNull());
         assertEquals(HttpStatus.OK,
-                exchange("/v1/merchant/reference/cities", HttpMethod.GET, null, ownerToken).getStatusCode());
+                exchange("/v1/merchant/reference/cities", HttpMethod.GET, null, visitorToken).getStatusCode());
         assertEquals(HttpStatus.OK,
-                exchange("/v1/merchant/reference/shop-types", HttpMethod.GET, null, ownerToken).getStatusCode());
+                exchange("/v1/merchant/reference/shop-types", HttpMethod.GET, null, visitorToken).getStatusCode());
 
-        String licenseId = uploadBusinessImage(ownerToken, "LICENSE", "license.png");
-        String galleryId = uploadBusinessImage(ownerToken, "GALLERY", "gallery.png");
+        String licenseId = uploadBusinessImage(visitorToken, "LICENSE", "license.png");
+        String galleryId = uploadBusinessImage(visitorToken, "GALLERY", "gallery.png");
         ResponseEntity<String> content = exchange(
                 "/v1/merchant/business-media/images/" + licenseId + "/content",
                 HttpMethod.GET,
                 null,
-                ownerToken);
+                visitorToken);
         assertEquals(HttpStatus.OK, content.getStatusCode());
 
         String otherToken = loginMerchantWithCode("13900000007");
@@ -338,30 +342,30 @@ class DatabaseBusinessClosureIntegrationTest {
 
         Map<String, Object> draft = completeApplication(0, licenseId, galleryId);
         ResponseEntity<String> saved = exchange(
-                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+                "/v1/merchant/application", HttpMethod.PUT, draft, visitorToken);
         assertEquals(HttpStatus.OK, saved.getStatusCode());
         assertEquals(0, data(saved).path("version").asInt());
         assertEquals("DRAFT", data(saved).path("status").asText());
         ResponseEntity<String> updated = exchange(
-                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+                "/v1/merchant/application", HttpMethod.PUT, draft, visitorToken);
         assertEquals(HttpStatus.OK, updated.getStatusCode());
         assertEquals(1, data(updated).path("version").asInt());
         ResponseEntity<String> stale = exchange(
-                "/v1/merchant/application", HttpMethod.PUT, draft, ownerToken);
+                "/v1/merchant/application", HttpMethod.PUT, draft, visitorToken);
         assertEquals(HttpStatus.CONFLICT, stale.getStatusCode());
         assertEquals("MERCHANT_APPLICATION_VERSION_CONFLICT",
                 objectMapper.readTree(stale.getBody()).path("code").asText());
 
         ResponseEntity<String> submitted = exchangeWithIdempotency(
-                "/v1/merchant/application/submission", "stage18-submit-0001", ownerToken);
+                "/v1/merchant/application/submission", "stage18-submit-0001", visitorToken);
         assertEquals(HttpStatus.OK, submitted.getStatusCode());
         String applicationId = data(submitted).path("id").asText();
         assertEquals("PENDING", data(submitted).path("status").asText());
         assertEquals(HttpStatus.OK, exchangeWithIdempotency(
-                        "/v1/merchant/application/submission", "stage18-submit-0001", ownerToken)
+                        "/v1/merchant/application/submission", "stage18-submit-0001", visitorToken)
                 .getStatusCode());
         ResponseEntity<String> differentKey = exchangeWithIdempotency(
-                "/v1/merchant/application/submission", "stage18-submit-0002", ownerToken);
+                "/v1/merchant/application/submission", "stage18-submit-0002", visitorToken);
         assertEquals(HttpStatus.CONFLICT, differentKey.getStatusCode());
         assertEquals("MERCHANT_APPLICATION_IDEMPOTENCY_CONFLICT",
                 objectMapper.readTree(differentKey.getBody()).path("code").asText());
@@ -372,7 +376,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 "/v1/merchant/business-media/images/" + licenseId,
                 HttpMethod.DELETE,
                 null,
-                ownerToken);
+                visitorToken);
         assertEquals(HttpStatus.CONFLICT, boundDelete.getStatusCode());
         assertEquals("BUSINESS_MEDIA_ALREADY_BOUND",
                 objectMapper.readTree(boundDelete.getBody()).path("code").asText());
@@ -386,10 +390,12 @@ class DatabaseBusinessClosureIntegrationTest {
         // The Spring context and Redis DB are shared by ordered scenarios.
         redis.delete("roamly:merchant:sms-limit:13900000001");
         ResponseEntity<String> code = exchange(
-                "/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", "13900000001"), null);
+                "/v1/merchant/auth/sms-codes", HttpMethod.POST,
+                Map.of("phone", "13900000001", "scene", "LOGIN"), null);
         assertEquals(HttpStatus.NO_CONTENT, code.getStatusCode());
         ResponseEntity<String> limited = exchange(
-                "/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", "13900000001"), null);
+                "/v1/merchant/auth/sms-codes", HttpMethod.POST,
+                Map.of("phone", "13900000001", "scene", "LOGIN"), null);
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, limited.getStatusCode());
         assertEquals("SMS_SEND_TOO_FREQUENT", objectMapper.readTree(limited.getBody()).path("code").asText());
 
@@ -410,10 +416,10 @@ class DatabaseBusinessClosureIntegrationTest {
         String newToken = loginMerchantWithCode("13900000009");
         ResponseEntity<String> newMe = exchange("/v1/merchant/auth/me", HttpMethod.GET, null, newToken);
         assertEquals("NOT_APPLIED", data(newMe).path("status").asText());
-        assertEquals("OWNER", data(newMe).path("role").asText());
+        assertEquals("VISITOR", data(newMe).path("role").asText());
         assertTrue(data(newMe).path("shop").isMissingNode());
         assertEquals(1, count("select count(*) from merchant_account where phone='13900000009' "
-                + "and status='NOT_APPLIED' and role='OWNER' and shop_id is null"));
+                + "and status='NOT_APPLIED' and role='VISITOR' and shop_id is null"));
 
         String disabledToken = loginMerchantWithCode("13900000005");
         assertEquals("DISABLED", data(exchange(
@@ -589,7 +595,7 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals(1, count("select count(*) from shop where id=" + approvedShopId
                 + " and source_application_id=9001 and status='ACTIVE' and version=0"));
         assertEquals(1, count("select count(*) from merchant_account where id=3 and shop_id=" + approvedShopId
-                + " and role='OWNER' and status='ACTIVE' and version=1"));
+                + " and role='TENANT' and status='ACTIVE' and version=1"));
 
         ResponseEntity<String> approvalReplay = exchangeCommand(
                 "/v1/admin/merchant-applications/9001/approval",
@@ -670,7 +676,7 @@ class DatabaseBusinessClosureIntegrationTest {
                 objectMapper.readTree(rejectionFingerprintConflict.getBody()).path("code").asText());
 
         redis.delete("roamly:merchant:sms-limit:13900000001");
-        String shopOwnerToken = loginMerchantWithCode("13900000001");
+        String shopTenantToken = loginMerchantWithCode("13900000001");
         ResponseEntity<String> suspended = exchangeCommand(
                 "/v1/admin/shops/1/suspension",
                 "stage19-shop1-suspend",
@@ -680,11 +686,11 @@ class DatabaseBusinessClosureIntegrationTest {
         assertEquals("SUSPENDED", data(suspended).path("status").asText());
         assertEquals(3, data(suspended).path("affectedAccountCount").asInt());
         assertEquals(HttpStatus.UNAUTHORIZED,
-                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, shopOwnerToken).getStatusCode());
+                exchange("/v1/merchant/auth/me", HttpMethod.GET, null, shopTenantToken).getStatusCode());
         redis.delete("roamly:merchant:sms-limit:13900000001");
-        String suspendedOwnerToken = loginMerchantWithCode("13900000001");
+        String suspendedTenantToken = loginMerchantWithCode("13900000001");
         ResponseEntity<String> suspendedAccess = exchange(
-                "/v1/merchant/orders", HttpMethod.GET, null, suspendedOwnerToken);
+                "/v1/merchant/orders", HttpMethod.GET, null, suspendedTenantToken);
         assertEquals(HttpStatus.FORBIDDEN, suspendedAccess.getStatusCode());
         assertEquals("MERCHANT_SHOP_SUSPENDED",
                 objectMapper.readTree(suspendedAccess.getBody()).path("code").asText());
@@ -942,7 +948,8 @@ class DatabaseBusinessClosureIntegrationTest {
 
     private String loginMerchantWithCode(String phone) throws Exception {
         assertEquals(HttpStatus.NO_CONTENT,
-                exchange("/v1/merchant/auth/sms-codes", HttpMethod.POST, Map.of("phone", phone), null)
+                exchange("/v1/merchant/auth/sms-codes", HttpMethod.POST,
+                        Map.of("phone", phone, "scene", "LOGIN"), null)
                         .getStatusCode());
         return loginMerchant(phone);
     }
@@ -984,8 +991,8 @@ class DatabaseBusinessClosureIntegrationTest {
         request.put("version", version);
         request.put("shopName", "真实入驻测试门店");
         request.put("licenseNumber", "91330100MA2TEST018");
-        request.put("legalRepresentative", "测试店主");
-        request.put("contactName", "测试店主");
+        request.put("legalRepresentative", "测试租户");
+        request.put("contactName", "测试租户");
         request.put("contactPhone", "13900000008");
         request.put("shopTypeId", "1");
         request.put("cityCode", "330100");

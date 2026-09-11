@@ -8,29 +8,23 @@ import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-/** 普通动态与探店动态共用的持久化实体。 */
+/** 城市下属区县及当前服务范围。 */
 @Data
 @Accessors(chain = true)
-@TableName("post")
-public class ContentPost implements Serializable {
+@TableName("district")
+public class District implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-
-    private Long userId;
-    private Long sectionId;
-    private Integer shopVisit;
-    private Long shopId;
+    private String code;
     private String cityCode;
-    private String districtCode;
-    private String locationGeohash;
-    private String locationLabel;
-    private String title;
-    private String content;
-    private Integer likedCount;
-    private Integer commentCount;
+    private String name;
+    private Double centerLongitude;
+    private Double centerLatitude;
+    private Double serviceRadiusKm;
     private Integer status;
+    private Integer sort;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

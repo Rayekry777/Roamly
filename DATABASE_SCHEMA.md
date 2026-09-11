@@ -3,11 +3,11 @@
 ```yaml
 updatedAt: 2026-09-08
 schemaMode: Demo 可重建快照
-businessTableCount: 39
+businessTableCount: 42
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 已验证（39 张当前业务表）
-targetBusinessTableCount: 39
-targetDesignVersion: 8
+runtimeVerification: 已验证（43 张当前业务表）
+targetBusinessTableCount: 42
+targetDesignVersion: 9
 targetDesignStatus: 已冻结
 targetImplementationStatus: 已实现
 demoDataClosureStatus: 已实现
@@ -15,7 +15,7 @@ demoDataClosureStatus: 已实现
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 39 表：已包含阶段 23-29 的支付交易、退款、员工邀请、核销、佣金账本、结算批次、统一券详情/标签/类型规则表，以及用户券固定二维码凭证表，目标 DDL 与种子保持可重建快照。
+当前源码快照为 42 表：新增核销收入快照、服务费规则、退款执行状态以及客服工单/消息/附件表，目标 DDL 与种子保持可重建快照。
 
 ## 规则
 
@@ -23,7 +23,7 @@ demoDataClosureStatus: 已实现
 - 不声明物理外键，跨表关系由 Service 在事务内校验和维护。
 - 金额以分存储；Java 内部 ID 为 `Long`，HTTP 业务 ID 为字符串。
 - 已退役 `blog`、`blog_comments`、`voucher`、`seckill_voucher`，不保留兼容表或转换脚本。
-- `schema-init.sql` 在文件开头按依赖逆序集中执行全部 39 张业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
+- `schema-init.sql` 在文件开头按依赖逆序集中执行全部 43 张业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
 
 ## 表目录
 
@@ -31,20 +31,21 @@ demoDataClosureStatus: 已实现
 |---|---|---|---|
 | `admin_user` | 管理员账号与固定角色 | 平台级 | 用户名唯一；固定角色；启停状态与乐观锁 |
 | `operation_audit_log` | 敏感操作审计 | 平台级 | 操作者、对象、动作和时间索引；只追加 |
-| `merchant_account` | 店主及员工账号 | 商户/门店级 | 手机号唯一；激活账号必须绑定门店；角色、状态与乐观锁 |
+| `merchant_account` | 游客、租户及员工账号 | 商户/门店级 | 手机号唯一；BCrypt 密码；头像媒体；角色、状态、门店组合与乐观锁 |
 | `merchant_application` | 商户入驻草稿与审核快照 | 商户账号级 | 每账号唯一申请；状态、提交时间与乐观锁 |
-| `business_media_asset` | 营业执照、经营图与后续券图片 | 商户/业务对象级 | 对象键唯一；上传者、用途、生命周期与业务归属约束 |
-| `city` | 城市字典 | 平台级 | `code` 唯一 |
+| `business_media_asset` | 营业执照、经营图、券图片与商户头像 | 商户/业务对象级 | 对象键唯一；上传者、用途、生命周期与业务归属约束 |
+| `city` | 城市字典 | 平台级 | `code` 唯一；开发种子包含杭州、西宁 |
+| `district` | 区县字典与定位服务范围 | 城市级 | `code` 唯一；`city_code` 归属城市；中心坐标和服务半径用于定位解析 |
 | `content_section` | 官方内容分区 | 平台级 | `code` 唯一 |
 | `section_follow` | 用户关注分区 | 用户级 | `user_id,section_id` 唯一 |
 | `media_asset` | 临时/已绑定媒体 | 用户级 | 存储路径唯一；归属与状态索引 |
-| `post` | 统一动态 | 城市/用户级 | 分区、作者、商户、城市流索引 |
+| `post` | 统一动态 | 城市/用户级 | 分区、作者、商户、城市、区县和粗粒度位置索引 |
 | `post_media` | 动态媒体顺序 | 动态级 | 动态顺序与媒体各自唯一 |
 | `post_like` | 动态点赞事实 | 用户/动态级 | `post_id,user_id` 唯一 |
 | `post_comment` | 根评论与回复 | 动态级 | 根讨论、父评论、状态索引 |
 | `post_comment_like` | 评论点赞事实 | 用户/评论级 | `comment_id,user_id` 唯一 |
 | `follow` | 用户关注关系 | 用户级 | `user_id,follow_user_id` 唯一 |
-| `shop` | 商户、坐标与聚合 | 平台级 | 城市、分类、状态组合索引 |
+| `shop` | 商户、坐标与聚合 | 平台级 | `city_code` 与 `district_code` 分列保存；经纬度用于距离计算 |
 | `shop_type` | 商户分类 | 平台级 | 主键 |
 | `shop_review` | 独立点评 | 商户/用户级 | `shop_id,user_id` 唯一 |
 | `shop_review_media` | 点评媒体顺序 | 点评级 | 点评顺序与媒体各自唯一 |
@@ -62,10 +63,13 @@ demoDataClosureStatus: 已实现
 | `voucher_product_multi_use_rule` | 次卡权益规则 | 商品级 | `product_id` 主键 |
 | `payment_transaction` | 支付尝试与支付结果 | 用户/订单级 | `order_id,idempotency_key` 唯一 |
 | `voucher_refund` | 统一消费者/商户/管理员退款申请与处理结果 | 用户/订单/门店级 | `voucher_id,idempotency_key` 唯一；保存来源、渠道失败和退款冲回关联 |
-| `merchant_staff_invitation` | 店主员工邀请 | 商户/门店级 | 邀请摘要唯一；状态和过期时间索引 |
+| `merchant_staff_invitation` | 租户员工短时邀请 | 商户/门店级 | 六位凭证 HMAC 摘要；签发幂等键唯一；手机号、状态和过期时间索引 |
 | `voucher_redemption` | 核销与撤销记录 | 商户/门店级 | `shop_id,idempotency_key` 唯一 |
 | `commission_rule` | 平台默认与门店佣金规则 | 平台/门店级 | 费率及生效区间索引 |
 | `fund_ledger_entry` | 支付、核销、退款和结算账本 | 平台/门店级 | 业务事件、分录类型和账户方向唯一；只追加 |
+| `customer_service_ticket` | 客服工单队列与处理时长 | 用户/订单/门店级 | 工单号唯一，7日未更新自动关闭 |
+| `customer_service_message` | 公开回复与内部备注 | 工单级 | `visibility` 隔离消费者可见内容 |
+| `customer_service_attachment` | 工单图片附件 | 消息级 | 对象键唯一 |
 | `settlement_batch` | T+1 结算批次 | 商户/门店级 | `shop_id,settlement_date` 唯一 |
 | `settlement_item` | 结算批次账本明细 | 商户/门店级 | `batch_id,ledger_entry_id` 唯一 |
 
@@ -73,7 +77,7 @@ demoDataClosureStatus: 已实现
 
 ## 业务约束
 
-- `media_asset.status` 使用 0 临时、1 已绑定、2 已删除；绑定类型 1 动态、2 点评。
+- `media_asset.status` 使用 0 临时、1 已绑定、2 已删除；绑定类型 1 动态、2 点评、3 用户头像。上传时必须声明 `USER_AVATAR/POST/SHOP_REVIEW` 用途，文件按用途进入独立目录，绑定时再次校验路径用途，避免头像与内容图片交叉复用。
 - 普通动态自动进入 `ROAM_DAILY`（漫游日常分区）；探店动态必须关联允许探店的启用分区和同城启用商户。
 - `post_like`、`post_comment_like`、`section_follow`、`follow` 是关系事实，冗余计数必须与关系行数一致。
 - 评论删除清空正文；有有效回复的根评论保留删除占位。
@@ -85,12 +89,12 @@ demoDataClosureStatus: 已实现
 
 ## 开发测试账号
 
-以下账号只存在于 `dev` Profile 每次可重建的 Demo 数据库，禁止复制到生产。消费者端和商户端登录前先获取短信验证码，默认 Mock 验证码由 `SMS_MOCK_CODE` 控制，未覆盖时为 `123456`。
+以下账号只存在于 `dev` Profile 每次可重建的 Demo 数据库，禁止复制到生产。消费者端和商户端登录前可获取短信验证码，默认 Mock 验证码由 `SMS_MOCK_CODE` 控制，未覆盖时为 `123456`；消费者与商户种子密码统一为 `Roamly123`。
 
 | 端 | 推荐测试账号 | 凭据 | 可验证范围 |
 |---|---|---|---|
-| 消费者小程序 | `13456789011`（用户 ID `3`） | 短信验证码 `123456` | 社区、关注、探店、订单各状态、六种券状态、退款与固定二维码 |
-| 商户小程序 | `13900000001`（店主，账号 ID `1`） | 短信验证码 `123456` | 工作台、商品、订单、员工、核销、财务与结算 |
+| 消费者小程序 | `13456789011`（用户 ID `3`） | 短信验证码 `123456` 或密码 `Roamly123` | 社区、关注、探店、订单各状态、六种券状态、退款与固定二维码 |
+| 商户小程序 | `13900000001`（租户，账号 ID `1`） | 验证码 `123456` 或密码 `Roamly123` | 工作台、商品、订单、员工、核销、财务与结算 |
 | 管理 Web | `admin`（平台超级管理员，ID `1`） | 密码 `Roamly123` | 全部管理菜单和操作；无需首次改密 |
 | 后端/Knife4j | 无独立账号 | 使用上述三类登录接口取得对应 Bearer Token | 验证三登录域及全部受保护接口 |
 
@@ -103,20 +107,20 @@ demoDataClosureStatus: 已实现
 | 管理端 | `reviewer.disabled` | `Roamly123` | 商户审核员，已停用，用于登录拒绝 |
 | 商户端 | `13900000031` | `123456` | `MANAGER`（店长），已激活 |
 | 商户端 | `13900000032` | `123456` | `VERIFIER`（核销员），已激活 |
-| 商户端 | `13900000033` | `123456` | 店长，被店主停用 |
+| 商户端 | `13900000033` | `123456` | 店长，被租户停用 |
 | 商户端 | `13900000034` | `123456` | 未入驻，关联一条待接受核销员邀请 |
 
-待接受邀请的原始令牌为 `roamly-demo-pending`，数据库只保存其 SHA-256 摘要；接受邀请会把 `13900000034` 绑定到门店 1，因此需要重复演示时重新执行完整 Demo 快照。
+默认开发密钥下，待接受邀请的六位凭证为 `482731`，数据库只保存手机号与凭证组合的 HMAC-SHA256 摘要；接受后会把 `13900000034` 绑定到门店 1。若覆盖了开发邀请密钥，应由租户重新签发凭证；需要重置演示状态时只能在明确授权的 Demo 数据库重新执行完整快照。
 
 ## 开发种子闭环
 
-当前种子保证 39 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
+当前种子保证 43 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
 
 | 领域 | 数量与状态覆盖 |
 |---|---|
-| 账号与字典 | 4 个管理员、10 个商户账号、3 个消费者、1 个城市、5 个分区、3 个门店分类 |
+| 账号与字典 | 5 个管理员、10 个商户账号、3 个消费者、2 个城市、2 个区县、5 个内容分区、3 个门店分类 |
 | 入驻与门店 | 5 条入驻申请，覆盖 `PENDING/REJECTED/APPROVED`；3 家活动门店；6 条绑定经营媒体 |
-| 商户员工 | 4 条邀请，完整覆盖 `PENDING/ACCEPTED/REVOKED/EXPIRED`；店主、店长、核销员和员工停用样例 |
+| 商户员工 | 4 条邀请，完整覆盖 `PENDING/ACCEPTED/REVOKED/EXPIRED`；租户、店长、核销员和员工停用样例 |
 | 社区与点评 | 3 条动态、5 个动态点赞、3 条评论/回复、5 个评论点赞、3 个关注、3 个分区关注、4 条点评和已核销消费点评 |
 | 券商品 | 14 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
 | 订单与支付 | 14 笔订单，覆盖 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
@@ -129,7 +133,7 @@ demoDataClosureStatus: 已实现
 - 退款：订单 `6007` → 成功支付 `80008` → 用户券 `7005` → 成功退款 `9101` → 退款冲回账本 `110004`。
 - 核销结算：订单 `6006` → 用户券 `7004` → 核销 `9203` → 收入/佣金分录 `110005/110006` → 结算批次 `120001` 与明细 `130001/130002`。
 - 次卡：订单 `6005` → 五次卡 `7003` → 两次成功核销 `9201/9202` → 每次收入 2560 分、佣金 128 分，剩余三次且状态为 `PARTIALLY_USED`。
-- 员工：店主账号 `1` → 已接受邀请 `10001` → 店长账号 `31`；另有待接受、已撤销和已过期邀请。
+- 员工：租户账号 `1` → 已接受邀请 `10001` → 店长账号 `31`；另有待接受、已撤销和已过期邀请。
 
 种子聚合可由 SQL 事实复核：
 
@@ -145,7 +149,7 @@ demoDataClosureStatus: 已实现
 
 - 目标实现直接重写 `schema-init.sql` 与 `seed-dev.sql`，按依赖逆序删除全部业务表后重建，不提供增量迁移、旧数据导入、双写或兼容视图。
 - 允许删除旧列、旧数字状态码、旧枚举语义和 `user_voucher.order_id` 单列唯一约束；所有后端模型、OpenAPI 和三端类型在同一阶段切换。
-- 目标业务表固定为 39 张。未来 SnailJob 适配器如启用，将使用自身独立数据库，其框架表不计入业务表；Demo 的内置调度器不新增任务表。Fesod 适配器同样不改变业务表，本轮由自有 OOXML writer 提供同步导出。
+- 目标业务表固定为 43 张。未来 SnailJob 适配器如启用，将使用自身独立数据库，其框架表不计入业务表；Demo 的内置调度器不新增任务表。Fesod 适配器同样不改变业务表，本轮由自有 OOXML writer 提供同步导出。
 - 金额统一以分保存并使用 `*_amount`；费率以基点保存并使用 `*_rate_bps`；业务状态使用稳定字符串；HTTP ID 继续使用字符串。
 - 目标实现前必须再次解析 `.env` 并确认获授权的 Demo 数据库名称。目标快照不得用于生产或任何需要保留数据的库。
 
@@ -154,9 +158,9 @@ demoDataClosureStatus: 已实现
 | 表 | 归属阶段 | 用途 | 关键约束 |
 |---|---:|---|---|
 | `admin_user` | 16 | 管理员账号与固定角色 | 用户名唯一；BCrypt 密码；固定角色与状态索引；乐观锁 |
-| `merchant_application` | 18-19 | 店主入驻资料与审核 | 申请人、状态、提交时间索引；保留驳回原因 |
-| `merchant_account` | 17、25 | 店主及员工账号 | 手机号唯一；激活后必须绑定且只能绑定一家门店 |
-| `merchant_staff_invitation` | 25 | 单次员工邀请 | 令牌摘要唯一；24 小时过期；只可消费一次 |
+| `merchant_application` | 18-19、36 | 游客入驻资料与审核 | 申请人、状态、提交时间索引；保留驳回原因 |
+| `merchant_account` | 17、25、36 | 游客、租户及员工账号 | 手机号唯一；角色、状态和单公司归属组合约束 |
+| `merchant_staff_invitation` | 25、36 | 单次员工邀请 | 六位凭证 HMAC 摘要；60 秒过期；只可消费一次 |
 | `user_voucher_qr_code` | 31 | 用户券有效期内固定二维码定位与版本 | 用户券唯一；随机定位值唯一；HMAC 在应用层校验 |
 | `business_media_asset` | 18、20 | 入驻和团购经营媒体 | 归属类型、归属 ID、状态与顺序索引 |
 | `voucher_package_item` | 20 | 套餐券和次卡服务明细 | 商品内顺序唯一 |
@@ -184,7 +188,7 @@ demoDataClosureStatus: 已实现
 - `id`、`uploader_merchant_account_id`、`purpose`、`status`、`bucket_name`、唯一 `object_key`、`original_filename`、`mime_type`、`byte_size`、`width`、`height`。
 - 绑定事实为 `owner_type`、`owner_id`、`sort_order`、`bound_at`；生命周期为 `expires_at`、`deleted_at`、`create_time`、`update_time`。
 - 上传者清理索引为 `idx_business_media_uploader_status_expiry(uploader_merchant_account_id,status,expires_at,id)`；业务读取索引为 `idx_business_media_owner(owner_type,owner_id,purpose,sort_order,id)`。
-- `purpose` 允许 `LICENSE`（营业执照）、`GALLERY`（经营图片）、`VOUCHER_COVER`（券封面）、`VOUCHER_DETAIL`（券详情图）；阶段 18 只开放前两种。`status` 允许 `TEMPORARY`（临时）、`BOUND`（已绑定）、`DELETED`（已删除）；临时记录不得带业务归属，已绑定记录必须同时具备归属类型与 ID。
+- `purpose` 允许 `LICENSE`（营业执照）、`GALLERY`（经营图片）、`VOUCHER_COVER`（券封面）、`VOUCHER_DETAIL`（券详情图）与 `MERCHANT_AVATAR`（商户头像）；阶段 18 只开放前两种，阶段 34 开放商户头像。`status` 允许 `TEMPORARY`（临时）、`BOUND`（已绑定）、`DELETED`（已删除）；临时记录不得带业务归属，已绑定记录必须同时具备归属类型与 ID。
 
 ### 阶段 19 已实现字段
 
@@ -201,7 +205,7 @@ demoDataClosureStatus: 已实现
 - `status` 只允许 `PENDING`（待激活）、`ACTIVE`（营业中）、`SUSPENDED`（已停用）、`CLOSED`（已关闭）；本阶段审核通过创建的门店直接为 `ACTIVE`。
 - 新增唯一非空 `source_application_id`、`business_hours_json`、`activated_at`、`suspended_at`、`suspension_reason`、`status_changed_by_admin_id`、`status_command_type`、`status_idempotency_key`、`status_request_fingerprint` 和 `version`。
 - `status_command_type` 只允许 `SUSPENSION`（停用）、`ACTIVATION`（恢复）或空；相同幂等键和指纹只重放结果，不重复联动账号或写审计。
-- 新增唯一索引 `uk_shop_source_application(source_application_id)` 与列表索引 `idx_shop_status_city_type(status,city_code,shop_type_id,id)`；既有 `images` 只保留消费者摘要，不保存证照或审核治理事实。
+- 新增唯一索引 `uk_shop_source_application(source_application_id)`、列表索引 `idx_shop_status_city_type(status,city_code,type_id,id)` 与地域索引 `idx_shop_status_city_district(status,city_code,district_code,id)`；既有 `images` 只保留消费者摘要，不保存证照或审核治理事实。
 
 `merchant_account` 新增选择性恢复事实：
 
@@ -209,7 +213,7 @@ demoDataClosureStatus: 已实现
 - `disabled_reason` 最多 500 字，`disabled_at` 保存停用时间；非 `DISABLED`（已停用）账号必须清空三项。
 - 门店停用只条件更新当前 `ACTIVE`（已激活）账号并写 `SHOP_SUSPENSION`；门店恢复只条件恢复该来源账号，其他来源保持停用。
 
-阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和店主。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 38 表纯种子状态。
+阶段 19 种子必须至少包含一个 `PENDING`（审核中）申请、一个 `REJECTED`（审核未通过）申请、可审核的绑定证照，以及可执行停用/恢复的活动门店和租户。审核与治理数据库测试结束后必须重新执行完整快照，恢复相同的 38 表纯种子状态。
 
 ### 阶段 20 字段冻结
 
@@ -221,6 +225,15 @@ demoDataClosureStatus: 已实现
 - `voucher_product_cash_rule`、`voucher_product_discount_rule`、`voucher_product_multi_use_rule` 分别保存代金券、折扣券和次卡的专属权益说明；折扣规则只用于展示和核销说明，不参与订单计价。
 - 券媒体保存即绑定 `VOUCHER_PRODUCT`（券商品），封面恰好一张、详情图最多九张；复制创建独立对象键，删除在事务提交后清理。
 - 既有商品 3001/3002 直接转换为已审核在售种子，保持订单、库存、销量与消费者 Demo；新增四类草稿和一个审核中商品。阶段 20 数据库级测试已验证媒体绑定、版本冲突、角色隔离、提交幂等和 38 表快照，并在结束后恢复纯种子状态。
+
+### 阶段 34 商户账号资料字段
+
+阶段 34 账号资料不新增业务表；阶段 35 新增客服三表，业务表总数为 42：
+
+- `merchant_account` 新增非空 `password_hash` 保存 BCrypt 摘要，新增可空 `avatar_media_id` 作为对 `business_media_asset.id` 的应用层逻辑关联；旧 `avatar_url` 不再保留。
+- 开发种子中的全部商户账号密码统一为 `Roamly123`；该快照只允许在明确授权可重建的 Demo 数据库执行，不作为保留数据环境的迁移脚本。
+- `business_media_asset.purpose` 增加 `MERCHANT_AVATAR`，绑定后的 `owner_type` 为 `MERCHANT_ACCOUNT`、`owner_id` 为商户账号 ID；替换头像时旧媒体先标记删除，事务提交后清理对象。
+- 手机号继续由 `uk_merchant_account_phone` 保证唯一。手机号或密码修改锁定并条件更新账号、递增版本，并在提交后注销该账号全部 `MERCHANT` 会话。
 
 ### 目标重构表
 
@@ -234,7 +247,7 @@ demoDataClosureStatus: 已实现
 
 - 管理角色：`PLATFORM_ADMIN`（平台超级管理员）、`MERCHANT_REVIEWER`（商户审核员）、`FINANCE`（财务管理员）。
 - 管理员账号状态：`ACTIVE`（已启用）、`DISABLED`（已停用）。
-- 商户角色：`OWNER`（店主）、`MANAGER`（店长）、`VERIFIER`（核销员）。
+- 商户角色：`VISITOR`（游客）、`TENANT`（租户）、`MANAGER`（店长）、`VERIFIER`（核销员）。
 - 商户账号状态：`NOT_APPLIED`（未入驻）、`PENDING`（审核中）、`ACTIVE`（已激活）、`REJECTED`（审核未通过）、`DISABLED`（已停用）。
 - 门店经营状态：`PENDING`（待激活）、`ACTIVE`（营业中）、`SUSPENDED`（已停用）、`CLOSED`（已关闭）。
 - 券型：`PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券，仅核销）、`MULTI_USE`（次卡）。
@@ -245,14 +258,15 @@ demoDataClosureStatus: 已实现
 - 用户券状态：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - 退款状态：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）。
 - 结算金额状态：`FROZEN`（冻结中）、`SETTLEABLE`（待结算）、`SETTLED`（已结算）、`ADJUSTMENT`（调整项）。
-- 账本事件：`PAYMENT_FROZEN`（线上订单支付冻结）、`REDEMPTION_RECOGNIZED`（按线上订单实付金额确认核销收入）、`COMMISSION_RECOGNIZED`（平台佣金确认）、`REFUND_REVERSED`（退款冲回）、`REDEMPTION_REVERSED`（核销撤销）、`COMMISSION_REVERSED`（佣金冲回）、`SETTLEMENT_POSTED`（结算入账）、`SETTLEMENT_ADJUSTMENT`（结算调整）。
+- 退款决定状态：`AUTO_APPROVED/PENDING_TICKET/APPROVED/REJECTED`；渠道执行状态：`NOT_STARTED/PROCESSING/SUCCEEDED/FAILED`。
+- 账本事件：`PAYMENT_FROZEN`、`REDEMPTION_RECOGNIZED`、`SERVICE_FEE_RECOGNIZED`、`REFUND_REVERSED`、`REFUND_REVENUE_REVERSED`、`SERVICE_FEE_REVERSED`、`SERVICE_FEE_REFUNDED`、`REDEMPTION_REVERSED`、`SETTLEMENT_POSTED`、`SETTLEMENT_ADJUSTMENT`。
 
 ### 目标一致性
 
 - 待支付订单占用库存；15 分钟关单通过条件更新只返库一次；支付成功后销量按数量累计并逐份发券。
 - 手输券码只通过 HMAC 索引定位，固定二维码在券有效期内保持不变；核销预览不改变状态，确认核销使用唯一幂等键。
 - 次卡每次核销扣减一次，最后一次转为已使用；核销撤销必须在进入结算前完成并追加反向记录。
-- 支付成功记冻结账本，核销后按团购券订单线上实付金额及 5% 默认佣金或门店覆盖费率确认；次日 02:00 按门店生成幂等 T+1 Mock 结算批次和明细。到店额外消费由顾客和商户线下微信支付，不进入任何平台表。
+- 支付成功记冻结账本；核销时按（商品售价 - 商家补贴）×生效服务费率计算软件服务费，平台优惠真实参与顾客实付；次日 02:00 按门店生成幂等 T+1 Mock 结算批次和明细。到店额外消费由顾客和商户线下微信支付，不进入任何平台表。
 - 所有资金表只追加事实或显式状态迁移，不覆盖历史金额；已结算退款通过负向调整进入后续结算。
 
 ### 设计冻结门禁
@@ -265,9 +279,9 @@ demoDataClosureStatus: 已实现
 
 2026-09-05 已在 `.env` 当前指向且获授权的开发库完成 38 表 Demo 快照验收：
 
-- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 39 张业务表、关键唯一索引、旧表退役和种子一致性。
+- 当次完整执行 `schema-init.sql` 与 `seed-dev.sql`，确认 43 张业务表、关键唯一索引、旧表退役和种子一致性。
 - `DatabaseBusinessClosureIntegrationTest` 9 项全部通过，覆盖商户登录/限流/五种状态/首次建号/停用会话/三域隔离、管理员账号与审计、入驻媒体、申请审核、门店停用与选择性恢复、四类券建券/媒体/复制/提交/角色隔离，以及社区、点评、订单、支付、退款、员工、核销、账本、结算和用户隔离。
-- 快照断言确认 39 张业务表全部非空，并覆盖三端推荐账号、附加权限账号、四类券、五种订单状态、六种支付状态、六种用户券状态、五种退款状态、邀请/核销/账本/结算状态及四条代表性跨表业务链路。
+- 快照断言确认 43 张业务表全部非空，并覆盖三端推荐账号、客服账号、附加权限账号、四类券、五种订单状态、六种支付状态、六种用户券状态、五种退款状态、邀请/核销/账本/结算状态及四条代表性跨表业务链路。
 - `OpenApiAndAuthRuntimeTest` 8 项全部通过，确认运行时 OpenAPI 147 个唯一 `operationId`、阶段 23-29 新增 Schema、全部 `$ref`、Bearer 声明和关键错误响应。
 - 后端默认 `mvn test` 共执行 172 项，其中 150 项通过、22 项按环境开关跳过，0 失败、0 错误；默认测试未重建数据库。
 - 测试结束后再次重建快照并恢复纯种子数据，Redis DB 15 已清空，不保留测试期间生成的业务数据或登录状态。

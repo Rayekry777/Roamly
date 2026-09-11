@@ -2,6 +2,9 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
+DROP TABLE IF EXISTS `customer_service_attachment`;
+DROP TABLE IF EXISTS `customer_service_message`;
+DROP TABLE IF EXISTS `customer_service_ticket`;
 DROP TABLE IF EXISTS `settlement_item`;
 DROP TABLE IF EXISTS `settlement_batch`;
 DROP TABLE IF EXISTS `fund_ledger_entry`;
@@ -39,6 +42,7 @@ DROP TABLE IF EXISTS `post`;
 DROP TABLE IF EXISTS `media_asset`;
 DROP TABLE IF EXISTS `section_follow`;
 DROP TABLE IF EXISTS `content_section`;
+DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `city`;
 DROP TABLE IF EXISTS `admin_user`;
 
@@ -47,7 +51,7 @@ CREATE TABLE `admin_user` (
   `username` varchar(32) NOT NULL COMMENT '不可变登录名，统一小写',
   `password_hash` varchar(100) NOT NULL COMMENT 'BCrypt密码摘要',
   `display_name` varchar(64) NOT NULL COMMENT '管理员显示名',
-  `role` varchar(32) NOT NULL COMMENT '固定角色：PLATFORM_ADMIN平台超级管理员、MERCHANT_REVIEWER商户审核员、FINANCE财务管理员',
+  `role` varchar(32) NOT NULL COMMENT '固定角色：PLATFORM_ADMIN平台超级管理员、MERCHANT_REVIEWER商户审核员、FINANCE财务管理员、CUSTOMER_SERVICE客服',
   `status` varchar(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '账号状态：ACTIVE已启用、DISABLED已停用',
   `force_password_change` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '是否必须修改初始或重置密码：0否、1是',
   `last_login_time` timestamp NULL DEFAULT NULL COMMENT '最近登录时间',
@@ -89,6 +93,24 @@ CREATE TABLE `city` (
   UNIQUE INDEX `uk_city_code` (`code`) USING BTREE,
   INDEX `idx_city_status_sort` (`status`, `sort`, `id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '城市字典' ROW_FORMAT = Dynamic;
+
+CREATE TABLE `district` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `code` varchar(16) NOT NULL COMMENT '稳定区县编码',
+  `city_code` varchar(16) NOT NULL COMMENT '所属城市编码，逻辑关联city.code',
+  `name` varchar(64) NOT NULL COMMENT '区县名称',
+  `center_longitude` double NULL COMMENT '当前服务范围中心经度（GCJ-02）',
+  `center_latitude` double NULL COMMENT '当前服务范围中心纬度（GCJ-02）',
+  `service_radius_km` decimal(8,2) NULL COMMENT '当前服务半径，单位公里',
+  `status` tinyint UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+  `sort` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '展示顺序',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_district_code` (`code`) USING BTREE,
+  INDEX `idx_district_city_status_sort` (`city_code`, `status`, `sort`, `id`) USING BTREE,
+  CONSTRAINT `chk_district_location` CHECK ((`center_longitude` IS NULL AND `center_latitude` IS NULL AND `service_radius_km` IS NULL) OR (`center_longitude` BETWEEN -180 AND 180 AND `center_latitude` BETWEEN -90 AND 90 AND `service_radius_km` > 0))
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '区县字典及定位服务范围' ROW_FORMAT = Dynamic;
 
 
 CREATE TABLE `content_section` (
@@ -149,6 +171,9 @@ CREATE TABLE `post` (
   `shop_visit` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否探店：0否，1是',
   `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '商户ID，逻辑关联shop.id；普通动态为空',
   `city_code` varchar(16) NOT NULL COMMENT '城市编码，逻辑关联city.code',
+  `district_code` varchar(16) NULL COMMENT '区县编码，逻辑关联行政区字典',
+  `location_geohash` varchar(12) NULL COMMENT '动态发布位置的粗粒度 GeoHash，不保存精确用户坐标',
+  `location_label` varchar(128) NULL COMMENT '动态发布位置展示名称',
   `title` varchar(120) NULL DEFAULT NULL COMMENT '可选标题',
   `content` varchar(5000) NOT NULL COMMENT '动态正文',
   `liked_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '点赞数量冗余值',
@@ -161,6 +186,7 @@ CREATE TABLE `post` (
   INDEX `idx_post_user_status_time` (`user_id`, `status`, `create_time`, `id`) USING BTREE,
   INDEX `idx_post_shop_status_time` (`shop_id`, `status`, `create_time`, `id`) USING BTREE,
   INDEX `idx_post_city_status_time` (`city_code`, `status`, `create_time`, `id`) USING BTREE
+  ,INDEX `idx_post_city_geohash_status_time` (`city_code`, `location_geohash`, `status`, `create_time`, `id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '统一社区动态' ROW_FORMAT = Dynamic;
 
 
@@ -235,6 +261,7 @@ CREATE TABLE `shop`  (
   `name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '商铺名称',
   `type_id` bigint(20) UNSIGNED NOT NULL COMMENT '商铺类型的id',
   `city_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '330100' COMMENT '城市编码',
+  `district_code` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '区县编码，逻辑关联district.code',
   `images` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '消费者摘要图片，多个地址以\',\'隔开',
   `area` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '商圈，例如陆家嘴',
   `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '地址',
@@ -262,6 +289,7 @@ CREATE TABLE `shop`  (
   UNIQUE INDEX `uk_shop_source_application` (`source_application_id`),
   INDEX `foreign_key_type`(`type_id`) USING BTREE,
   INDEX `idx_shop_status_city_type`(`status`, `city_code`, `type_id`, `id`) USING BTREE,
+  INDEX `idx_shop_status_city_district`(`status`, `city_code`, `district_code`, `id`) USING BTREE,
   CONSTRAINT `chk_shop_status` CHECK (`status` IN ('PENDING','ACTIVE','SUSPENDED','CLOSED')),
   CONSTRAINT `chk_shop_activation` CHECK (`status` <> 'ACTIVE' OR `activated_at` IS NOT NULL),
   CONSTRAINT `chk_shop_suspension` CHECK ((`status`='SUSPENDED' AND `suspended_at` IS NOT NULL AND `suspension_reason` IS NOT NULL) OR (`status`<>'SUSPENDED' AND `suspended_at` IS NULL AND `suspension_reason` IS NULL)),
@@ -271,9 +299,10 @@ CREATE TABLE `shop`  (
 CREATE TABLE `merchant_account` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商户账号ID',
   `phone` varchar(11) NOT NULL COMMENT '中国大陆手机号',
+  `password_hash` varchar(100) NOT NULL COMMENT 'BCrypt密码摘要',
   `nickname` varchar(64) NOT NULL COMMENT '商户端昵称',
-  `avatar_url` varchar(512) NULL DEFAULT NULL COMMENT '头像地址',
-  `role` varchar(16) NOT NULL DEFAULT 'OWNER' COMMENT '固定角色：OWNER店主、MANAGER店长、VERIFIER核销员',
+  `avatar_media_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '当前头像媒体ID，逻辑关联business_media_asset.id',
+  `role` varchar(16) NOT NULL DEFAULT 'VISITOR' COMMENT '固定角色：VISITOR游客、TENANT租户、MANAGER店长、VERIFIER核销员',
   `status` varchar(16) NOT NULL DEFAULT 'NOT_APPLIED' COMMENT '展示状态：NOT_APPLIED未入驻、PENDING审核中、ACTIVE已激活、REJECTED审核未通过、DISABLED已停用',
   `shop_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '绑定门店ID，逻辑关联shop.id',
   `disabled_source` varchar(24) NULL DEFAULT NULL COMMENT '停用来源：SHOP_SUSPENSION门店联动、ACCOUNT_GOVERNANCE平台治理、STAFF_MANAGEMENT员工管理',
@@ -286,16 +315,16 @@ CREATE TABLE `merchant_account` (
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_merchant_account_phone` (`phone`),
   INDEX `idx_merchant_account_shop_status_role` (`shop_id`, `status`, `role`, `id`),
-  CONSTRAINT `chk_merchant_account_role` CHECK (`role` IN ('OWNER','MANAGER','VERIFIER')),
+  CONSTRAINT `chk_merchant_account_role` CHECK (`role` IN ('VISITOR','TENANT','MANAGER','VERIFIER')),
   CONSTRAINT `chk_merchant_account_status` CHECK (`status` IN ('NOT_APPLIED','PENDING','ACTIVE','REJECTED','DISABLED')),
-  CONSTRAINT `chk_merchant_active_shop` CHECK (`status` <> 'ACTIVE' OR `shop_id` IS NOT NULL),
+  CONSTRAINT `chk_merchant_role_binding` CHECK ((`role`='VISITOR' AND `shop_id` IS NULL AND `status` IN ('NOT_APPLIED','PENDING','REJECTED')) OR (`role` IN ('TENANT','MANAGER','VERIFIER') AND `shop_id` IS NOT NULL AND `status` IN ('ACTIVE','DISABLED'))),
   CONSTRAINT `chk_merchant_disabled_source` CHECK (`disabled_source` IS NULL OR `disabled_source` IN ('SHOP_SUSPENSION','ACCOUNT_GOVERNANCE','STAFF_MANAGEMENT')),
   CONSTRAINT `chk_merchant_disabled_fields` CHECK ((`status`='DISABLED' AND `shop_id` IS NOT NULL AND `disabled_source` IS NOT NULL AND `disabled_reason` IS NOT NULL AND `disabled_at` IS NOT NULL) OR (`status`<>'DISABLED' AND `disabled_source` IS NULL AND `disabled_reason` IS NULL AND `disabled_at` IS NULL))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户店主与员工账号';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户游客、租户与员工账号';
 
 CREATE TABLE `merchant_application` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '入驻申请ID',
-  `merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '申请店主账号ID，逻辑关联merchant_account.id',
+  `merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '申请游客账号ID，逻辑关联merchant_account.id',
   `status` varchar(16) NOT NULL DEFAULT 'DRAFT' COMMENT '申请状态：DRAFT草稿、PENDING审核中、APPROVED审核通过、REJECTED审核未通过',
   `shop_name` varchar(128) NULL DEFAULT NULL COMMENT '门店名称',
   `license_number` varchar(64) NULL DEFAULT NULL COMMENT '统一社会信用代码',
@@ -339,7 +368,7 @@ CREATE TABLE `merchant_staff_invitation` (
   `id` bigint UNSIGNED NOT NULL COMMENT '邀请ID',
   `shop_id` bigint UNSIGNED NOT NULL,
   `inviter_account_id` bigint UNSIGNED NOT NULL,
-  `invite_token_digest` char(64) NOT NULL,
+  `credential_digest` char(64) NOT NULL COMMENT '手机号与六位凭证的HMAC-SHA256摘要',
   `target_phone` varchar(11) NOT NULL,
   `target_role` varchar(16) NOT NULL COMMENT 'MANAGER店长、VERIFIER核销员',
   `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING待接受、ACCEPTED已接受、REVOKED已撤销、EXPIRED已过期',
@@ -347,10 +376,15 @@ CREATE TABLE `merchant_staff_invitation` (
   `accepted_time` timestamp NULL,
   `revoked_time` timestamp NULL,
   `accepted_account_id` bigint UNSIGNED NULL,
+  `issue_idempotency_key` varchar(128) NOT NULL,
+  `issue_request_fingerprint` char(64) NOT NULL,
+  `acceptance_idempotency_key` varchar(128) NULL,
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_staff_invitation_token` (`invite_token_digest`),
+  UNIQUE INDEX `uk_staff_invitation_issue_key` (`inviter_account_id`,`issue_idempotency_key`),
+  INDEX `idx_staff_invitation_credential` (`target_phone`,`credential_digest`,`create_time`),
+  INDEX `idx_staff_invitation_target_status` (`target_phone`,`status`,`expire_time`),
   INDEX `idx_staff_invitation_shop_status` (`shop_id`,`status`,`expire_time`),
   CONSTRAINT `chk_staff_invitation_role` CHECK (`target_role` IN ('MANAGER','VERIFIER')),
   CONSTRAINT `chk_staff_invitation_status` CHECK (`status` IN ('PENDING','ACCEPTED','REVOKED','EXPIRED'))
@@ -359,7 +393,7 @@ CREATE TABLE `merchant_staff_invitation` (
 CREATE TABLE `business_media_asset` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '经营媒体ID',
   `uploader_merchant_account_id` bigint UNSIGNED NOT NULL COMMENT '上传商户账号ID',
-  `purpose` varchar(24) NOT NULL COMMENT '用途：LICENSE营业执照、GALLERY经营图片、VOUCHER_COVER券封面、VOUCHER_DETAIL券详情图',
+  `purpose` varchar(24) NOT NULL COMMENT '用途：LICENSE营业执照、GALLERY经营图片、VOUCHER_COVER券封面、VOUCHER_DETAIL券详情图、MERCHANT_AVATAR商户头像',
   `status` varchar(16) NOT NULL DEFAULT 'TEMPORARY' COMMENT '状态：TEMPORARY临时、BOUND已绑定、DELETED已删除',
   `bucket_name` varchar(128) NOT NULL COMMENT '对象存储桶',
   `object_key` varchar(512) NOT NULL COMMENT '服务端生成的私有对象键',
@@ -368,7 +402,7 @@ CREATE TABLE `business_media_asset` (
   `byte_size` bigint UNSIGNED NOT NULL COMMENT '字节数',
   `width` int UNSIGNED NOT NULL COMMENT '像素宽度',
   `height` int UNSIGNED NOT NULL COMMENT '像素高度',
-  `owner_type` varchar(32) NULL DEFAULT NULL COMMENT '业务归属类型：MERCHANT_APPLICATION入驻申请、VOUCHER_PRODUCT团购券',
+  `owner_type` varchar(32) NULL DEFAULT NULL COMMENT '业务归属类型：MERCHANT_APPLICATION入驻申请、VOUCHER_PRODUCT团购券、MERCHANT_ACCOUNT商户账号',
   `owner_id` bigint UNSIGNED NULL DEFAULT NULL COMMENT '业务归属ID',
   `sort_order` tinyint UNSIGNED NULL DEFAULT NULL COMMENT '业务内排序，从0开始',
   `bound_at` timestamp NULL DEFAULT NULL COMMENT '绑定时间',
@@ -380,7 +414,7 @@ CREATE TABLE `business_media_asset` (
   UNIQUE INDEX `uk_business_media_object_key` (`object_key`),
   INDEX `idx_business_media_uploader_status_expiry` (`uploader_merchant_account_id`,`status`,`expires_at`,`id`),
   INDEX `idx_business_media_owner` (`owner_type`,`owner_id`,`purpose`,`sort_order`,`id`),
-  CONSTRAINT `chk_business_media_purpose` CHECK (`purpose` IN ('LICENSE','GALLERY','VOUCHER_COVER','VOUCHER_DETAIL')),
+  CONSTRAINT `chk_business_media_purpose` CHECK (`purpose` IN ('LICENSE','GALLERY','VOUCHER_COVER','VOUCHER_DETAIL','MERCHANT_AVATAR')),
   CONSTRAINT `chk_business_media_status` CHECK (`status` IN ('TEMPORARY','BOUND','DELETED')),
   CONSTRAINT `chk_business_media_owner` CHECK ((`status`='TEMPORARY' AND `owner_type` IS NULL AND `owner_id` IS NULL) OR (`status`='BOUND' AND `owner_type` IS NOT NULL AND `owner_id` IS NOT NULL) OR `status`='DELETED')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='经营与团购私有媒体';
@@ -464,6 +498,8 @@ CREATE TABLE `voucher_product` (
   `detail_media_ids_json` json NOT NULL,
   `price_amount` bigint UNSIGNED NULL,
   `market_amount` bigint UNSIGNED NULL,
+  `merchant_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单份商家营销补贴，单位分',
+  `platform_discount_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单份平台优惠，单位分',
   `face_value_amount` bigint UNSIGNED NULL,
   `minimum_spend_amount` bigint UNSIGNED NULL,
   `total_use_count` int UNSIGNED NULL,
@@ -587,7 +623,14 @@ CREATE TABLE `voucher_order`  (
   `unit_price` bigint UNSIGNED NULL COMMENT '单价，单位分',
   `quantity` int UNSIGNED NOT NULL DEFAULT 1 COMMENT '购买数量',
   `total_amount` bigint UNSIGNED NULL COMMENT '总金额，单位分',
+  `merchant_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '订单商家营销补贴，单位分',
+  `platform_discount_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '订单平台优惠，单位分',
   `pay_amount` bigint UNSIGNED NULL COMMENT '支付金额，单位分',
+  `order_source` varchar(32) NULL COMMENT '下单来源快照',
+  `deal_channel` varchar(32) NULL COMMENT '成交渠道快照',
+  `promoter_role` varchar(32) NULL COMMENT '带货角色快照',
+  `promoter_name` varchar(64) NULL COMMENT '带货人快照',
+  `content_address` varchar(500) NULL COMMENT '内容地址快照',
   `pay_type` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '支付方式 1：余额支付；2：支付宝；3：微信',
   `status` varchar(16) NOT NULL DEFAULT 'PENDING_PAYMENT' COMMENT '订单状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、REFUNDING退款中、REFUNDED已退款',
   `payment_expire_time` timestamp NULL COMMENT '待支付订单过期时间',
@@ -637,6 +680,12 @@ CREATE TABLE `voucher_refund` (
   `failure_code` varchar(64) NULL COMMENT '渠道失败编码',
   `failure_message` varchar(500) NULL COMMENT '渠道失败说明',
   `provider_refund_no` varchar(128) NULL COMMENT '渠道退款单号',
+  `decision_status` varchar(24) NOT NULL DEFAULT 'PENDING_TICKET' COMMENT '处理决定：AUTO_APPROVED、PENDING_TICKET、APPROVED、REJECTED',
+  `execution_status` varchar(24) NOT NULL DEFAULT 'NOT_STARTED' COMMENT '渠道执行：NOT_STARTED、PROCESSING、SUCCEEDED、FAILED',
+  `ticket_id` bigint UNSIGNED NULL COMMENT '关联客服工单ID',
+  `execution_started_time` timestamp NULL COMMENT '渠道开始处理时间',
+  `last_failure_time` timestamp NULL COMMENT '最近渠道失败时间',
+  `retry_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '渠道重试次数',
   `approved_amount` bigint UNSIGNED NULL COMMENT '最终批准金额，单位分',
   `payment_provider` varchar(32) NULL COMMENT '原支付渠道',
   `idempotency_key` varchar(128) NOT NULL,
@@ -663,6 +712,10 @@ CREATE TABLE `user_voucher` (
   `voucher_code_last4` char(4) NULL,
   `total_use_count` int UNSIGNED NOT NULL DEFAULT 1,
   `remaining_use_count` int UNSIGNED NOT NULL DEFAULT 1,
+  `sale_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单券商品售价分摊，单位分',
+  `merchant_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单券商家补贴分摊，单位分',
+  `platform_discount_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单券平台优惠分摊，单位分',
+  `customer_paid_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '单券顾客实付分摊，单位分',
   `status` varchar(16) NOT NULL DEFAULT 'UNUSED',
   `valid_begin_time` timestamp NULL,
   `expire_time` timestamp NULL,
@@ -695,10 +748,26 @@ CREATE TABLE `user_voucher_qr_code` (
 CREATE TABLE `voucher_redemption` (
   `id` bigint UNSIGNED NOT NULL COMMENT '核销记录ID',
   `voucher_id` bigint UNSIGNED NOT NULL,
+  `order_id` bigint NOT NULL COMMENT '订单ID快照',
+  `product_id` bigint UNSIGNED NOT NULL COMMENT '商品ID快照',
   `shop_id` bigint UNSIGNED NOT NULL,
   `merchant_account_id` bigint UNSIGNED NOT NULL,
+  `product_title` varchar(120) NOT NULL COMMENT '商品标题快照',
+  `product_cover` varchar(500) NULL COMMENT '商品封面读取地址快照',
+  `shop_name` varchar(120) NOT NULL COMMENT '核销门店名称快照',
+  `operator_name` varchar(64) NOT NULL COMMENT '核销人名称快照',
+  `redemption_method` varchar(24) NOT NULL DEFAULT 'MANUAL_CODE' COMMENT '核销方式：MANUAL_CODE、QR_CODE',
+  `merchant_note` varchar(500) NULL COMMENT '商家备注',
   `use_count` int UNSIGNED NOT NULL DEFAULT 1,
   `status` varchar(16) NOT NULL COMMENT 'SUCCEEDED已核销、REVERSED已撤销',
+  `sale_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '本次核销商品售价分摊，单位分',
+  `merchant_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '本次核销商家补贴分摊，单位分',
+  `platform_discount_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '本次核销平台优惠分摊，单位分',
+  `customer_paid_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '本次核销顾客实付分摊，单位分',
+  `service_fee_base_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '服务费基数，单位分',
+  `service_fee_rate_bps` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '服务费率，基点',
+  `service_fee_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '服务费，单位分',
+  `estimated_income_amount` bigint NOT NULL DEFAULT 0 COMMENT '预计收入，单位分',
   `idempotency_key` varchar(128) NOT NULL,
   `reversal_reason` varchar(255) NULL,
   `reversed_by_account_id` bigint UNSIGNED NULL,
@@ -709,7 +778,8 @@ CREATE TABLE `voucher_redemption` (
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_voucher_redemption_shop_key` (`shop_id`,`idempotency_key`),
   INDEX `idx_voucher_redemption_voucher_time` (`voucher_id`,`redeemed_time`),
-  INDEX `idx_voucher_redemption_shop_time` (`shop_id`,`redeemed_time`)
+  INDEX `idx_voucher_redemption_shop_time` (`shop_id`,`redeemed_time`),
+  INDEX `idx_voucher_redemption_shop_status_time` (`shop_id`,`status`,`redeemed_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商户核销与撤销记录';
 
 CREATE TABLE `commission_rule` (
@@ -733,11 +803,74 @@ CREATE TABLE `fund_ledger_entry` (
   `entry_type` varchar(32) NOT NULL COMMENT 'PAYMENT_FROZEN支付冻结、REDEMPTION_RECOGNIZED核销确认、COMMISSION_RECOGNIZED佣金确认、REFUND_REVERSED退款冲回、REDEMPTION_REVERSED核销撤销、COMMISSION_REVERSED佣金冲回',
   `account_side` varchar(16) NOT NULL COMMENT 'CREDIT贷方、DEBIT借方',
   `amount` bigint NOT NULL COMMENT '金额，单位分，可为负数',
-  `commission_rate_bps` int UNSIGNED NULL,
+  `commission_rate_bps` int UNSIGNED NULL COMMENT '兼容字段：服务费率基点',
+  `service_fee_base_amount` bigint UNSIGNED NULL COMMENT '服务费基数快照，单位分',
   `occurred_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`), UNIQUE INDEX `uk_fund_ledger_event_side` (`business_event_id`,`entry_type`,`account_side`), INDEX `idx_fund_ledger_shop_time` (`shop_id`,`occurred_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='不可变资金账本分录';
+
+CREATE TABLE `customer_service_ticket` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '客服工单ID',
+  `ticket_no` varchar(32) NOT NULL COMMENT '对外工单号',
+  `type` varchar(32) NOT NULL COMMENT '工单类型：REFUND、REDEMPTION、ORDER、GENERAL',
+  `status` varchar(24) NOT NULL DEFAULT 'NEW' COMMENT 'NEW、OPEN、WAITING_CUSTOMER、WAITING_INTERNAL、RESOLVED、CLOSED',
+  `priority` varchar(16) NOT NULL DEFAULT 'NORMAL' COMMENT 'LOW、NORMAL、HIGH、URGENT',
+  `user_id` bigint UNSIGNED NULL,
+  `shop_id` bigint UNSIGNED NULL,
+  `order_id` bigint NULL,
+  `voucher_id` bigint UNSIGNED NULL,
+  `refund_id` bigint UNSIGNED NULL,
+  `redemption_id` bigint UNSIGNED NULL,
+  `subject` varchar(160) NOT NULL,
+  `description` varchar(2000) NULL,
+  `assignee_admin_id` bigint UNSIGNED NULL,
+  `created_by_type` varchar(16) NOT NULL COMMENT 'CONSUMER、MERCHANT、ADMIN、SYSTEM',
+  `created_by_id` bigint UNSIGNED NULL,
+  `first_response_time` timestamp NULL,
+  `resolved_time` timestamp NULL,
+  `closed_time` timestamp NULL,
+  `reopen_deadline` timestamp NULL,
+  `last_message_time` timestamp NULL,
+  `version` int UNSIGNED NOT NULL DEFAULT 0,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_customer_service_ticket_no` (`ticket_no`),
+  INDEX `idx_customer_service_ticket_queue` (`status`,`priority`,`create_time`,`id`),
+  INDEX `idx_customer_service_ticket_assignee` (`assignee_admin_id`,`status`,`update_time`,`id`),
+  INDEX `idx_customer_service_ticket_user` (`user_id`,`update_time`,`id`),
+  INDEX `idx_customer_service_ticket_shop` (`shop_id`,`update_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单';
+
+CREATE TABLE `customer_service_message` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '客服消息ID',
+  `ticket_id` bigint UNSIGNED NOT NULL,
+  `sender_type` varchar(16) NOT NULL COMMENT 'CONSUMER、MERCHANT、ADMIN、SYSTEM',
+  `sender_id` bigint UNSIGNED NULL,
+  `visibility` varchar(16) NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC公开回复、INTERNAL内部备注',
+  `message_type` varchar(16) NOT NULL DEFAULT 'TEXT' COMMENT 'TEXT、IMAGE、SYSTEM',
+  `content` varchar(4000) NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_customer_service_message_ticket` (`ticket_id`,`create_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单消息与内部备注';
+
+CREATE TABLE `customer_service_attachment` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '客服附件ID',
+  `ticket_id` bigint UNSIGNED NOT NULL,
+  `message_id` bigint UNSIGNED NOT NULL,
+  `uploader_type` varchar(16) NOT NULL,
+  `uploader_id` bigint UNSIGNED NULL,
+  `object_key` varchar(500) NOT NULL,
+  `original_filename` varchar(255) NOT NULL,
+  `mime_type` varchar(100) NOT NULL,
+  `byte_size` bigint UNSIGNED NOT NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_customer_service_attachment_object` (`object_key`),
+  INDEX `idx_customer_service_attachment_message` (`message_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单图片附件';
 
 CREATE TABLE `settlement_batch` (
   `id` bigint UNSIGNED NOT NULL COMMENT '结算批次ID',

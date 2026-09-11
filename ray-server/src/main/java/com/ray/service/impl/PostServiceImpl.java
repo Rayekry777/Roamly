@@ -33,6 +33,7 @@ import com.ray.service.ContentSectionService;
 import com.ray.service.CurrentUserProvider;
 import com.ray.service.FollowService;
 import com.ray.service.MediaAssetService;
+import com.ray.service.LocationService;
 import com.ray.service.PostService;
 import com.ray.service.PostCommentService;
 import com.ray.service.ShopService;
@@ -43,6 +44,7 @@ import com.ray.utils.converter.ViewMapper;
 import com.ray.vo.PostCardVO;
 import com.ray.vo.PostDetailVO;
 import com.ray.vo.PostMediaVO;
+import com.ray.vo.LocationContextVO;
 import com.ray.vo.HighlightCommentVO;
 import com.ray.vo.SectionVO;
 import com.ray.vo.ShopSummaryVO;
@@ -92,6 +94,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     private final CurrentUserProvider currentUserProvider;
     private final StringRedisTemplate redis;
     private final PostCommentService postCommentService;
+    private final LocationService locationService;
 
     /** Spring 运行时构造器，注入评论摘要批量查询能力。 */
     @Autowired
@@ -107,7 +110,8 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             FollowService followService,
             CurrentUserProvider currentUserProvider,
             StringRedisTemplate redis,
-            PostCommentService postCommentService) {
+            PostCommentService postCommentService,
+            LocationService locationService) {
         this.postMediaMapper = postMediaMapper;
         this.postLikeMapper = postLikeMapper;
         this.mediaAssetService = mediaAssetService;
@@ -120,6 +124,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         this.currentUserProvider = currentUserProvider;
         this.redis = redis;
         this.postCommentService = postCommentService;
+        this.locationService = locationService;
     }
 
     /** 保留单元测试及旧调用方使用的构造器，不启用评论摘要批量查询。 */
@@ -136,7 +141,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             CurrentUserProvider currentUserProvider,
             StringRedisTemplate redis) {
         this(postMediaMapper, postLikeMapper, mediaAssetService, contentSectionService, shopService,
-                cityService, userProfileService, userService, followService, currentUserProvider, redis, null);
+                cityService, userProfileService, userService, followService, currentUserProvider, redis, null, null);
     }
 
     /** 校验发布位置和媒体后创建动态，并在提交后投递关注流。 */
@@ -144,7 +149,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
     @Transactional
     public Long createPost(PostCreateDTO request) {
         Long userId = currentUserProvider.requireUserId();
-        Placement placement = resolvePlacement(request.shopVisit(), request.sectionId(), request.shopId(), userId);
+        Placement placement = resolvePlacement(request, userId);
         List<Long> mediaIds = parseMediaIds(request.mediaIds());
         mediaAssetService.lockTemporaryPostImages(userId, mediaIds);
 
@@ -154,6 +159,8 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
                 .setShopVisit(request.shopVisit() ? 1 : 0)
                 .setShopId(placement.shopId())
                 .setCityCode(placement.cityCode())
+                .setDistrictCode(placement.districtCode())
+                .setLocationLabel(placement.locationLabel())
                 .setTitle(normalizeTitle(request.title()))
                 .setContent(request.content().trim())
                 .setLikedCount(0)
@@ -181,7 +188,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         Long userId = currentUserProvider.requireUserId();
         ContentPost post = requireVisiblePost(postId, true);
         requireAuthor(post, userId);
-        Placement placement = resolvePlacement(request.shopVisit(), request.sectionId(), request.shopId(), userId);
+        Placement placement = resolvePlacement(request, userId);
         List<Long> desiredMediaIds = parseMediaIds(request.mediaIds());
 
         List<PostMedia> existingRelations = postMediaMapper.selectList(new QueryWrapper<PostMedia>()
@@ -215,6 +222,8 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
                         .set("shop_visit", request.shopVisit() ? 1 : 0)
                         .set("shop_id", placement.shopId())
                         .set("city_code", placement.cityCode())
+                        .set("district_code", placement.districtCode())
+                        .set("location_label", placement.locationLabel())
                         .set("title", normalizeTitle(request.title()))
                         .set("content", request.content().trim()));
         if (affected != 1) throw BusinessException.conflict("POST_STATUS_CONFLICT", "动态状态已变化，请重试");
@@ -381,7 +390,10 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return toCursorPage(posts, cursor, offset, size, scoreExtractor);
     }
 
-    private Placement resolvePlacement(Boolean shopVisit, String sectionId, String shopId, Long userId) {
+    private Placement resolvePlacement(PostCreateDTO request, Long userId) {
+        Boolean shopVisit = request.shopVisit();
+        String sectionId = request.sectionId();
+        String shopId = request.shopId();
         if (!Boolean.TRUE.equals(shopVisit)) {
             if (StringUtils.hasText(sectionId) || StringUtils.hasText(shopId)) {
                 throw BusinessException.badRequest("INVALID_ARGUMENT", "普通动态不能提交分区或商户");
@@ -392,7 +404,13 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
             if (section == null) {
                 throw new BusinessException(500, "DEFAULT_SECTION_MISSING", "默认分区未正确配置");
             }
-            return new Placement(section.getId(), null, resolveUserCity(userId));
+            LocationContextVO context = locationService != null && request.longitude() != null && request.latitude() != null
+                    ? locationService.resolve(new com.ray.dto.LocationContextDTO(request.longitude(), request.latitude(), null))
+                    : null;
+            return context == null
+                    ? new Placement(section.getId(), null, resolveUserCity(userId), null, request.locationLabel())
+                    : new Placement(section.getId(), null, context.cityCode(), context.districtCode(),
+                            context.locationLabel());
         }
 
         if (!StringUtils.hasText(sectionId) || !StringUtils.hasText(shopId)) {
@@ -414,7 +432,17 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         if (!StringUtils.hasText(shop.getCityCode()) || !isEnabledCity(shop.getCityCode())) {
             throw new BusinessException(500, "SHOP_CITY_INVALID", "商户城市未正确配置");
         }
-        return new Placement(section.getId(), shop.getId(), shop.getCityCode());
+        if (!StringUtils.hasText(shop.getDistrictCode())) {
+            throw new BusinessException(500, "SHOP_DISTRICT_INVALID", "商户区县未正确配置");
+        }
+        return new Placement(section.getId(), shop.getId(), shop.getCityCode(),
+                shop.getDistrictCode(), shop.getAddress());
+    }
+
+    private Placement resolvePlacement(PostUpdateDTO request, Long userId) {
+        return resolvePlacement(new PostCreateDTO(request.title(), request.content(), request.mediaIds(),
+                request.shopVisit(), request.sectionId(), request.shopId(), request.longitude(),
+                request.latitude(), request.locationLabel()), userId);
     }
 
     private String resolveUserCity(Long userId) {
@@ -725,7 +753,7 @@ public class PostServiceImpl extends ServiceImpl<ContentPostMapper, ContentPost>
         return values.stream().collect(Collectors.toMap(idExtractor, Function.identity()));
     }
 
-    private record Placement(Long sectionId, Long shopId, String cityCode) {}
+    private record Placement(Long sectionId, Long shopId, String cityCode, String districtCode, String locationLabel) {}
 
     private record ViewContext(
             Map<Long, User> users,

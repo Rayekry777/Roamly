@@ -1,13 +1,13 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 18
+version: 20
 updatedAt: 2026-09-08
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
 designStatus: 已冻结
 demoImplementationStatus: 已实现
-extensionImplementationStatus: 未实现
+extensionImplementationStatus: 客服生产适配器未实现
 demoDataClosureStatus: 已实现
 deviceAcceptanceStatus: 不适用
 ```
@@ -48,22 +48,25 @@ deviceAcceptanceStatus: 不适用
 | 团购 Demo | 商品、并发下单、取消返库、15 分钟关单、Mock 支付、多份发券 | 已实现 |
 | 券包 Demo | 用户隔离查询、详情、过期刷新、退款、固定二维码与核销关联 | 已实现 |
 | 商户经营基础 | 独立认证、五种账号状态、经营媒体、入驻申请、审核与门店治理 | 已实现 |
+| 商家收银 | 今日团购收银、核销收入拆解、服务费规则、T+1 账本结算 | 已实现 |
+| 退款执行 | 审批决定与渠道执行分离、后台异步扫描、失败重试事实 | 开发中 |
+| 客服工单 | 工单/公开消息/内部备注数据模型与客服角色权限 | 开发中 |
 | 管理与治理 | 管理员认证、账号生命周期、事务审计、商户审核和门店停用/恢复 | 已实现 |
 | 旧链路 | Blog、旧上传、旧优惠券、旧秒杀接口与表 | 已废弃 |
 
 ## Demo 数据闭环
 
-- `dev` 完整快照保证 39 张业务表全部具有可查询样例，不再出现支付、退款、员工、核销、账本、结算或审计页面只有空表的情况。
-- 三个客户端都有稳定测试账号：消费者 `13456789011`、商户店主 `13900000001`、平台管理员 `admin`；开发环境短信验证码为 `123456`，管理员密码为 `Roamly123`。
+- `dev` 完整快照保证 43 张业务表全部具有可查询样例，不再出现支付、退款、员工、核销、账本、结算或审计页面只有空表的情况。
+- 三个客户端都有稳定测试账号：消费者 `13456789011`、商户租户 `13900000001`、平台管理员 `admin`；开发环境短信验证码为 `123456`，消费者和商户密码以及管理员密码均为 `Roamly123`。
 - 管理端另有审核员、财务管理员和停用账号；商户端另有店长、核销员、停用员工与待接受邀请账号，用于验证服务端权限和状态隔离。
 - 样例链路覆盖社区互动、已核销点评、四类券、五种订单状态、六种支付状态、六种用户券状态、五种退款状态、核销与撤销、佣金分录和三种结算状态。
-- 测试账号、附加角色账号、邀请令牌、数据数量和代表性业务 ID 统一记录在 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)，不在客户端复制第二份凭据真源。
+- 测试账号、附加角色账号、邀请凭证、数据数量和代表性业务 ID 统一记录在 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)，不在客户端复制第二份凭据真源。
 
 ## 认证与授权
 
 - 登录域固定为 `CONSUMER`（消费者端）、`MERCHANT`（商户端）、`ADMIN`（管理端），使用独立 Sa-Token 逻辑、Redis 键空间和路由拦截，Token 不得跨域复用。
-- 管理员角色固定为 `PLATFORM_ADMIN`（平台超级管理员）、`MERCHANT_REVIEWER`（商户审核员）、`FINANCE`（财务管理员）。
-- 商户角色固定为 `OWNER`（店主）、`MANAGER`（店长）、`VERIFIER`（核销员）；门店归属是业务数据范围，不映射为若依租户。
+- 管理员角色固定为 `PLATFORM_ADMIN`（平台超级管理员）、`MERCHANT_REVIEWER`（商户审核员）、`FINANCE`（财务管理员）、`CUSTOMER_SERVICE`（客服）。
+- 商户角色固定为 `VISITOR`（游客）、`TENANT`（租户）、`MANAGER`（店长）、`VERIFIER`（核销员）；`shop_id` 是公司和数据隔离边界，不映射为若依租户。
 - 权限码由后端代码维护；客户端隐藏入口不能替代服务端逐接口授权。
 - 管理员密码使用 BCrypt，新建和重置后必须改密；连续 5 次失败锁定 15 分钟，禁止停用自己及最后一个有效平台超级管理员。
 - 管理员请求鉴权在单次 HTTP 请求内复用已校验的管理员实体，跨请求不缓存；账号停用、注销和改密仍按原有实时校验与会话失效规则执行。
@@ -82,13 +85,22 @@ deviceAcceptanceStatus: 不适用
 | `admin:commission:manage` | 佣金规则与资金账本管理 |
 | `admin:settlement:manage` | 结算处理与失败重试 |
 | `admin:audit:read` | 操作审计查看 |
+| `admin:customer-service:read` | 客服队列和消息查看 |
+| `admin:customer-service:manage` | 工单认领、回复、关闭和内部备注 |
 
 ## HTTP 线协议
 
 - 路径统一位于 `/v1`，私有接口使用 `Authorization: Bearer <token>`，业务 ID 在 HTTP 与 OpenAPI 中均为字符串。
 - 成功使用 `Result`、`PageResult` 或 `CursorPageResult`；失败使用 `ErrorResult`、真实 HTTP 状态和稳定字符串业务码。
 - 高风险命令要求 `Idempotency-Key` 请求头，覆盖审核、下单、支付、退款、核销、撤销和结算重试；幂等窗口不能替代数据库正确性。
-- 当前源码共 148 个唯一 `operationId`：包含同城团购商品发现、受控商品媒体读取、商户退款候选查询，以及阶段 23-31 的支付准备、支付、退款、员工、核销、实时事件、账本、结算、导出、商户门店订单及管理端订单/审计查询操作；数量由运行时 `/v3/api-docs` 验证。
+- 当前源码共 185 个唯一 `operationId`：包含同城团购商品发现、受控商品媒体读取、三端客服、商户退款候选查询，以及阶段 23-36 的支付准备、支付、退款、员工短时邀请、核销、实时事件、账本、结算、导出、商户门店订单及管理端订单/审计查询操作；数量由运行时 `/v3/api-docs` 验证。
+
+### 位置与同城推荐
+
+- 消费者端通过 `POST /v1/location/context` 提交微信 `gcj02` 真实坐标，服务端分别返回城市和区县编码/名称；当前已开放杭州 `330100` 与西宁 `630100`，POI 字段预留但不作为地域判断依据。
+- 推荐动态和门店列表在客户端提供坐标时由服务端重新解析城市并覆盖客户端 `cityCode`，避免手工城市参数改变地域；距离排序继续使用门店经纬度。
+- 普通动态保存发布时区县和粗粒度位置标签；不保存用户完整精确坐标。定位失败不再由首页使用旧城市替代。
+- `city` 与 `district` 是独立字典，门店和动态分别保存 `city_code`、`district_code`；商户入驻时校验区县归属城市，审核建店时写入两个编码。
 - 管理端 SSE 使用已登录管理员申请的 30 秒一次性事件票据连接；事件流不依赖浏览器 `EventSource` 的 Bearer Header，票据消费后仍实时校验管理员账号为启用状态。
 - Knife4j 为 `/doc.html`，OpenAPI 为 `/v3/api-docs`，Swagger UI 禁用；全局声明 400、500，私有接口声明 401，并按行为声明 403、404、409、413、429、503。
 
@@ -140,7 +152,7 @@ deviceAcceptanceStatus: 不适用
 
 ## 阶段 18 服务端冻结设计
 
-- 商户入驻只接受 `OWNER`（店主）角色；`NOT_APPLIED`（未入驻）与 `REJECTED`（审核未通过）可写，`PENDING`（审核中）只读，`ACTIVE`（已激活）不重复创建申请。
+- 商户入驻只接受 `VISITOR`（游客）角色；`NOT_APPLIED`（未入驻）与 `REJECTED`（审核未通过）可写，`PENDING`（审核中）只读，`ACTIVE`（已激活）不重复创建申请。
 - `GET /v1/merchant/application` 在尚无草稿时返回成功且 `data=null`；`PUT /v1/merchant/application` 以 `version` 做乐观锁保存完整草稿快照；`POST /v1/merchant/application/submission` 使用 8 至 128 位 `Idempotency-Key` 提交。
 - 草稿字段固定为门店名称、统一社会信用代码、法定代表人、联系人、联系电话、门店类目、城市、区县、详细地址、经纬度、七日营业时段、营业执照媒体、最多九张经营图片及 Mock 结算户名/银行/账号后四位。草稿允许字段缺省，提交时统一校验完整性。
 - 营业时间使用七个唯一 `dayOfWeek`，取值为 `MONDAY`（星期一）至 `SUNDAY`（星期日）；营业日包含一至三个不重叠的 `HH:mm` 时段，休息日时段必须为空。
@@ -149,6 +161,7 @@ deviceAcceptanceStatus: 不适用
 - `GET /v1/merchant/reference/cities` 与 `GET /v1/merchant/reference/shop-types` 为商户端提供只读字典，商户小程序不得复用消费者 `/v1/cities` 或 `/v1/shop-types`。
 - 上传先写对象存储再建临时记录，建档失败补偿删除对象；草稿保存只引用并续期临时媒体；提交事务按 ID 加锁并原子绑定媒体、迁移申请与商户账号状态。事务失败不得留下已绑定媒体。
 - 存储端口使用 `LOCAL`（本地存储）与 `S3`（S3 兼容对象存储）两种模式；S3 采用冻结的 AWS SDK S3 2.28.22，生产缺少 endpoint、region、bucket 或凭据时启动失败，不回退本地目录。
+- 本地开发统一使用仓库根目录 `uploads/` 并通过 `MEDIA_STORAGE_ROOT` 配置；路径解析兼容从仓库根目录或 `ray-server` 模块目录启动，两种方式均落到同一目录。消费者媒体按 `user/avatar/{userId}`、`user/post/{userId}`、`user/review/{userId}` 分类；商户媒体按 `merchant/avatar/{accountId}`、`merchant/onboarding/license|gallery/{accountId}`、`merchant/voucher/cover|detail/{accountId}` 分类；均继续按年/月分层，`other/` 仅作预留。历史 `/blogs/**` 消费者路径只保留兼容读取，不再写入新文件；历史商户 `merchant/{accountId}` 对象迁入 `merchant/legacy/accounts/{accountId}` 并由本地适配器兼容旧对象键。
 - 阶段 18 新增错误码：`MERCHANT_APPLICATION_NOT_EDITABLE`（申请不可编辑）、`MERCHANT_APPLICATION_INCOMPLETE`（申请资料不完整）、`MERCHANT_APPLICATION_VERSION_CONFLICT`（申请版本冲突）、`MERCHANT_APPLICATION_STATE_CONFLICT`（申请状态冲突）、`MERCHANT_APPLICATION_IDEMPOTENCY_CONFLICT`（提交幂等键冲突）、`BUSINESS_MEDIA_NOT_FOUND`（经营媒体不存在）、`BUSINESS_MEDIA_NOT_OWNED`（经营媒体不属于当前商户）、`BUSINESS_MEDIA_INVALID_TYPE`（经营媒体类型不支持）、`BUSINESS_MEDIA_INVALID_DIMENSIONS`（经营媒体尺寸不合规）、`BUSINESS_MEDIA_EXPIRED`（临时经营媒体已过期）、`BUSINESS_MEDIA_ALREADY_BOUND`（经营媒体已绑定）、`OBJECT_STORAGE_UNAVAILABLE`（对象存储不可用）。
 
 ## 阶段 19 商户审核与门店治理
@@ -156,7 +169,7 @@ deviceAcceptanceStatus: 不适用
 - 阶段 19 的完整接口、字段、事务和测试真源为 [商户审核与门店治理详细设计](./docs/stages/STAGE_19_MERCHANT_REVIEW_AND_SHOP_GOVERNANCE.md)，服务端、数据库、运行时 OpenAPI 与管理 Web 已完成闭环。
 - 新增申请列表、详情、申请私有媒体、通过、驳回、门店列表、详情、停用和恢复共 9 个管理操作；全部使用 `ADMIN`（管理端）Bearer Token，其中审核与治理命令要求 8 至 128 位 `Idempotency-Key`。
 - 申请审核权限为 `admin:merchant-application:review`（商户申请审核），门店治理权限为 `admin:shop:govern`（门店治理）；`PLATFORM_ADMIN`（平台超级管理员）与 `MERCHANT_REVIEWER`（商户审核员）可用，`FINANCE`（财务管理员）拒绝。
-- 审核通过在一个事务中取得申请行锁、创建唯一来源门店、迁移申请、激活 `OWNER`（店主）账号并写审计；驳回在一个事务中迁移申请和账号并保存规范化原因。审核采用版本条件更新、幂等键和 SHA-256 请求指纹，禁止覆盖先完成的决定。
+- 审核通过在一个事务中取得申请和游客账号行锁、创建唯一来源门店、迁移申请、把账号激活为 `TENANT`（租户）并写审计；驳回后账号仍为游客。审核采用版本条件更新、幂等键和 SHA-256 请求指纹，禁止覆盖先完成的决定。
 - 门店停用只把当前 `ACTIVE`（已激活）账号迁移为 `DISABLED`（已停用）并记录 `SHOP_SUSPENSION`（门店停用联动）；恢复只恢复该来源账号，不误激活 `ACCOUNT_GOVERNANCE`（平台账号治理）或 `STAFF_MANAGEMENT`（员工管理）停用的账号。
 - 审核通过、驳回、停用和恢复提交后注销受影响商户会话并失效身份缓存；提交后清理失败只记录告警，后续经营鉴权仍实时拒绝非活动账号或已停用门店。
 - 管理员私有媒体读取只允许申请已绑定的营业执照与经营图片，不暴露对象键或永久公网 URL；申请敏感详情成功读取写入 `MERCHANT_APPLICATION_SENSITIVE_VIEWED`（查看商户申请敏感资料）审计。
@@ -168,18 +181,18 @@ deviceAcceptanceStatus: 不适用
 - 阶段 20 的字段、接口、事务、媒体和测试真源为 [四类券模型与商户建券详细设计](./docs/stages/STAGE_20_VOUCHER_AUTHORING.md)，四类券建模和商户建券闭环已实现。
 - 旧 `NORMAL`（普通团购）/`SECKILL`（秒杀团购）商品直接重构为 `PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券）、`MULTI_USE`（次卡），审核状态与销售状态分离，不保留旧字段兼容层。
 - 券商品结构由 `voucher_product_detail`、`voucher_product_tag` 及三张类型规则表组成；前端只消费数据库返回的详情和 `iconKey`，不拼接固定权益标签。
-- 新增商户券列表、创建、详情、更新、删除、复制与提交共 7 个操作；仅 `OWNER`（店主）和 `MANAGER`（店长）的活动门店可用，`VERIFIER`（核销员）拒绝。
+- 新增商户券列表、创建、详情、更新、删除、复制与提交共 7 个操作；仅 `TENANT`（租户）和 `MANAGER`（店长）的活动门店可用，`VERIFIER`（核销员）拒绝。
 - 草稿保存绑定私有券图片，复制生成独立对象；商品、明细、媒体和事务感知商户审计原子更新，提交使用版本、幂等键和 SHA-256 请求指纹。
-- 阶段 20 已完成 39 张业务表范围内的四类券建券、媒体绑定、复制、提交和商户端体验；阶段 21 增加券审核、上下架和公开销售状态计算，阶段 22 增加服务端确认与幂等下单，阶段 23-29 已完成支付准备、支付、退款、员工、核销、实时事件、账本、结算、导出、商户门店订单及管理端订单/审计查询，当前运行时为 148 个唯一 `operationId`。
+- 阶段 20 已完成四类券建券、媒体绑定、复制、提交和商户端体验；阶段 21-29 完成审核、下单、支付、退款、员工、核销、实时事件、账本、结算、导出和审计查询；阶段 34-35 增加账号资料、今日收银、收入拆解和客服数据模型。
 - 消费者退款 VO 的 `reasonCode` 保留固定枚举，`reason` 返回对应中文文案；退款详情同时携带原支付渠道、退款单号、商家单号和处理时间，客户端不自行推导资金状态。
 - 退款统一由 `/v1/users/me/refunds`、`/v1/merchant/after-sales` 和 `/v1/admin/refunds` 三端入口提交；商户只能发起申请，平台负责审批、驳回和失败重试。退款成功同步用户券、订单、支付状态，并追加 `REFUND_REVERSED` 账本分录，资金摘要按冲回后的账本事实计算。
 
 ## 阶段 23-29 收口补充（v12）
 
-- `GET /v1/merchant/orders` 在查询前强制校验 `merchant:order:read`（商户订单查看）；仅 `OWNER`（店主）和 `MANAGER`（店长）的激活账号拥有该权限，`VERIFIER`（核销员）统一返回 403 `MERCHANT_FORBIDDEN`（商户权限不足），且不触发订单查询。
+- `GET /v1/merchant/orders` 在查询前强制校验 `merchant:order:read`（商户订单查看）；仅 `TENANT`（租户）和 `MANAGER`（店长）的激活账号拥有该权限，`VERIFIER`（核销员）统一返回 403 `MERCHANT_FORBIDDEN`（商户权限不足），且不触发订单查询。
 - 管理导出固定覆盖商户申请、团购券、订单、退款、核销、账本、结算和审计八类资源；每类资源先校验对应 `admin:*`（管理端权限）权限，未知资源返回 400 `EXPORT_RESOURCE_INVALID`（导出资源无效）。
 - 导出使用 10,001 行边界探测，超过 10,000 行返回 400 `EXPORT_TOO_LARGE`（导出数据超限），不截断、不生成部分文件；字符串业务 ID 按文本写入并转义公式前缀。
-- 上述权限和导出校验属于服务端强制规则，客户端菜单隐藏、筛选参数和门店字段都不能替代或绕过；数据库仍保持 39 张业务表，不新增导出任务表。
+- 上述权限和导出校验属于服务端强制规则，客户端菜单隐藏、筛选参数和门店字段都不能替代或绕过；数据库当前为 43 张业务表，不新增导出任务表。
 
 ## 商户售后体验增强（v16）
 
@@ -203,7 +216,21 @@ deviceAcceptanceStatus: 不适用
 - 消费者认证改为显式注册、短信登录和密码登录；验证码按场景隔离，密码使用 BCrypt，手机号或密码修改后注销全部消费者会话。
 - 本人资料与公开主页分离；公开资料不暴露手机号、生日或内部城市偏好，昵称按北京时间自然日限制每天修改一次。
 - 昵称、手机号和密码的新值不得与当前值相同；分别在昵称确认更新、手机号换绑验证码发送和密码确认修改时返回明确业务错误。
-- `user_info` 重构为精简的 `user_profile`，头像复用消费者媒体资产生命周期；数据库仍保持 39 张业务表。
+- `user_info` 重构为精简的 `user_profile`，头像复用消费者媒体资产生命周期。
+
+## 商户账号与个人信息（v19）
+
+- 状态：开发中。完整接口、数据、权限和测试设计见 [阶段 34 商户账号与个人信息](./docs/stages/STAGE_34_MERCHANT_ACCOUNT_AND_PROFILE.md)。
+- 商户认证增加显式注册和密码登录，短信验证码按登录与注册场景隔离；短信登录不再隐式创建账号。
+- 商户本人可修改头像、昵称、手机号和密码，角色、账号状态和所属门店保持只读；手机号或密码修改后注销全部商户会话。
+- 商户头像使用私有经营媒体生命周期。
+
+## 商户租户身份与短时邀请（v20）
+
+- 状态：开发中。完整身份、数据、接口和测试设计见 [阶段 36 商户租户身份与短时邀请](./docs/stages/STAGE_36_MERCHANT_TENANT_AND_SHORT_INVITATION.md)。
+- 注册账号为游客，入驻审核通过后成为租户；租户是唯一具备员工管理权限的公司主账号。
+- 员工邀请改为校验已注册纯游客后签发六位数字凭证，凭证实际有效 60 秒、只可消费一次且数据库不保存明文。
+- `shop_id` 继续作为公司归属和数据隔离边界，不新增租户表或跨公司切换。
 
 ## 后端阶段
 
@@ -224,6 +251,8 @@ deviceAcceptanceStatus: 不适用
 | 30 | 全量运行时与数据验收 | 开发中 |
 | 31 | 核销与线下收款解耦 | 已实现 |
 | 33 | 消费者显式注册、密码认证与个人资料 | 已实现 |
+| 34 | 商户显式注册、密码认证与个人资料 | 开发中 |
+| 36 | 游客/租户身份与 60 秒员工邀请 | 开发中 |
 
 ## 验收
 
@@ -251,10 +280,12 @@ deviceAcceptanceStatus: 不适用
 | 2026-09-05 | 消费者商品发现改版 v14 | 同城商品分页、四种排序、商品/门店关键词、公开券媒体权限、商品结构化权益与套餐明细已实现；后端默认测试 163 项中 141 项通过、22 项按条件跳过，0 失败、0 错误；运行时 OpenAPI 为 141 个唯一操作 |
 | 2026-09-05 | 阶段 31 核销与线下收款解耦 | 核销请求/记录和数据库删除线下金额字段；订单实付金额、佣金及次卡分摊守恒；撤销冲回、T+1 02:00 生成、四端契约、数据库闭环和 OpenAPI 运行时验证通过 |
 | 2026-09-05 | 管理员鉴权与 SSE 重连修复 | 单次 HTTP 请求复用已校验管理员实体；SSE 改用 30 秒一次性票据并实时校验账号状态，`OpenApiAndAuthRuntimeTest`、`MvcConfigTest` 与 `AdminAuthServiceImplTest` 通过 |
-| 2026-09-05 | Demo 数据库脚本重建入口 | `schema-init.sql` 已将 39 张业务表的 `DROP TABLE IF EXISTS` 集中到文件开头并按逆依赖顺序执行，后续仅保留建表语句 |
+| 2026-09-05 | Demo 数据库脚本重建入口 | `schema-init.sql` 已将 43 张业务表的 `DROP TABLE IF EXISTS` 集中到文件开头并按逆依赖顺序执行，后续仅保留建表语句 |
 | 2026-09-06 | 消费者 Mock 支付状态补强 | 新增 Mock 成功、失败和禁用渠道的服务测试；`mvn -q test`、`mvn -q -DskipTests compile` 通过 |
 | 2026-09-06 | 消费者订单列表前后端打通 | 修复 MyBatis-Plus 链式查询分页导致的 500；退款/售后聚合返回 `REFUNDING` 与 `REFUNDED`；后端全量测试 172 项中 150 项通过、22 项按条件跳过 |
 | 2026-09-06 | 全项目基线复核 | 删除无引用的旧 Redis 常量；消费者与商户小程序统一前端工具链版本；四端类型检查、Lint、样式检查、单元测试和构建验证通过 |
+| 2026-09-08 | 阶段 34 商户账号与个人信息 | 商户注册、短信/密码登录、本人资料、私有头像、手机号与密码修改已实现；默认后端测试 201 项中 179 项通过、22 项按环境开关跳过，0 失败；编译通过。运行时 OpenAPI 与数据库闭环因未获 Demo 环境授权未执行，阶段保持开发中 |
+| 2026-09-08 | 阶段 36 商户租户身份与短时邀请 | 后端默认测试共 209 项，187 项通过、22 项按环境开关跳过，0 失败；`MerchantStaffServiceImplTest` 10 项通过；运行时 OpenAPI 契约测试 8 项通过并确认 185 个唯一 `operationId`；商户小程序 `npm run verify`、格式检查及构建通过（15 个 Vitest 文件、73 项）；管理 Web `pnpm verify`、格式检查及生产构建通过（8 个 Vitest 文件、28 项）。商户端 320/375/390/430px 视觉脚本因缺少基准图未执行，Demo 数据库闭环未经授权未执行，因此阶段保持开发中 |
 
 ## 非目标
 

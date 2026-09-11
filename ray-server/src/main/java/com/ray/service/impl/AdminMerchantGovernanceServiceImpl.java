@@ -17,6 +17,7 @@ import com.ray.dto.MerchantApplicationRejectionDTO;
 import com.ray.dto.ShopGovernanceDTO;
 import com.ray.entity.AdminUser;
 import com.ray.entity.City;
+import com.ray.entity.District;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.MerchantApplication;
 import com.ray.entity.Shop;
@@ -32,6 +33,7 @@ import com.ray.enums.ShopStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.AdminUserMapper;
 import com.ray.mapper.CityMapper;
+import com.ray.mapper.DistrictMapper;
 import com.ray.mapper.MerchantAccountMapper;
 import com.ray.mapper.MerchantApplicationMapper;
 import com.ray.mapper.ShopMapper;
@@ -88,6 +90,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     private final ShopMapper shopMapper;
     private final ShopTypeMapper shopTypeMapper;
     private final CityMapper cityMapper;
+    private final DistrictMapper districtMapper;
     private final AdminUserMapper adminUserMapper;
     private final AdminAuthService adminAuthService;
     private final AdminAuditService auditService;
@@ -103,6 +106,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
             ShopMapper shopMapper,
             ShopTypeMapper shopTypeMapper,
             CityMapper cityMapper,
+            DistrictMapper districtMapper,
             AdminUserMapper adminUserMapper,
             AdminAuthService adminAuthService,
             AdminAuditService auditService,
@@ -115,6 +119,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         this.shopMapper = shopMapper;
         this.shopTypeMapper = shopTypeMapper;
         this.cityMapper = cityMapper;
+        this.districtMapper = districtMapper;
         this.adminUserMapper = adminUserMapper;
         this.adminAuthService = adminAuthService;
         this.auditService = auditService;
@@ -191,7 +196,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return new AdminMediaContent(content.content(), content.mimeType(), content.filename());
     }
 
-    /** 审核通过并原子创建唯一来源门店、激活店主和记录审计。 */
+    /** 审核通过并原子创建唯一来源门店、把游客激活为租户并记录审计。 */
     @Override
     @Transactional
     public MerchantApplicationReviewResultVO approve(
@@ -226,8 +231,10 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         requireApplicationUpdated(applicationAffected);
         int accountAffected = accountMapper.update(null, new UpdateWrapper<MerchantAccount>()
                 .eq("id", application.getMerchantAccountId())
+                .eq("role", MerchantRole.VISITOR.name())
                 .eq("status", MerchantAccountStatus.PENDING.name())
-                .set("role", MerchantRole.OWNER.name())
+                .isNull("shop_id")
+                .set("role", MerchantRole.TENANT.name())
                 .set("status", MerchantAccountStatus.ACTIVE.name())
                 .set("shop_id", shop.getId())
                 .set("disabled_source", null)
@@ -257,7 +264,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return toReviewResult(approved);
     }
 
-    /** 审核驳回并原子保存原因、迁移店主状态和记录审计。 */
+    /** 审核驳回并原子保存原因、迁移游客状态和记录审计。 */
     @Override
     @Transactional
     public MerchantApplicationReviewResultVO reject(
@@ -290,7 +297,9 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         requireApplicationUpdated(applicationAffected);
         int accountAffected = accountMapper.update(null, new UpdateWrapper<MerchantAccount>()
                 .eq("id", application.getMerchantAccountId())
+                .eq("role", MerchantRole.VISITOR.name())
                 .eq("status", MerchantAccountStatus.PENDING.name())
+                .isNull("shop_id")
                 .set("status", MerchantAccountStatus.REJECTED.name())
                 .set("shop_id", null)
                 .set("disabled_source", null)
@@ -315,7 +324,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return toReviewResult(rejected);
     }
 
-    /** 分页查询门店，并批量聚合店主和账号状态。 */
+    /** 分页查询门店，并批量聚合租户和账号状态。 */
     @Override
     public PageResult<AdminShopListItemVO> listShops(
             ShopStatus status, String cityCode, Long shopTypeId, String keyword, int page, int size) {
@@ -342,7 +351,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return new PageResult<>(items, page, size, result.getTotal());
     }
 
-    /** 返回来源申请、店主、账号计数和最近治理事实。 */
+    /** 返回来源申请、租户、账号计数和最近治理事实。 */
     @Override
     public AdminShopDetailVO getShop(String shopId) {
         requireGovernPermission();
@@ -553,10 +562,20 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
     }
 
     private Shop createApprovedShop(MerchantApplication application, LocalDateTime now) {
+        District district = districtMapper.selectOne(new QueryWrapper<District>()
+                .eq("city_code", application.getCityCode())
+                .eq("name", application.getDistrict())
+                .eq("status", 1)
+                .last("LIMIT 1"));
+        if (district == null) {
+            throw BusinessException.badRequest(
+                    "MERCHANT_APPLICATION_DISTRICT_INVALID", "申请中的区县不属于当前城市或尚未开放");
+        }
         Shop shop = new Shop()
                 .setName(application.getShopName())
                 .setTypeId(application.getShopTypeId())
                 .setCityCode(application.getCityCode())
+                .setDistrictCode(district.getCode())
                 .setImages("")
                 .setArea(application.getDistrict())
                 .setAddress(application.getAddress())
@@ -689,7 +708,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
 
     private AdminShopListItemVO toShopListItem(Shop shop, ShopViewContext context) {
         List<MerchantAccount> accounts = context.accountsByShop().getOrDefault(shop.getId(), List.of());
-        MerchantAccount owner = owner(accounts);
+        MerchantAccount tenant = tenant(accounts);
         ShopType type = context.shopTypes().get(shop.getTypeId());
         City city = context.cities().get(shop.getCityCode());
         ShopStatus status = ShopStatus.valueOf(shop.getStatus());
@@ -702,8 +721,8 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 type == null ? null : type.getName(),
                 shop.getCityCode(),
                 city == null ? null : city.getName(),
-                owner == null ? null : owner.getNickname(),
-                owner == null ? null : maskPhone(owner.getPhone()),
+                tenant == null ? null : tenant.getNickname(),
+                tenant == null ? null : maskPhone(tenant.getPhone()),
                 accounts.size(),
                 countStatus(accounts, MerchantAccountStatus.ACTIVE),
                 countStatus(accounts, MerchantAccountStatus.DISABLED),
@@ -718,14 +737,15 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         MerchantApplication source = applicationMapper.selectById(shop.getSourceApplicationId());
         List<MerchantAccount> accounts = accountMapper.selectList(
                 new QueryWrapper<MerchantAccount>().eq("shop_id", shop.getId()).orderByAsc("id"));
-        MerchantAccount owner = owner(accounts);
+        MerchantAccount tenant = tenant(accounts);
         ShopType type = shopTypeMapper.selectById(shop.getTypeId());
         City city = cityMapper.selectOne(new QueryWrapper<City>().eq("code", shop.getCityCode()).last("LIMIT 1"));
         AdminUser operator = shop.getStatusChangedByAdminId() == null
                 ? null
                 : adminUserMapper.selectById(shop.getStatusChangedByAdminId());
         ShopStatus status = ShopStatus.valueOf(shop.getStatus());
-        MerchantAccountStatus ownerStatus = owner == null ? null : MerchantAccountStatus.valueOf(owner.getStatus());
+        MerchantAccountStatus tenantStatus =
+                tenant == null ? null : MerchantAccountStatus.valueOf(tenant.getStatus());
         ShopGovernanceCommandType command = StringUtils.hasText(shop.getStatusCommandType())
                 ? ShopGovernanceCommandType.valueOf(shop.getStatusCommandType())
                 : null;
@@ -744,11 +764,11 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 shop.getX(),
                 shop.getY(),
                 businessHours(shop.getBusinessHoursJson()),
-                owner == null ? null : IdUtils.format(owner.getId()),
-                owner == null ? null : owner.getNickname(),
-                owner == null ? null : maskPhone(owner.getPhone()),
-                ownerStatus,
-                ownerStatus == null ? null : ownerStatus.label(),
+                tenant == null ? null : IdUtils.format(tenant.getId()),
+                tenant == null ? null : tenant.getNickname(),
+                tenant == null ? null : maskPhone(tenant.getPhone()),
+                tenantStatus,
+                tenantStatus == null ? null : tenantStatus.label(),
                 accounts.size(),
                 countStatus(accounts, MerchantAccountStatus.ACTIVE),
                 countStatus(accounts, MerchantAccountStatus.DISABLED),
@@ -808,9 +828,9 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return new ReferenceData(shopTypes, cities);
     }
 
-    private MerchantAccount owner(List<MerchantAccount> accounts) {
+    private MerchantAccount tenant(List<MerchantAccount> accounts) {
         return accounts.stream()
-                .filter(account -> MerchantRole.OWNER.name().equals(account.getRole()))
+                .filter(account -> MerchantRole.TENANT.name().equals(account.getRole()))
                 .findFirst()
                 .orElse(null);
     }

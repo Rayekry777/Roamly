@@ -10,6 +10,7 @@ import com.ray.dto.BusinessDayHoursDTO;
 import com.ray.dto.BusinessPeriodDTO;
 import com.ray.dto.MerchantApplicationSaveDTO;
 import com.ray.entity.City;
+import com.ray.entity.District;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.MerchantApplication;
 import com.ray.entity.ShopType;
@@ -20,6 +21,7 @@ import com.ray.enums.MerchantApplicationStatus;
 import com.ray.enums.MerchantRole;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.CityMapper;
+import com.ray.mapper.DistrictMapper;
 import com.ray.mapper.MerchantAccountMapper;
 import com.ray.mapper.MerchantApplicationMapper;
 import com.ray.mapper.ShopTypeMapper;
@@ -56,6 +58,7 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
     private final BusinessMediaService businessMediaService;
     private final MerchantAccountMapper merchantAccountMapper;
     private final CityMapper cityMapper;
+    private final DistrictMapper districtMapper;
     private final ShopTypeMapper shopTypeMapper;
     private final ObjectMapper objectMapper;
 
@@ -64,20 +67,22 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
             BusinessMediaService businessMediaService,
             MerchantAccountMapper merchantAccountMapper,
             CityMapper cityMapper,
+            DistrictMapper districtMapper,
             ShopTypeMapper shopTypeMapper,
             ObjectMapper objectMapper) {
         this.merchantAuthService = merchantAuthService;
         this.businessMediaService = businessMediaService;
         this.merchantAccountMapper = merchantAccountMapper;
         this.cityMapper = cityMapper;
+        this.districtMapper = districtMapper;
         this.shopTypeMapper = shopTypeMapper;
         this.objectMapper = objectMapper;
     }
 
-    /** 查询当前店主的唯一申请并恢复结构化字段与私有媒体摘要。 */
+    /** 查询当前游客的唯一申请并恢复结构化字段与私有媒体摘要。 */
     @Override
     public MerchantApplicationVO current() {
-        MerchantAccount account = requireOwner();
+        MerchantAccount account = requireApplicant();
         MerchantApplication application = findByAccount(account.getId());
         return application == null ? null : toView(application);
     }
@@ -86,7 +91,13 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
     @Override
     @Transactional
     public MerchantApplicationVO saveDraft(MerchantApplicationSaveDTO request) {
-        MerchantAccount account = requireEditableOwner();
+        MerchantAccount current = requireEditableApplicant();
+        MerchantAccount account = merchantAccountMapper.selectByIdForUpdate(current.getId());
+        if (account == null
+                || !MerchantRole.VISITOR.name().equals(account.getRole())
+                || account.getShopId() != null) {
+            throw stateConflict();
+        }
         DraftSnapshot snapshot = snapshot(request);
         validateBusinessReferences(snapshot);
         MerchantApplication existing = findByAccount(account.getId());
@@ -119,7 +130,13 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
     @Override
     @Transactional
     public MerchantApplicationVO submit(String idempotencyKey) {
-        MerchantAccount account = requireOwner();
+        MerchantAccount current = requireApplicant();
+        MerchantAccount account = merchantAccountMapper.selectByIdForUpdate(current.getId());
+        if (account == null
+                || !MerchantRole.VISITOR.name().equals(account.getRole())
+                || account.getShopId() != null) {
+            throw stateConflict();
+        }
         MerchantApplication application = baseMapper.selectByAccountForUpdate(account.getId());
         if (application == null) {
             throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "请先保存入驻草稿");
@@ -355,22 +372,32 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
                     .eq("status", EnableStatus.ENABLED.code()));
             if (city == null) throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "所选城市不可用");
         }
+        if (value.cityCode() != null && value.district() != null) {
+            District district = districtMapper.selectOne(new QueryWrapper<District>()
+                    .eq("city_code", value.cityCode())
+                    .eq("name", value.district())
+                    .eq("status", EnableStatus.ENABLED.code())
+                    .last("LIMIT 1"));
+            if (district == null) {
+                throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "所选区县不属于当前城市或尚未开放");
+            }
+        }
         if (value.shopTypeId() != null) {
             ShopType type = shopTypeMapper.selectById(value.shopTypeId());
             if (type == null) throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "所选门店类目不存在");
         }
     }
 
-    private MerchantAccount requireOwner() {
+    private MerchantAccount requireApplicant() {
         MerchantAccount account = merchantAuthService.requireCurrentAccount();
-        if (!MerchantRole.OWNER.name().equals(account.getRole())) {
-            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "仅店主可访问入驻申请");
+        if (!MerchantRole.VISITOR.name().equals(account.getRole())) {
+            throw BusinessException.forbidden("MERCHANT_FORBIDDEN", "仅游客可访问入驻申请");
         }
         return account;
     }
 
-    private MerchantAccount requireEditableOwner() {
-        MerchantAccount account = requireOwner();
+    private MerchantAccount requireEditableApplicant() {
+        MerchantAccount account = requireApplicant();
         MerchantAccountStatus status = MerchantAccountStatus.valueOf(account.getStatus());
         if (status != MerchantAccountStatus.NOT_APPLIED && status != MerchantAccountStatus.REJECTED) {
             throw BusinessException.conflict("MERCHANT_APPLICATION_NOT_EDITABLE", "当前入驻申请不可编辑");

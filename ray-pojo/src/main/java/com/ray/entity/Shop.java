@@ -39,6 +39,9 @@ public class Shop implements Serializable {
      */
     private String cityCode;
 
+    /** 区县编码，逻辑关联 district.code。 */
+    private String districtCode;
+
     /**
      * 商铺图片，多个图片以','隔开
      */
