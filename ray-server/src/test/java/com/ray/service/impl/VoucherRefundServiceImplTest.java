@@ -1,6 +1,7 @@
 package com.ray.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -9,7 +10,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ray.dto.ConsumerRefundDTO;
 import com.ray.entity.UserVoucher;
 import com.ray.entity.VoucherOrder;
@@ -17,6 +20,7 @@ import com.ray.entity.VoucherProduct;
 import com.ray.entity.VoucherRefund;
 import com.ray.entity.VoucherRefundAttempt;
 import com.ray.entity.VoucherRefundItem;
+import com.ray.exception.BusinessException;
 import com.ray.mapper.PaymentTransactionMapper;
 import com.ray.mapper.UserVoucherMapper;
 import com.ray.mapper.VoucherOrderMapper;
@@ -129,6 +133,24 @@ class VoucherRefundServiceImplTest {
 
         verify(fixture.items, org.mockito.Mockito.times(2)).insert(any(VoucherRefundItem.class));
         verify(fixture.attempts, org.mockito.Mockito.times(2)).insert(any(VoucherRefundAttempt.class));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void adminRefundQueueFiltersExecutionStatusBeforePagination() {
+        Fixture fixture = fixture();
+        Page<VoucherRefund> empty = new Page<>(1, 20);
+        empty.setRecords(List.of());
+        when(fixture.refunds.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(empty);
+        ArgumentCaptor<Wrapper<VoucherRefund>> wrapper = ArgumentCaptor.forClass(Wrapper.class);
+
+        fixture.service.listForAdminQueue("FAILED", 1, 20);
+
+        verify(fixture.refunds).selectPage(any(Page.class), wrapper.capture());
+        assertTrue(wrapper.getValue().getCustomSqlSegment().contains("execution_status"));
+        BusinessException invalid = assertThrows(BusinessException.class,
+                () -> fixture.service.listForAdminQueue("CONNECTED", 1, 20));
+        assertEquals("INVALID_REFUND_QUEUE", invalid.code());
     }
 
     private Fixture fixture() {

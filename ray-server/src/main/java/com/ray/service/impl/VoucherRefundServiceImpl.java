@@ -117,6 +117,28 @@ public class VoucherRefundServiceImpl implements VoucherRefundService {
         Page<VoucherRefund> p = refundMapper.selectPage(new Page<>(page, size), q.orderByDesc("created_time", "id"));
         return new PageResult<>(p.getRecords().stream().map(this::toVO).toList(), page, size, p.getTotal());
     }
+    /** 管理工作台使用审核和执行的独立字段形成准确分页队列。 */
+    @Override
+    public PageResult<VoucherRefundVO> listForAdminQueue(String queue, int page, int size) {
+        adminAuth.requirePermission(AdminPermissions.REFUND_MANAGE);
+        QueryWrapper<VoucherRefund> query = new QueryWrapper<>();
+        String normalized = queue == null ? "" : queue.trim().toUpperCase(Locale.ROOT);
+        switch (normalized) {
+            case "PENDING_REVIEW" -> query.eq("decision_status", "PENDING_REVIEW");
+            case "WAITING_EXECUTION" -> query.eq("execution_status", "WAITING_EXECUTION");
+            case "PROCESSING" -> query.in("execution_status", "PROCESSING", "RETRY_WAITING");
+            case "FAILED" -> query.eq("execution_status", "FAILED");
+            case "MANUAL_REQUIRED" -> query.eq("execution_status", "MANUAL_REQUIRED");
+            case "PARTIAL_SUCCESS" -> query.eq("execution_status", "PARTIAL_SUCCESS");
+            case "SUCCESS" -> query.eq("execution_status", "SUCCESS");
+            case "REJECTED" -> query.eq("decision_status", "REJECTED");
+            default -> throw BusinessException.badRequest("INVALID_REFUND_QUEUE", "退款工作队列无效");
+        }
+        Page<VoucherRefund> result = refundMapper.selectPage(new Page<>(page, size),
+                query.orderByDesc("created_time", "id"));
+        return new PageResult<>(result.getRecords().stream().map(this::toVO).toList(),
+                page, size, result.getTotal());
+    }
     /** 查询当前用户或管理端可见的退款详情。 */
     @Override public VoucherRefundVO get(Long id, boolean admin) {
         if (admin) adminAuth.requirePermission(AdminPermissions.REFUND_MANAGE);

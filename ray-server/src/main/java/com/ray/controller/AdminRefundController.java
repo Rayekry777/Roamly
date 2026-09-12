@@ -23,7 +23,13 @@ public class AdminRefundController {
     private final VoucherRefundService service;
     public AdminRefundController(VoucherRefundService service){this.service=service;}
     @GetMapping @Operation(summary="查询退款列表", operationId="listAdminRefunds")
-    public Result<PageResult<VoucherRefundVO>> list(@RequestParam(required=false) String status,@RequestParam(defaultValue="1") @Min(1) int page,@RequestParam(defaultValue="20") @Min(1) @Max(100) int size){return Result.ok(service.list(status,page,size,true));}
+    public Result<PageResult<VoucherRefundVO>> list(@RequestParam(required=false) String status,
+            @RequestParam(required=false) String queue,
+            @RequestParam(defaultValue="1") @Min(1) int page,
+            @RequestParam(defaultValue="20") @Min(1) @Max(100) int size) {
+        if (queue != null && !queue.isBlank()) return Result.ok(service.listForAdminQueue(queue, page, size));
+        return Result.ok(service.list(status,page,size,true));
+    }
     @GetMapping("/{id}") @Operation(summary="查询退款详情", operationId="getAdminRefund")
     public Result<VoucherRefundVO> get(@PathVariable String id){return Result.ok(service.get(IdUtils.parse(id,"refundId"),true));}
     @GetMapping("/{id}/timeline") @Operation(summary="查询退款时间线", operationId="getAdminRefundTimeline")

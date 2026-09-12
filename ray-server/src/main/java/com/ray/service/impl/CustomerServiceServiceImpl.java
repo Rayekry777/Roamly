@@ -181,6 +181,49 @@ public class CustomerServiceServiceImpl implements CustomerServiceService {
         return messagePage(ticket, Audience.consumer(userId), beforeId, afterId, limit, true);
     }
 
+    /** 消费者只能关闭本人且符合状态白名单的工单。 */
+    @Override
+    @Transactional
+    public CustomerServiceTicketVO closeForConsumer(Long id) {
+        Long userId = userProvider.requireUserId();
+        CustomerServiceTicket ticket = requireApplicantTicketForUpdate(id, "CONSUMER", userId);
+        CustomerServiceTicketStatus from = parseStatus(ticket.getStatus());
+        ensureTransition(from, CustomerServiceTicketStatus.CLOSED);
+        LocalDateTime now = LocalDateTime.now();
+        applyStateFacts(ticket, CustomerServiceTicketStatus.CLOSED, now);
+        ticket.setStatus(CustomerServiceTicketStatus.CLOSED.name()).setUpdateTime(now)
+                .setVersion(ticket.getVersion() + 1);
+        tickets.updateById(ticket);
+        log.info("[平台客服] 消费者关闭工单，ticketId={}，userId={}", id, userId);
+        return view(ticket, Audience.consumer(userId), true);
+    }
+
+    /** 已解决工单可直接重开；已关闭工单只在七天期限内允许重开。 */
+    @Override
+    @Transactional
+    public CustomerServiceTicketVO reopenForConsumer(Long id) {
+        Long userId = userProvider.requireUserId();
+        CustomerServiceTicket ticket = requireApplicantTicketForUpdate(id, "CONSUMER", userId);
+        CustomerServiceTicketStatus from = parseStatus(ticket.getStatus());
+        if (from != CustomerServiceTicketStatus.RESOLVED && from != CustomerServiceTicketStatus.CLOSED) {
+            throw BusinessException.conflict("TICKET_NOT_REOPENABLE", "当前工单状态不能重新打开");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (from == CustomerServiceTicketStatus.CLOSED && (ticket.getReopenDeadline() == null
+                || ticket.getReopenDeadline().isBefore(now))) {
+            throw BusinessException.conflict("TICKET_REOPEN_EXPIRED", "工单重新打开期限已过，请创建新工单");
+        }
+        CustomerServiceTicketStatus target = ticket.getAssigneeAdminId() == null
+                ? CustomerServiceTicketStatus.OPEN : CustomerServiceTicketStatus.CLAIMED;
+        ticket.setStatus(target.name()).setResolvedTime(null).setClosedTime(null).setReopenDeadline(null)
+                .setWaitingCustomerSince(null).setWaitingMerchantSince(null).setSlaDeadline(now.plusHours(4))
+                .setSlaBreached(false).setUpdateTime(now).setVersion(ticket.getVersion() + 1);
+        tickets.updateById(ticket);
+        log.info("[平台客服] 消费者重新打开工单，ticketId={}，from={}，to={}，userId={}",
+                id, from, target, userId);
+        return view(ticket, Audience.consumer(userId), true);
+    }
+
     /** 创建由当前商户账号主动发起的平台工单。 */
     @Override
     @Transactional
@@ -233,10 +276,12 @@ public class CustomerServiceServiceImpl implements CustomerServiceService {
 
     /** 平台队列支持冻结状态、申请人类型和标签筛选，并优先返回超时、高优先级工单。 */
     @Override
-    public PageResult<CustomerServiceTicketVO> listForAdmin(String status, String applicantType, Long tagId, int page, int size) {
+    public PageResult<CustomerServiceTicketVO> listForAdmin(String queue, String status, String applicantType,
+            Long tagId, int page, int size) {
         adminAuth.requirePermission(AdminPermissions.CUSTOMER_SERVICE_READ);
         Long adminId = adminAuth.currentAdminId();
         QueryWrapper<CustomerServiceTicket> query = new QueryWrapper<>();
+        applyAdminQueue(query, queue, adminId);
         if (status != null && !status.isBlank()) query.eq("status", parseStatus(status).name());
         if (applicantType != null && !applicantType.isBlank()) {
             String type = applicantType.trim().toUpperCase(Locale.ROOT);
@@ -256,6 +301,24 @@ public class CustomerServiceServiceImpl implements CustomerServiceService {
                 .orderByAsc("sla_deadline").orderByDesc("last_message_time");
         Page<CustomerServiceTicket> result = tickets.selectPage(new Page<>(page, size), query);
         return page(result, page, size, Audience.admin(adminId));
+    }
+
+    private void applyAdminQueue(QueryWrapper<CustomerServiceTicket> query, String queue, Long adminId) {
+        if (queue == null || queue.isBlank() || "ALL".equalsIgnoreCase(queue)) return;
+        switch (queue.trim().toUpperCase(Locale.ROOT)) {
+            case "UNCLAIMED" -> query.eq("status", CustomerServiceTicketStatus.OPEN.name())
+                    .isNull("assignee_admin_id");
+            case "MINE" -> query.eq("assignee_admin_id", adminId)
+                    .notIn("status", CustomerServiceTicketStatus.CLOSED.name());
+            case "SLA_BREACHED" -> query.eq("sla_breached", true)
+                    .notIn("status", CustomerServiceTicketStatus.RESOLVED.name(),
+                            CustomerServiceTicketStatus.CLOSED.name());
+            case "HIGH_PRIORITY" -> query.in("priority", "URGENT", "HIGH")
+                    .notIn("status", CustomerServiceTicketStatus.RESOLVED.name(),
+                            CustomerServiceTicketStatus.CLOSED.name());
+            case "REFUND" -> query.and(wrapper -> wrapper.eq("type", "REFUND").or().isNotNull("refund_id"));
+            default -> throw BusinessException.badRequest("INVALID_CUSTOMER_SERVICE_QUEUE", "客服队列无效");
+        }
     }
 
     /** 平台详情包含内部备注和当前客服的未读数量。 */

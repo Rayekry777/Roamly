@@ -71,6 +71,18 @@ public class CustomerServiceController {
                 nullableId(after, "after_message_id"), limit));
     }
 
+    @PostMapping("/v1/users/me/customer-service/tickets/{id}/closure")
+    @Operation(summary = "关闭消费者客服工单", operationId = "closeMyCustomerServiceTicket")
+    public Result<CustomerServiceTicketVO> close(@PathVariable String id) {
+        return Result.ok(service.closeForConsumer(IdUtils.parse(id, "id")));
+    }
+
+    @PostMapping("/v1/users/me/customer-service/tickets/{id}/reopening")
+    @Operation(summary = "重新打开消费者客服工单", operationId = "reopenMyCustomerServiceTicket")
+    public Result<CustomerServiceTicketVO> reopen(@PathVariable String id) {
+        return Result.ok(service.reopenForConsumer(IdUtils.parse(id, "id")));
+    }
+
     @PostMapping("/v1/merchant/customer-service/tickets")
     @Operation(summary = "商户创建平台客服工单", operationId = "createMerchantCustomerServiceTicket")
     public Result<CustomerServiceTicketVO> merchantCreate(@Valid @RequestBody CustomerServiceCreateDTO request) {

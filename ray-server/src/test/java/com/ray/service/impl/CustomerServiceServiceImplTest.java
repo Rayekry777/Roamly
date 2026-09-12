@@ -198,6 +198,61 @@ class CustomerServiceServiceImplTest {
                 org.mockito.ArgumentMatchers.eq(14L));
     }
 
+    @Test
+    void consumerCanCloseAndReopenOwnResolvedTicket() {
+        CurrentUserProvider users = mock(CurrentUserProvider.class);
+        when(users.requireUserId()).thenReturn(7L);
+        service = consumerService(users);
+        CustomerServiceTicket resolved = ticket(CustomerServiceTicketStatus.RESOLVED)
+                .setAssigneeAdminId(5L).setResolvedTime(LocalDateTime.now());
+        when(tickets.selectByIdForUpdate(99L)).thenReturn(resolved);
+
+        assertEquals("CLOSED", service.closeForConsumer(99L).status());
+        assertEquals("CLAIMED", service.reopenForConsumer(99L).status());
+
+        verify(tickets, org.mockito.Mockito.times(2)).updateById(resolved);
+    }
+
+    @Test
+    void consumerCannotReopenClosedTicketWithoutValidDeadline() {
+        CurrentUserProvider users = mock(CurrentUserProvider.class);
+        when(users.requireUserId()).thenReturn(7L);
+        service = consumerService(users);
+        CustomerServiceTicket closed = ticket(CustomerServiceTicketStatus.CLOSED)
+                .setAssigneeAdminId(5L).setClosedTime(LocalDateTime.now());
+        when(tickets.selectByIdForUpdate(99L)).thenReturn(closed);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reopenForConsumer(99L));
+
+        assertEquals("TICKET_REOPEN_EXPIRED", exception.code());
+        verify(tickets, org.mockito.Mockito.never()).updateById(closed);
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void adminMineQueueIsFilteredBeforePagination() {
+        Page<CustomerServiceTicket> empty = new Page<>(1, 20);
+        empty.setRecords(List.of());
+        when(tickets.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(empty);
+        ArgumentCaptor<Wrapper<CustomerServiceTicket>> wrapper = ArgumentCaptor.forClass(Wrapper.class);
+
+        service.listForAdmin("MINE", null, null, null, 1, 20);
+        verify(tickets).selectPage(any(Page.class), wrapper.capture());
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                wrapper.getValue().getCustomSqlSegment().contains("assignee_admin_id"));
+    }
+
+    private CustomerServiceServiceImpl consumerService(CurrentUserProvider users) {
+        return new CustomerServiceServiceImpl(tickets, messages, attachments, cursors,
+                mock(CustomerServiceTagMapper.class), ticketTags, mock(CustomerServiceTransferMapper.class),
+                mock(CustomerServiceQuickReplyMapper.class), mock(VoucherOrderMapper.class),
+                mock(UserVoucherMapper.class), mock(VoucherRefundMapper.class), mock(VoucherRedemptionMapper.class),
+                mock(AdminUserMapper.class), users, mock(MerchantAuthService.class), adminAuth,
+                mock(AdminAuditService.class), attachmentService, mock(RedisIdWorker.class));
+    }
+
     private CustomerServiceTicket ticket(CustomerServiceTicketStatus status) {
         return new CustomerServiceTicket().setId(99L).setTicketNo("CS99").setType("GENERAL")
                 .setStatus(status.name()).setPriority("NORMAL").setApplicantType("CONSUMER").setApplicantId(7L)

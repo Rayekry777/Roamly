@@ -17,6 +17,8 @@ public interface VoucherRefundService {
     VoucherRefundVO request(Long voucherId, VoucherRefundDTO request, String idempotencyKey);
     /** 按用户或管理端权限分页查询退款记录。 */
     PageResult<VoucherRefundVO> list(String status, int page, int size, boolean admin);
+    /** 按审核与执行事实查询管理端退款工作队列。 */
+    PageResult<VoucherRefundVO> listForAdminQueue(String queue, int page, int size);
     /** 查询当前用户或管理端可见的退款详情。 */
     VoucherRefundVO get(Long id, boolean admin);
     /** 查询当前用户或管理端可见的退款时间线。 */

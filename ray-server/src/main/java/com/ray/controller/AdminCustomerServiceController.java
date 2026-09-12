@@ -47,12 +47,13 @@ public class AdminCustomerServiceController {
     @GetMapping("/tickets")
     @Operation(summary = "查询客服队列", operationId = "listAdminCustomerServiceTickets")
     public Result<PageResult<CustomerServiceTicketVO>> list(
+            @RequestParam(required = false) String queue,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String applicantType,
             @RequestParam(required = false) String tagId,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return Result.ok(service.listForAdmin(status, applicantType, nullableId(tagId, "tagId"), page, size));
+        return Result.ok(service.listForAdmin(queue, status, applicantType, nullableId(tagId, "tagId"), page, size));
     }
 
     @GetMapping("/tickets/{id}")

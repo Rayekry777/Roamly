@@ -1,11 +1,12 @@
 # Roamly 四端交付路线图
 
 ```yaml
-roadmapVersion: 3
+roadmapVersion: 5
 updatedAt: 2026-09-12
 status: 已冻结
+currentStage: 阶段 42 未实现
 scope: 阶段顺序、依赖与跨端验收
-reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依赖
+reviewNote: 阶段 41 三端退款与客服体验已通过自动化与构建验收，运行时和真机项进入阶段 42
 ```
 
 ## 路线图职责
@@ -47,7 +48,7 @@ reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依�
 | [38](../stages/STAGE_38_FINANCE_CASHIER_SETTLEMENT.md) | 今日收银、核销收入公式和 Mock 结算执行 | 是 | 否 | 是 | 否 | 已实现 |
 | [39](../stages/STAGE_39_REFUND_CORE.md) | 逐券退款、独立审核、可靠执行和售后状态 | 是 | 是 | 是 | 是 | 已实现 |
 | [40](../stages/STAGE_40_CUSTOMER_SERVICE_BACKEND.md) | 平台统一客服后端、权限隔离、消息与 SLA | 是 | 否 | 否 | 否 | 已实现 |
-| 41 | 管理、消费者和商户退款客服体验 | 否 | 是 | 是 | 是 | 未实现 |
+| [41](../stages/STAGE_41_FRONTEND_EXPERIENCE.md) | 管理、消费者和商户退款客服体验 | 是 | 是 | 是 | 是 | 已实现 |
 | 42 | 退款、客服、资金运行时测试、监控和收口 | 是 | 是 | 是 | 是 | 未实现 |
 
 ## 阶段门禁

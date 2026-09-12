@@ -26,6 +26,10 @@ public interface CustomerServiceService {
     CustomerServiceTicketVO replyForConsumer(Long id, CustomerServiceReplyDTO request);
     /** 游标查询当前消费者可见消息并推进独立已读游标。 */
     CustomerServiceMessagePageVO messagesForConsumer(Long id, Long beforeId, Long afterId, int limit);
+    /** 由消费者关闭本人处于可关闭状态的工单。 */
+    CustomerServiceTicketVO closeForConsumer(Long id);
+    /** 由消费者在允许期限内重新打开本人已解决或已关闭工单。 */
+    CustomerServiceTicketVO reopenForConsumer(Long id);
 
     /** 创建当前商户账号作为申请人的平台客服工单。 */
     CustomerServiceTicketVO createForMerchant(CustomerServiceCreateDTO request);
@@ -39,7 +43,8 @@ public interface CustomerServiceService {
     CustomerServiceMessagePageVO messagesForMerchant(Long id, Long beforeId, Long afterId, int limit);
 
     /** 按权限、状态、申请人类型和标签筛选平台工单队列。 */
-    PageResult<CustomerServiceTicketVO> listForAdmin(String status, String applicantType, Long tagId, int page, int size);
+    PageResult<CustomerServiceTicketVO> listForAdmin(String queue, String status, String applicantType,
+            Long tagId, int page, int size);
     /** 查询平台客服可见的工单详情。 */
     CustomerServiceTicketVO getForAdmin(Long id);
     /** 游标查询平台工单全部消息并推进当前客服的已读游标。 */

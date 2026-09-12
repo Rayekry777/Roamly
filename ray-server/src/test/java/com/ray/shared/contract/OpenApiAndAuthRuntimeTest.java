@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(210, operationIds.size());
+        assertEquals(212, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -526,6 +526,8 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/customer-service/tickets/{id}",
                 "GET /v1/users/me/customer-service/tickets/{id}/messages",
                 "POST /v1/users/me/customer-service/tickets/{id}/messages",
+                "POST /v1/users/me/customer-service/tickets/{id}/closure",
+                "POST /v1/users/me/customer-service/tickets/{id}/reopening",
                 "POST /v1/users/me/customer-service/tickets/{ticketId}/attachments",
                 "GET /v1/users/me/customer-service/tickets/{ticketId}/attachments/{attachmentId}/content",
                 "DELETE /v1/users/me/customer-service/tickets/{ticketId}/attachments/{attachmentId}",
