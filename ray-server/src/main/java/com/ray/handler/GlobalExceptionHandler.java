@@ -4,15 +4,16 @@ import cn.dev33.satoken.exception.NotLoginException;
 import com.ray.exception.BusinessException;
 import com.ray.result.ErrorResult;
 import com.ray.result.FieldErrorDetail;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.io.IOException;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -92,6 +93,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResult> resourceNotFound(NoResourceFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResult.of("RESOURCE_NOT_FOUND", "资源不存在"));
+    }
+
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public void asyncRequestTimeout(
+            AsyncRequestTimeoutException exception, HttpServletResponse response) throws IOException {
+        String contentType = response.getContentType();
+        if (response.isCommitted()
+                || (contentType != null && contentType.startsWith("text/event-stream"))) {
+            // SSE 响应可能已经提交，超时后不能再交给消息转换器写入普通 JSON 错误体。
+            log.debug("[实时连接] 异步请求已超时并断开");
+            return;
+        }
+        response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        response.getWriter().write(
+                "{\"code\":\"ASYNC_REQUEST_TIMEOUT\",\"message\":\"请求处理超时，请稍后重试\",\"fieldErrors\":[]}");
     }
 
     @ExceptionHandler(Exception.class)

@@ -17,6 +17,7 @@ import com.ray.enums.AdminRole;
 import com.ray.enums.AdminStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.AdminUserMapper;
+import com.ray.realtime.AdminSseSessionRegistry;
 import com.ray.service.AdminAuditService;
 import com.ray.vo.CurrentAdminVO;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ class AdminAuthServiceImplTest {
     private StringRedisTemplate redis;
     private ValueOperations<String, String> values;
     private StpLogic stpLogic;
+    private AdminSseSessionRegistry adminSessions;
     private AdminAuthServiceImpl service;
 
     @SuppressWarnings("unchecked")
@@ -43,7 +45,13 @@ class AdminAuthServiceImplTest {
         values = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(values);
         stpLogic = mock(StpLogic.class);
-        service = new AdminAuthServiceImpl(mapper, redis, stpLogic, mock(AdminAuditService.class));
+        adminSessions = mock(AdminSseSessionRegistry.class);
+        service = new AdminAuthServiceImpl(
+                mapper,
+                redis,
+                stpLogic,
+                mock(AdminAuditService.class),
+                adminSessions);
     }
 
     @Test
@@ -130,6 +138,25 @@ class AdminAuthServiceImplTest {
 
         assertEquals(429, exception.status());
         assertEquals("ADMIN_ACCOUNT_LOCKED", exception.code());
+    }
+
+    @Test
+    void logoutClosesCurrentAdminEventStreams() {
+        when(stpLogic.isLogin()).thenReturn(true);
+        when(stpLogic.getLoginIdAsLong()).thenReturn(9L);
+
+        service.logout();
+
+        verify(stpLogic).logout();
+        verify(adminSessions).disconnectAdmin(9L);
+    }
+
+    @Test
+    void invalidatingSessionsAlsoClosesAdminEventStreams() {
+        service.invalidateAllSessions(9L);
+
+        verify(stpLogic).logout(9L);
+        verify(adminSessions).disconnectAdmin(9L);
     }
 
     private AdminUser admin(Long id, AdminRole role) {

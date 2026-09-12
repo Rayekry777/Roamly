@@ -12,6 +12,7 @@ import com.ray.enums.AdminRole;
 import com.ray.enums.AdminStatus;
 import com.ray.exception.BusinessException;
 import com.ray.mapper.AdminUserMapper;
+import com.ray.realtime.AdminSseSessionRegistry;
 import com.ray.service.AdminAuditService;
 import com.ray.service.AdminAuthService;
 import com.ray.vo.AdminAuthTokenVO;
@@ -42,16 +43,19 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final StringRedisTemplate redis;
     private final StpLogic adminStpLogic;
     private final AdminAuditService auditService;
+    private final AdminSseSessionRegistry adminSessions;
 
     public AdminAuthServiceImpl(
             AdminUserMapper mapper,
             StringRedisTemplate redis,
             @Qualifier("adminStpLogic") StpLogic adminStpLogic,
-            AdminAuditService auditService) {
+            AdminAuditService auditService,
+            AdminSseSessionRegistry adminSessions) {
         this.mapper = mapper;
         this.redis = redis;
         this.adminStpLogic = adminStpLogic;
         this.auditService = auditService;
+        this.adminSessions = adminSessions;
     }
 
     /** 校验登录并创建只可用于 `/v1/admin/**` 的管理端会话。 */
@@ -140,6 +144,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     public void logout() {
         Long adminId = adminStpLogic.isLogin() ? adminStpLogic.getLoginIdAsLong() : null;
         adminStpLogic.logout();
+        if (adminId != null) adminSessions.disconnectAdmin(adminId);
         auditService.record(adminId, "ADMIN_LOGOUT", "ADMIN_USER", adminId == null ? null : adminId.toString(), "SUCCEEDED", null);
     }
 
@@ -195,6 +200,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Override
     public void invalidateAllSessions(Long adminId) {
         adminStpLogic.logout(adminId);
+        adminSessions.disconnectAdmin(adminId);
     }
 
     static String hashPassword(String password) {

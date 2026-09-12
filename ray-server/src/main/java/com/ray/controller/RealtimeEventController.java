@@ -65,7 +65,7 @@ public class RealtimeEventController {
             throw com.ray.exception.BusinessException.forbidden("EVENT_TICKET_INVALID", "事件票据无效或已过期");
         }
         var current = admin.currentAdminById(adminId);
-        SseEmitter emitter = adminSessions.register(current.permissions());
+        SseEmitter emitter = adminSessions.register(adminId, current.permissions());
         try {
             emitter.send(SseEmitter.event().name("connected").data(Map.of("type", "CONNECTED")));
         } catch (Exception exception) {

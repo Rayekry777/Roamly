@@ -1,7 +1,7 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 26
+version: 27
 updatedAt: 2026-09-12
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
@@ -148,7 +148,7 @@ deviceAcceptanceStatus: 不适用
 - 普通动态保存发布时区县和粗粒度位置标签；不保存用户完整精确坐标。定位失败不再由首页使用旧城市替代。
 - `city` 与 `district` 是独立字典，门店和动态分别保存 `city_code`、`district_code`；商户入驻时校验区县归属城市，审核建店时写入两个编码。
 - 地域隔离、推荐公式、开发种子区县/门店/商品/动态和验收场景详见 [地域推荐与测试数据细节](./docs/project-details/LOCATION_RECOMMENDATION_AND_TEST_DATA.md)。
-- 管理端 SSE 使用已登录管理员申请的 30 秒一次性事件票据连接；事件流不依赖浏览器 `EventSource` 的 Bearer Header，票据消费后仍实时校验管理员账号为启用状态。
+- 管理端 SSE 使用已登录管理员申请的 30 秒一次性事件票据连接；30 秒仅表示票据有效期，事件流本身为长连接并发送 25 秒注释心跳。事件流不依赖浏览器 `EventSource` 的 Bearer Header，管理员退出、停用、改密或角色变化时主动断开其旧连接。
 - Knife4j 为 `/doc.html`，OpenAPI 为 `/v3/api-docs`，Swagger UI 禁用；全局声明 400、500，私有接口声明 401，并按行为声明 403、404、409、413、429、503。
 
 ## 消费者商品发现改版（v14）
@@ -335,6 +335,7 @@ deviceAcceptanceStatus: 不适用
 | 2026-09-05 | 消费者商品发现改版 v14 | 同城商品分页、四种排序、商品/门店关键词、公开券媒体权限、商品结构化权益与套餐明细已实现；后端默认测试 163 项中 141 项通过、22 项按条件跳过，0 失败、0 错误；运行时 OpenAPI 为 141 个唯一操作 |
 | 2026-09-05 | 阶段 31 核销与线下收款解耦 | 核销请求/记录和数据库删除线下金额字段；订单实付金额、佣金及次卡分摊守恒；撤销冲回、T+1 02:00 生成、四端契约、数据库闭环和 OpenAPI 运行时验证通过 |
 | 2026-09-05 | 管理员鉴权与 SSE 重连修复 | 单次 HTTP 请求复用已校验管理员实体；SSE 改用 30 秒一次性票据并实时校验账号状态，`OpenApiAndAuthRuntimeTest`、`MvcConfigTest` 与 `AdminAuthServiceImplTest` 通过 |
+| 2026-09-12 | 管理 SSE 会话超时修复 | 区分 30 秒票据有效期与 SSE 会话寿命，增加 25 秒注释心跳和异步超时专用收口，避免 `text/event-stream` 响应再次序列化 JSON 错误体；退出、停用、改密和角色变化会主动断开旧流；专项测试通过，默认后端测试 254 项中 232 项通过、22 项按既有环境开关跳过，0 失败 |
 | 2026-09-05 | Demo 数据库脚本重建入口 | `schema-init.sql` 已将 43 张业务表的 `DROP TABLE IF EXISTS` 集中到文件开头并按逆依赖顺序执行，后续仅保留建表语句 |
 | 2026-09-06 | 消费者 Mock 支付状态补强 | 新增 Mock 成功、失败和禁用渠道的服务测试；`mvn -q test`、`mvn -q -DskipTests compile` 通过 |
 | 2026-09-06 | 消费者订单列表前后端打通 | 修复 MyBatis-Plus 链式查询分页导致的 500；退款/售后聚合返回 `REFUNDING` 与 `REFUNDED`；后端全量测试 172 项中 150 项通过、22 项按条件跳过 |

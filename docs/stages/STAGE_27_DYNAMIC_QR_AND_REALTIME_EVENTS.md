@@ -16,7 +16,7 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 
 - 商户端使用原生 WebSocket `wss://<host>/v1/merchant/ws`，握手只接受 `Authorization: Bearer <merchant-token>`，服务端从独立 `MERCHANT`（商户端）登录域解析账号和所属门店；非活动账号、无门店账号和跨域 Token 拒绝握手。
 - 连接注册到门店级会话集合，Redis Pub/Sub 频道 `roamly:realtime-events` 负责实例间转发；事件发送失败只影响实时性，不回滚已提交的业务事务。
-- 管理 SSE 票据绑定签发管理员 ID，30 秒有效且连接成功时原子消费；SSE 订阅登记管理员固定权限，事件按 `requiredPermission`（所需权限）过滤，长效 Bearer Token 不出现在 URL。
+- 管理 SSE 票据绑定签发管理员 ID，30 秒有效且连接成功时原子消费；SSE 连接本身不设置固定总寿命，并以 25 秒注释心跳维持空闲连接和发现断线。SSE 订阅登记管理员固定权限，事件按 `requiredPermission`（所需权限）过滤；管理员退出、停用、改密或角色变化时主动关闭旧事件流，长效 Bearer Token 不出现在 URL。
 - WebSocket 与 SSE 事件统一为 `eventId/type/resourceId/shopId/requiredPermission/occurredAt`，客户端只回查资源；连接建立发送 `CONNECTED`，心跳请求返回 `PONG`，断线由客户端回退查询。
 
 ## 进入条件与涉及端
@@ -66,5 +66,6 @@ affectedEnds: 后端、消费者小程序、商户小程序、管理 Web
 
 - 已完成消费者 60 秒动态券令牌、Redis 单次消费和商户二维码预览接口。
 - 已完成管理端 30 秒事件票据与 SSE 连接握手，事件仅用于刷新提示。
+- 2026-09-12 修复事件流误用票据有效期作为会话超时的问题；异步超时按正常断线收口，不再向已提交的 `text/event-stream` 响应写入 JSON 错误体。
 - 商户端继续复用 `wx.scanCode`，断网时保留手输券码回退。
 - 自动化验证：后端编译与全量单元测试通过；真机扫码记录保持未确认。
