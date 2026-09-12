@@ -183,7 +183,8 @@ class DatabaseBusinessClosureIntegrationTest {
                 + "where o.id=6012 and o.status='PAID' and p.status='SUCCEEDED' and v.status='USED' "
                 + "and r.status='SUCCEEDED' and sr.status=0"));
         assertEquals(1, count("select count(*) from voucher_order o join user_voucher v on v.order_id=o.id "
-                + "join voucher_refund r on r.voucher_id=v.id where o.id=6007 and o.status='REFUNDED' "
+                + "join voucher_refund r on r.voucher_id=v.id where o.id=6007 and o.status='PAID' "
+                + "and o.after_sale_status='REFUNDED' "
                 + "and v.status='REFUNDED' and r.status='SUCCEEDED'"));
         assertEquals(2, count("select count(*) from settlement_batch b join settlement_item i on i.batch_id=b.id "
                 + "join fund_ledger_entry l on l.id=i.ledger_entry_id where b.id=120001 "

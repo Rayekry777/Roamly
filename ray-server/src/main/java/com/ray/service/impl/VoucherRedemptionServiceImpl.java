@@ -252,9 +252,9 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
                 .eq("shop_id", account.getShopId())
                 .ge(from != null, "redeemed_time", from)
                 .lt(to != null, "redeemed_time", to);
-        String refundedExists = "EXISTS (SELECT 1 FROM voucher_refund r WHERE "
-                + "(r.voucher_id=voucher_redemption.voucher_id OR FIND_IN_SET(CAST(voucher_redemption.voucher_id AS CHAR),r.voucher_ids)>0) "
-                + "AND (r.execution_status='SUCCEEDED' OR r.status='SUCCEEDED'))";
+        String refundedExists = "EXISTS (SELECT 1 FROM voucher_refund r JOIN voucher_refund_item ri ON ri.refund_id=r.id "
+                + "WHERE ri.voucher_id=voucher_redemption.voucher_id "
+                + "AND (r.execution_status IN ('SUCCESS','SUCCEEDED') OR r.status='SUCCEEDED'))";
         String normalizedStatus = status == null ? "ALL" : status.trim().toUpperCase(Locale.ROOT);
         switch (normalizedStatus) {
             case "", "ALL" -> { }
@@ -384,10 +384,12 @@ public class VoucherRedemptionServiceImpl implements VoucherRedemptionService {
         VoucherOrder order = orderMapper.selectById(redemption.getOrderId() == null && voucher != null
                 ? voucher.getOrderId() : redemption.getOrderId());
         VoucherRefund refund = refundMapper.findLatestByVoucher(redemption.getVoucherId());
-        boolean refunded = refund != null && ("SUCCEEDED".equals(refund.getExecutionStatus())
+        boolean refunded = refund != null && (("SUCCESS".equals(refund.getExecutionStatus())
+                || "SUCCEEDED".equals(refund.getExecutionStatus()))
                 || "SUCCEEDED".equals(refund.getStatus()));
         boolean activeRefund = refund != null && ("REQUESTED".equals(refund.getStatus())
                 || "PROCESSING".equals(refund.getStatus()) || "NOT_STARTED".equals(refund.getExecutionStatus())
+                || "WAITING_EXECUTION".equals(refund.getExecutionStatus())
                 || "PROCESSING".equals(refund.getExecutionStatus()));
         boolean canReverse = "SUCCEEDED".equals(redemption.getStatus()) && !refunded && !activeRefund
                 && !finance.isRedemptionSettled(redemption.getId());

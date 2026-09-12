@@ -7,6 +7,7 @@ import com.ray.result.Result;
 import com.ray.service.VoucherRefundService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.MerchantRefundCandidateVO;
+import com.ray.vo.RefundTimelineEventVO;
 import com.ray.vo.VoucherRefundVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,6 +21,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.validation.annotation.Validated;
+import java.util.List;
 
 /** 商户售后只读与发起申请；资金审批统一由管理端完成。 */
 @RestController
@@ -60,6 +62,12 @@ public class MerchantRefundController {
     @Operation(summary = "查询售后详情", operationId = "getMerchantAfterSale")
     public Result<VoucherRefundVO> get(@PathVariable String id) {
         return Result.ok(service.merchantGet(IdUtils.parse(id, "refundId")));
+    }
+
+    @GetMapping("/{id}/timeline")
+    @Operation(summary = "查询售后时间线", operationId = "getMerchantAfterSaleTimeline")
+    public Result<List<RefundTimelineEventVO>> timeline(@PathVariable String id) {
+        return Result.ok(service.merchantTimeline(IdUtils.parse(id, "refundId")));
     }
 
     @PostMapping

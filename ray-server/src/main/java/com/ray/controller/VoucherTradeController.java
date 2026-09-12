@@ -76,7 +76,7 @@ public class VoucherTradeController {
     @Operation(summary = "查询我的团购订单", operationId = "listMyVoucherOrders")
     @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功", useReturnTypeSchema = true))
     public Result<PageResult<VoucherOrderVO>> listOrders(
-            @Parameter(description = "订单状态；REFUNDING 同时包含 REFUNDING 与 REFUNDED")
+            @Parameter(description = "订单交易状态；REFUNDING 表示退款/售后聚合页签")
             @RequestParam(required = false) String status,
             @Parameter(description = "券型筛选：PACKAGE 套餐券、CASH 代金券、DISCOUNT 折扣券、MULTI_USE 次卡")
             @RequestParam(required = false) String productType,

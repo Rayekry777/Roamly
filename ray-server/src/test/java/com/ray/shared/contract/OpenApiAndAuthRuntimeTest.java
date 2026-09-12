@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(185, operationIds.size());
+        assertEquals(188, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -510,6 +510,7 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/users/me/vouchers/{userVoucherId}",
                 "GET /v1/users/me/refunds",
                 "GET /v1/users/me/refunds/{id}",
+                "GET /v1/users/me/refunds/{id}/timeline",
                 "POST /v1/users/me/vouchers/{voucherId}/refunds",
                 "POST /v1/users/me/refunds",
                 "POST /v1/users/me/orders/{orderId}/payments/prepare",
@@ -535,12 +536,14 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/merchant/after-sales",
                 "GET /v1/merchant/after-sales/candidate",
                 "GET /v1/merchant/after-sales/{id}",
+                "GET /v1/merchant/after-sales/{id}/timeline",
                 "POST /v1/merchant/after-sales",
                 "POST /v1/merchant/customer-service/tickets",
                 "GET /v1/merchant/customer-service/tickets",
                 "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
                 "GET /v1/admin/refunds",
                 "GET /v1/admin/refunds/{id}",
+                "GET /v1/admin/refunds/{id}/timeline",
                 "POST /v1/admin/refunds/{id}/approval",
                 "POST /v1/admin/refunds/{id}/rejection",
                 "POST /v1/admin/refunds/{id}/retry",

@@ -7,15 +7,13 @@ import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-/** 单张用户券退款事实。 */
+/** 一次退款申请的聚合事实；具体券和金额保存在逐券明细中。 */
 @Data
 @Accessors(chain = true)
 @TableName("voucher_refund")
 public class VoucherRefund {
     @TableId(value = "id", type = IdType.INPUT) private Long id;
     private Long voucherId;
-    /** 退款包含的券 ID，逗号分隔；voucherId 保留首券索引。 */
-    private String voucherIds;
     private Long orderId;
     private Long userId;
     private Long shopId;
@@ -39,6 +37,10 @@ public class VoucherRefund {
     private Integer retryCount;
     private Long approvedAmount;
     private String paymentProvider;
+    private Long currentHandlerId;
+    private Long reviewerAdminId;
+    private String reviewNote;
+    private Integer version;
     private LocalDateTime approvedTime;
     private String idempotencyKey;
     private LocalDateTime requestedTime;

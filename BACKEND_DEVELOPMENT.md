@@ -1,7 +1,7 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 22
+version: 24
 updatedAt: 2026-09-12
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
@@ -44,6 +44,16 @@ deviceAcceptanceStatus: 不适用
 - 结算生成与失败重试均新增 `settlement_attempt`，Mock 执行成功后才推进批次为成功；重试不再直接修改成功状态。
 - 2026-09-12 默认后端测试 222 项中 200 项通过、22 项按既有环境开关跳过；商户小程序 73 项通过。
 
+## 阶段 39 退款核心重构
+
+- 状态：已实现。详细实现与验收见 [阶段 39 文档](./docs/stages/STAGE_39_REFUND_CORE.md)。
+- 退款申请使用 `voucher_refund_item` 逐券保存金额和核销快照，源码、查询与账本不再读写 `voucher_ids` CSV。
+- 审核状态统一为 `PENDING_REVIEW/AUTO_APPROVED/MANUAL_APPROVED/REJECTED`；审核只生成决定和执行任务，重复审批由退款主记录行锁串行化。
+- Coordinator 扫描任务，LeaseService 在短事务中原子领取并提交租约，Worker 在事务外调用 `RefundGateway`，ResultService 在新的短事务中校验租约所有者并落地结果。
+- Mock 网关支持 `SUCCESS`、`FAIL_ONCE`、`ALWAYS_FAIL` 和 `DELAYED`；失败进入重试等待，达到次数上限后进入人工处理。
+- 订单交易状态保持 `PAID`，退款进度写入独立 `after_sale_status`；多券部分退款通过用户券实际状态计数判断。
+- 三个登录域分别提供退款逐券明细和时间线；WebSocket/SSE 仍只通知刷新，不参与审核或执行状态转换。
+
 ## 工程基线
 
 - 当前运行基线为 Java 21、Spring Boot 3.5.15、Springdoc 2.8.17、Swagger Core 2.2.47、MyBatis-Plus 3.5.16、Hutool 5.8.43、Redisson 3.52.0、Sa-Token 1.46.0、Knife4j 5.2.1、MySQL 与 Redis。
@@ -66,17 +76,17 @@ deviceAcceptanceStatus: 不适用
 | 券包 Demo | 用户隔离查询、详情、过期刷新、退款、固定二维码与核销关联 | 已实现 |
 | 商户经营基础 | 独立认证、五种账号状态、经营媒体、入驻申请、审核与门店治理 | 已实现 |
 | 商家收银 | 今日团购收银、核销收入拆解、平台补贴、服务费规则、T+1 Mock 结算尝试 | 已实现 |
-| 退款执行 | 审批决定与渠道执行分离、后台异步扫描、失败重试事实 | 开发中 |
+| 退款执行 | 逐券申请、独立审核、租约执行、Mock 重试、账本和时间线 | 已实现 |
 | 客服工单 | 工单/公开消息/内部备注数据模型与客服角色权限 | 开发中 |
 | 管理与治理 | 管理员认证、账号生命周期、事务审计、商户审核和门店停用/恢复 | 已实现 |
 | 旧链路 | Blog、旧上传、旧优惠券、旧秒杀接口与表 | 已废弃 |
 
 ## Demo 数据闭环
 
-- `dev` 完整快照保证 43 张业务表全部具有可查询样例，不再出现支付、退款、员工、核销、账本、结算或审计页面只有空表的情况。
+- `dev` 完整快照保证当前 46 张业务表全部具有可查询样例，不再出现支付、退款、执行尝试、员工、核销、账本、结算或审计页面只有空表的情况。
 - 三个客户端都有稳定测试账号：消费者 `13456789011`、商户租户 `13900000001`、平台管理员 `admin`；开发环境短信验证码为 `123456`，消费者和商户密码以及管理员密码均为 `Roamly123`。
 - 管理端另有审核员、财务管理员和停用账号；商户端另有店长、核销员、停用员工与待接受邀请账号，用于验证服务端权限和状态隔离。
-- 样例链路覆盖社区互动、已核销点评、四类券、五种订单状态、六种支付状态、六种用户券状态、五种退款状态、核销与撤销、佣金分录和三种结算状态。
+- 样例链路覆盖社区互动、已核销点评、四类券、订单交易与独立售后状态、六种支付状态、六种用户券状态、五种退款主状态、核销与撤销、退款/结算执行尝试、佣金分录和三种结算状态。
 - 测试账号、附加角色账号、邀请凭证、数据数量和代表性业务 ID 统一记录在 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)，不在客户端复制第二份凭据真源。
 
 ## 认证与授权
@@ -110,7 +120,7 @@ deviceAcceptanceStatus: 不适用
 - 路径统一位于 `/v1`，私有接口使用 `Authorization: Bearer <token>`，业务 ID 在 HTTP 与 OpenAPI 中均为字符串。
 - 成功使用 `Result`、`PageResult` 或 `CursorPageResult`；失败使用 `ErrorResult`、真实 HTTP 状态和稳定字符串业务码。
 - 高风险命令要求 `Idempotency-Key` 请求头，覆盖审核、下单、支付、退款、核销、撤销和结算重试；幂等窗口不能替代数据库正确性。
-- 当前源码共 185 个唯一 `operationId`：包含同城团购商品发现、受控商品媒体读取、三端客服、商户退款候选查询，以及阶段 23-36 的支付准备、支付、退款、员工短时邀请、核销、实时事件、账本、结算、导出、商户门店订单及管理端订单/审计查询操作；数量由运行时 `/v3/api-docs` 验证。
+- 当前源码预期共 188 个唯一 `operationId`，阶段 39 新增消费者、商户和管理端退款时间线接口；精确集合已同步到 OpenAPI 运行时契约测试，真实 `/v3/api-docs` 复验随阶段 42 的隔离运行环境执行。
 
 ### 位置与同城推荐
 
@@ -141,11 +151,12 @@ deviceAcceptanceStatus: 不适用
 - 券型：`PACKAGE`（套餐券）、`CASH`（代金券）、`DISCOUNT`（折扣券，仅核销）、`MULTI_USE`（次卡）；商品详情统一由商户维护，折扣券说明仅展示不参与计价。
 - 券审核：`DRAFT`（草稿）、`PENDING`（审核中）、`APPROVED`（审核通过）、`REJECTED`（审核未通过）。
 - 券销售：`SCHEDULED`（待开售）、`ON_SALE`（销售中）、`OFF_SALE`（已下架）、`SOLD_OUT`（已售罄）、`ENDED`（已结束）。
-- 订单：`PENDING_PAYMENT`（待支付）、`PAID`（已支付）、`CANCELED`（已取消）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
-- 消费者订单查询的 `status=REFUNDING` 对应“退款/售后”聚合页签，同时返回 `REFUNDING` 与 `REFUNDED`；管理端订单查询仍按单一状态精确筛选。
+- 订单交易：`PENDING_PAYMENT`（待支付）、`PAID`（已支付）、`CANCELED`（已取消）、`COMPLETED`（已完成）；旧 `REFUNDING/REFUNDED` 只为读取历史数据保留，不再由新退款流程写入。
+- 订单售后：`NONE`、`APPLYING`、`UNDER_REVIEW`、`APPROVED`、`REJECTED`、`REFUNDING`、`PARTIALLY_REFUNDED`、`REFUNDED`、`REFUND_FAILED`、`CLOSED`，持久化于 `after_sale_status`。
+- 消费者订单查询的 `status=REFUNDING` 对应“退款/售后”聚合页签，实际按非 `NONE` 售后状态查询并兼容旧订单状态。
 - 支付：`PENDING`（待支付）、`SUCCEEDED`（支付成功）、`FAILED`（支付失败）、`CLOSED`（已关闭）、`PARTIALLY_REFUNDED`（部分退款）、`REFUNDED`（已退款）。
 - 用户券：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
-- 退款：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）。
+- 退款申请：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）；审核和执行另以独立字段表达。
 
 ## 事务与一致性
 
@@ -305,6 +316,7 @@ deviceAcceptanceStatus: 不适用
 | 2026-09-06 | 全项目基线复核 | 删除无引用的旧 Redis 常量；消费者与商户小程序统一前端工具链版本；四端类型检查、Lint、样式检查、单元测试和构建验证通过 |
 | 2026-09-08 | 阶段 34 商户账号与个人信息 | 商户注册、短信/密码登录、本人资料、私有头像、手机号与密码修改已实现；默认后端测试 201 项中 179 项通过、22 项按环境开关跳过，0 失败；编译通过。运行时 OpenAPI 与数据库闭环因未获 Demo 环境授权未执行，阶段保持开发中 |
 | 2026-09-08 | 阶段 36 商户租户身份与短时邀请 | 后端默认测试共 209 项，187 项通过、22 项按环境开关跳过，0 失败；`MerchantStaffServiceImplTest` 10 项通过；运行时 OpenAPI 契约测试 8 项通过并确认 185 个唯一 `operationId`；商户小程序 `npm run verify`、格式检查及构建通过（15 个 Vitest 文件、73 项）；管理 Web `pnpm verify`、格式检查及生产构建通过（8 个 Vitest 文件、28 项）。商户端 320/375/390/430px 视觉脚本因缺少基准图未执行，Demo 数据库闭环未经授权未执行，因此阶段保持开发中 |
+| 2026-09-12 | 阶段 39 退款核心重构 | 默认后端测试 236 项中 214 项通过、22 项按既有环境开关跳过；退款专项 14 项通过。管理 Web 生产构建通过、路由用例隔离复跑 4 项通过；商户小程序 73 项通过。消费者小程序类型检查/Lint/样式检查通过，157 项测试中 156 项通过，唯一失败是用户工作区现有局域网 IP `192.168.2.101` 与旧测试期望 `192.168.2.105` 不一致。未重建未知数据库，运行时 OpenAPI 和数据库恢复性验证留在阶段 42。 |
 
 ## 非目标
 

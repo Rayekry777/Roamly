@@ -225,9 +225,10 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .orderByDesc("id");
         String normalizedStatus = status == null ? null : status.trim();
         if (normalizedStatus != null && !normalizedStatus.isBlank()) {
-            // 消费者订单页的“退款/售后”是聚合页签，需同时包含退款处理中和已完成退款。
+            // 消费者订单页的“退款/售后”使用独立售后状态，兼容旧订单状态只用于过渡数据。
             if (VoucherOrderStatus.REFUNDING.name().equalsIgnoreCase(normalizedStatus)) {
-                wrapper.in("status", VoucherOrderStatus.REFUNDING.name(), VoucherOrderStatus.REFUNDED.name());
+                wrapper.and(q -> q.ne("after_sale_status", com.ray.enums.OrderAfterSaleStatus.NONE.name())
+                        .or().in("status", VoucherOrderStatus.REFUNDING.name(), VoucherOrderStatus.REFUNDED.name()));
             } else {
                 wrapper.eq("status", parseStatus(normalizedStatus).name());
             }

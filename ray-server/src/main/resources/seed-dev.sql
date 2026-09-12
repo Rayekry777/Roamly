@@ -364,22 +364,22 @@ VALUES (3004, 5, '次', '每次核销一份咖啡');
 INSERT INTO `voucher_order`
   (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`,
    `merchant_subsidy_amount`, `platform_discount_amount`, `pay_amount`, `order_source`, `deal_channel`,
-   `pay_type`, `status`, `payment_expire_time`, `idempotency_key`, `request_fingerprint`, `create_time`, `pay_time`, `update_time`)
+   `pay_type`, `status`, `after_sale_status`, `payment_expire_time`, `idempotency_key`, `request_fingerprint`, `create_time`, `pay_time`, `update_time`)
 VALUES
-  (6001, 1, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'PENDING_PAYMENT', '2027-12-31 23:59:59', 'seed-order-6001', REPEAT('0', 64), '2026-09-04 09:00:00', NULL, '2026-09-04 09:00:00'),
-  (6002, 2, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6002', REPEAT('1', 64), '2026-09-03 10:00:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00'),
-  (6003, 3, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'CANCELED', NULL, 'seed-order-6003', REPEAT('2', 64), '2026-09-03 11:00:00', NULL, '2026-09-03 11:05:00'),
-  (6004, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6004', REPEAT('3', 64), '2026-09-03 12:00:00', '2026-09-03 12:01:00', '2026-09-03 12:01:00'),
-  (6005, 3, 3004, 1, '精品咖啡 5 次卡', 12800, 1, 12800, 800, 200, 11800, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6005', REPEAT('4', 64), '2026-09-03 13:00:00', '2026-09-03 13:01:00', '2026-09-04 11:00:00'),
-  (6006, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6006', REPEAT('5', 64), '2026-09-03 14:00:00', '2026-09-03 14:01:00', '2026-09-04 12:00:00'),
-  (6007, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'REFUNDED', NULL, 'seed-order-6007', REPEAT('6', 64), '2026-09-03 15:00:00', '2026-09-03 15:01:00', '2026-09-04 13:00:00'),
-  (6008, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'REFUNDING', NULL, 'seed-order-6008', REPEAT('7', 64), '2026-09-03 16:00:00', '2026-09-03 16:01:00', '2026-09-04 14:00:00'),
-  (6009, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'REFUNDING', NULL, 'seed-order-6009', REPEAT('8', 64), '2026-09-03 17:00:00', '2026-09-03 17:01:00', '2026-09-04 15:00:00'),
-  (6010, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'REFUNDING', NULL, 'seed-order-6010', REPEAT('9', 64), '2026-09-03 18:00:00', '2026-09-03 18:01:00', '2026-09-04 16:00:00'),
-  (6011, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6011', REPEAT('a', 64), '2026-09-03 19:00:00', '2026-09-03 19:01:00', '2026-09-04 17:00:00'),
-  (6012, 2, 3002, 2, '漫游咖啡双人套餐', 6800, 1, 6800, 300, 200, 6300, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6012', REPEAT('b', 64), '2026-09-03 20:00:00', '2026-09-03 20:01:00', '2026-09-04 18:00:00'),
-  (6013, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6013', REPEAT('c', 64), '2026-07-01 09:00:00', '2026-07-01 09:01:00', '2026-08-01 09:01:00'),
-  (6014, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', NULL, 'seed-order-6014', REPEAT('d', 64), '2026-09-04 09:00:00', '2026-09-04 09:01:00', '2026-09-04 19:00:00');
+  (6001, 1, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'PENDING_PAYMENT', 'NONE', '2027-12-31 23:59:59', 'seed-order-6001', REPEAT('0', 64), '2026-09-04 09:00:00', NULL, '2026-09-04 09:00:00'),
+  (6002, 2, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6002', REPEAT('1', 64), '2026-09-03 10:00:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00'),
+  (6003, 3, 3001, 1, '103 茶餐厅 100 元代金券', 8000, 1, 8000, 500, 300, 7200, 'ROAMLY', 'DIRECT', 3, 'CANCELED', 'NONE', NULL, 'seed-order-6003', REPEAT('2', 64), '2026-09-03 11:00:00', NULL, '2026-09-03 11:05:00'),
+  (6004, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6004', REPEAT('3', 64), '2026-09-03 12:00:00', '2026-09-03 12:01:00', '2026-09-03 12:01:00'),
+  (6005, 3, 3004, 1, '精品咖啡 5 次卡', 12800, 1, 12800, 800, 200, 11800, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6005', REPEAT('4', 64), '2026-09-03 13:00:00', '2026-09-03 13:01:00', '2026-09-04 11:00:00'),
+  (6006, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6006', REPEAT('5', 64), '2026-09-03 14:00:00', '2026-09-03 14:01:00', '2026-09-04 12:00:00'),
+  (6007, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'REFUNDED', NULL, 'seed-order-6007', REPEAT('6', 64), '2026-09-03 15:00:00', '2026-09-03 15:01:00', '2026-09-04 13:00:00'),
+  (6008, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'UNDER_REVIEW', NULL, 'seed-order-6008', REPEAT('7', 64), '2026-09-03 16:00:00', '2026-09-03 16:01:00', '2026-09-04 14:00:00'),
+  (6009, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'REFUNDING', NULL, 'seed-order-6009', REPEAT('8', 64), '2026-09-03 17:00:00', '2026-09-03 17:01:00', '2026-09-04 15:00:00'),
+  (6010, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'REFUND_FAILED', NULL, 'seed-order-6010', REPEAT('9', 64), '2026-09-03 18:00:00', '2026-09-03 18:01:00', '2026-09-04 16:00:00'),
+  (6011, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'REJECTED', NULL, 'seed-order-6011', REPEAT('a', 64), '2026-09-03 19:00:00', '2026-09-03 19:01:00', '2026-09-04 17:00:00'),
+  (6012, 2, 3002, 2, '漫游咖啡双人套餐', 6800, 1, 6800, 300, 200, 6300, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6012', REPEAT('b', 64), '2026-09-03 20:00:00', '2026-09-03 20:01:00', '2026-09-04 18:00:00'),
+  (6013, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6013', REPEAT('c', 64), '2026-07-01 09:00:00', '2026-07-01 09:01:00', '2026-08-01 09:01:00'),
+  (6014, 3, 3003, 1, '全场 85 折体验券', 1000, 1, 1000, 50, 50, 900, 'ROAMLY', 'DIRECT', 3, 'PAID', 'NONE', NULL, 'seed-order-6014', REPEAT('d', 64), '2026-09-04 09:00:00', '2026-09-04 09:01:00', '2026-09-04 19:00:00');
 
 UPDATE `voucher_order` SET `use_time` = '2026-09-04 12:00:00' WHERE `id` = 6006;
 UPDATE `voucher_order` SET `use_time` = '2026-09-04 18:00:00' WHERE `id` = 6012;
@@ -432,14 +432,26 @@ VALUES
   (7001, 2, '0123456789abcdef0123456789abcdef', 1, '2026-10-03 10:02:00', '2026-09-03 10:02:00', '2026-09-03 10:02:00');
 
 INSERT INTO `voucher_refund`
-  (`id`, `voucher_id`, `order_id`, `user_id`, `amount`, `status`, `reason`, `idempotency_key`,
-   `requested_time`, `processed_time`, `created_time`, `updated_time`)
+  (`id`, `voucher_id`, `order_id`, `user_id`, `shop_id`, `source`, `applicant_id`, `amount`, `status`,
+   `reason`, `description`, `reject_reason`, `failure_code`, `failure_message`, `provider_refund_no`,
+   `decision_status`, `execution_status`, `retry_count`, `approved_amount`, `payment_provider`,
+   `idempotency_key`, `requested_time`, `approved_time`, `processed_time`, `created_time`, `updated_time`)
 VALUES
-  (9101, 7005, 6007, 3, 900, 'SUCCEEDED', '消费者主动退款', 'seed-refund-9101', '2026-09-04 12:55:00', '2026-09-04 13:00:00', '2026-09-04 12:55:00', '2026-09-04 13:00:00'),
-  (9102, 7006, 6008, 3, 900, 'REQUESTED', '等待财务审核', 'seed-refund-9102', '2026-09-04 14:00:00', NULL, '2026-09-04 14:00:00', '2026-09-04 14:00:00'),
-  (9103, 7007, 6009, 3, 900, 'PROCESSING', '支付渠道处理中', 'seed-refund-9103', '2026-09-04 15:00:00', NULL, '2026-09-04 15:00:00', '2026-09-04 15:05:00'),
-  (9104, 7008, 6010, 3, 900, 'FAILED', '模拟渠道暂时不可用', 'seed-refund-9104', '2026-09-04 16:00:00', '2026-09-04 16:05:00', '2026-09-04 16:00:00', '2026-09-04 16:05:00'),
-  (9105, 7009, 6011, 3, 900, 'REJECTED', '该券不符合异常退款条件', 'seed-refund-9105', '2026-09-04 17:00:00', '2026-09-04 17:05:00', '2026-09-04 17:00:00', '2026-09-04 17:05:00');
+  (9101, 7005, 6007, 3, 1, 'CONSUMER', 3, 900, 'SUCCEEDED', 'PLAN_CHANGED', '消费者主动退款', NULL, NULL, NULL,
+   'MOCK-REFUND-9181', 'AUTO_APPROVED', 'SUCCESS', 1, 900, 'MOCK', 'seed-refund-9101',
+   '2026-09-04 12:55:00', '2026-09-04 12:55:00', '2026-09-04 13:00:00', '2026-09-04 12:55:00', '2026-09-04 13:00:00'),
+  (9102, 7006, 6008, 3, 1, 'MERCHANT', 1, 900, 'REQUESTED', 'SHOP_EXCEPTION', '等待平台审核', NULL, NULL, NULL,
+   NULL, 'PENDING_REVIEW', 'WAITING_EXECUTION', 0, NULL, 'MOCK', 'seed-refund-9102',
+   '2026-09-04 14:00:00', NULL, NULL, '2026-09-04 14:00:00', '2026-09-04 14:00:00'),
+  (9103, 7007, 6009, 3, 1, 'CONSUMER', 3, 900, 'PROCESSING', 'PLAN_CHANGED', '支付渠道处理中', NULL, NULL, NULL,
+   NULL, 'AUTO_APPROVED', 'PROCESSING', 1, 900, 'MOCK', 'seed-refund-9103',
+   '2026-09-04 15:00:00', '2026-09-04 15:00:00', NULL, '2026-09-04 15:00:00', '2026-09-04 15:05:00'),
+  (9104, 7008, 6010, 3, 1, 'MERCHANT', 1, 900, 'FAILED', 'SHOP_EXCEPTION', '模拟渠道持续失败', NULL,
+   'MOCK_UNAVAILABLE', '模拟渠道暂时不可用', NULL, 'MANUAL_APPROVED', 'MANUAL_REQUIRED', 3, 900, 'MOCK', 'seed-refund-9104',
+   '2026-09-04 16:00:00', '2026-09-04 16:01:00', '2026-09-04 16:05:00', '2026-09-04 16:00:00', '2026-09-04 16:05:00'),
+  (9105, 7009, 6011, 3, 1, 'MERCHANT', 1, 900, 'REJECTED', 'SHOP_EXCEPTION', '核销异常退款申请',
+   '该券不符合异常退款条件', NULL, NULL, NULL, 'REJECTED', 'NOT_STARTED', 0, NULL, 'MOCK', 'seed-refund-9105',
+   '2026-09-04 17:00:00', NULL, '2026-09-04 17:05:00', '2026-09-04 17:00:00', '2026-09-04 17:05:00');
 
 INSERT INTO `voucher_refund_item`
   (`id`, `refund_id`, `voucher_id`, `redeemed`, `sale_amount`, `customer_paid_amount`,
@@ -454,11 +466,15 @@ VALUES
 
 INSERT INTO `voucher_refund_attempt`
   (`id`, `refund_id`, `refund_item_id`, `idempotency_key`, `status`, `mock_scenario`, `request_amount`,
-   `provider_refund_no`, `failure_code`, `failure_message`, `retry_count`, `started_time`, `finished_time`)
+   `provider_refund_no`, `failure_code`, `failure_message`, `retry_count`, `lease_owner`, `lease_until`,
+   `next_retry_at`, `started_time`, `finished_time`)
 VALUES
-  (9181, 9101, 9151, 'REFUND-9101-1', 'SUCCESS', 'SUCCESS', 900, 'MOCK-REFUND-9181', NULL, NULL, 0, '2026-09-04 12:59:00', '2026-09-04 13:00:00'),
-  (9182, 9103, 9153, 'REFUND-9103-1', 'PROCESSING', 'DELAYED', 900, NULL, NULL, NULL, 0, '2026-09-04 15:05:00', NULL),
-  (9183, 9104, 9154, 'REFUND-9104-1', 'FAILED', 'ALWAYS_FAIL', 900, NULL, 'MOCK_UNAVAILABLE', '模拟渠道暂时不可用', 1, '2026-09-04 16:04:00', '2026-09-04 16:05:00');
+  (9181, 9101, 9151, 'REFUND-9101-1', 'SUCCESS', 'SUCCESS', 900, 'MOCK-REFUND-9181', NULL, NULL, 1,
+   NULL, NULL, NULL, '2026-09-04 12:59:00', '2026-09-04 13:00:00'),
+  (9182, 9103, 9153, 'REFUND-9103-1', 'PROCESSING', 'DELAYED', 900, NULL, NULL, NULL, 1,
+   'seed-worker-expired', '2026-09-04 15:06:00', NULL, '2026-09-04 15:05:00', NULL),
+  (9183, 9104, 9154, 'REFUND-9104-1', 'MANUAL_REQUIRED', 'ALWAYS_FAIL', 900, NULL,
+   'MOCK_UNAVAILABLE', '模拟渠道暂时不可用', 3, NULL, NULL, NULL, '2026-09-04 16:04:00', '2026-09-04 16:05:00');
 
 INSERT INTO `voucher_redemption`
   (`id`, `voucher_id`, `order_id`, `product_id`, `shop_id`, `merchant_account_id`,

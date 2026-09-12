@@ -9,7 +9,7 @@ runtimeVerification: 静态 DDL 已验证（46 张业务表）；真实数据库
 targetBusinessTableCount: 46
 targetDesignVersion: 10
 targetDesignStatus: 已冻结
-targetImplementationStatus: 阶段 37 已实现
+targetImplementationStatus: 阶段 39 已实现
 demoDataClosureStatus: 已实现
 ```
 
@@ -53,7 +53,7 @@ demoDataClosureStatus: 已实现
 | `user` | 用户账号 | 平台级 | 手机号唯一 |
 | `user_profile` | 消费者私有资料与城市偏好 | 用户级 | `user_id` 主键；性别 CHECK；内部城市编码 |
 | `voucher_product` | 团购商品 | 商户级 | 商户状态与销售期索引 |
-| `voucher_order` | 团购订单 | 用户级 | 用户状态时间、商品用户索引 |
+| `voucher_order` | 团购订单与独立售后聚合状态 | 用户级 | 交易状态与 `after_sale_status` 分离索引、商品用户索引 |
 | `user_voucher` | 用户券实例 | 用户级 | 券码唯一、订单唯一 |
 | `user_voucher_qr_code` | 用户券固定二维码凭证 | 用户级 | `voucher_id` 与 `token_key` 唯一；不保存明文二维码 token |
 | `voucher_package_item` | 套餐券与次卡兼容明细 | 商品级 | `product_id,sort_order` 唯一 |
@@ -63,7 +63,7 @@ demoDataClosureStatus: 已实现
 | `voucher_product_discount_rule` | 折扣券说明规则（仅展示） | 商品级 | `product_id` 主键 |
 | `voucher_product_multi_use_rule` | 次卡权益规则 | 商品级 | `product_id` 主键 |
 | `payment_transaction` | 支付尝试与支付结果 | 用户/订单级 | `order_id,idempotency_key` 唯一 |
-| `voucher_refund` | 统一消费者/商户/管理员退款申请与处理结果 | 用户/订单/门店级 | `voucher_id,idempotency_key` 唯一；保存来源、渠道失败和退款冲回关联 |
+| `voucher_refund` | 统一消费者/商户/管理员退款申请与处理结果 | 用户/订单/门店级 | 幂等键唯一；保存审核人、当前处理人、版本、渠道失败和退款冲回关联 |
 | `voucher_refund_item` | 退款申请逐券明细与财务快照 | 用户/订单/门店级 | `refund_id,voucher_id` 唯一；保存可退金额、核销快照和冲回金额 |
 | `voucher_refund_attempt` | 每次 Mock 渠道退款执行尝试 | 订单/退款级 | 幂等键唯一；租约和下次重试时间索引 |
 | `merchant_staff_invitation` | 租户员工短时邀请 | 商户/门店级 | 六位凭证 HMAC 摘要；签发幂等键唯一；手机号、状态和过期时间索引 |
@@ -77,7 +77,32 @@ demoDataClosureStatus: 已实现
 | `settlement_item` | 结算批次账本明细 | 商户/门店级 | `batch_id,ledger_entry_id` 唯一 |
 | `settlement_attempt` | 结算批次 Mock 执行尝试 | 商户/门店级 | 幂等键唯一；租约、重试和失败原因索引 |
 
-退款闭环补充：`voucher_refund` 通过 `source` 区分消费者、商户和管理员发起，申请涉及的券集合由 `voucher_refund_item` 逐券保存；`approved_amount`、渠道退款号和失败字段记录处理事实，执行尝试由 `voucher_refund_attempt` 记录。退款成功必须在 `fund_ledger_entry` 追加 `REFUND_REVERSED`，并以 `REFUND-{refundId}` 作为业务事件键。商户售后权限为 `merchant:after-sales:read/create`，平台审批仍使用 `admin:refund:manage`。
+退款闭环补充：`voucher_refund` 通过 `source` 区分消费者、商户和管理员发起，申请涉及的券集合只由 `voucher_refund_item` 逐券保存；`voucher_ids` 已从 DDL 和实体删除，`voucher_id` 只保留第一张券兼容投影。审核状态为 `PENDING_REVIEW/AUTO_APPROVED/MANUAL_APPROVED/REJECTED`，执行状态为 `WAITING_EXECUTION/PROCESSING/SUCCESS/PARTIAL_SUCCESS/FAILED/RETRY_WAITING/MANUAL_REQUIRED`。执行尝试由 `voucher_refund_attempt` 记录，以条件更新竞争租约；领取事务先提交，Mock 调用不占用数据库事务，结果事务再锁定尝试并校验租约所有者。退款成功必须在 `fund_ledger_entry` 追加幂等冲回分录。商户售后权限为 `merchant:after-sales:read/create`，平台审批仍使用 `admin:refund:manage`。
+
+## 阶段 39 已有开发数据库 SQL 顺序
+
+以下只适用于已经完成阶段 38 且确认可修改的开发数据库；执行前必须备份并核对现有索引。应用启动不会自动执行这些语句。
+
+```sql
+ALTER TABLE voucher_order
+  ADD COLUMN after_sale_status varchar(24) NOT NULL DEFAULT 'NONE' AFTER status,
+  ADD INDEX idx_order_user_after_sale (user_id, after_sale_status, update_time, id);
+
+ALTER TABLE voucher_refund
+  DROP INDEX uk_voucher_refund_voucher_key,
+  DROP COLUMN voucher_ids,
+  MODIFY decision_status varchar(24) NOT NULL DEFAULT 'PENDING_REVIEW',
+  MODIFY execution_status varchar(24) NOT NULL DEFAULT 'WAITING_EXECUTION',
+  ADD COLUMN current_handler_id bigint UNSIGNED NULL AFTER payment_provider,
+  ADD COLUMN reviewer_admin_id bigint UNSIGNED NULL AFTER current_handler_id,
+  ADD COLUMN review_note varchar(500) NULL AFTER reviewer_admin_id,
+  ADD COLUMN version int UNSIGNED NOT NULL DEFAULT 0 AFTER review_note,
+  ADD UNIQUE INDEX uk_voucher_refund_idempotency (idempotency_key),
+  ADD INDEX idx_voucher_refund_workbench (decision_status, execution_status, requested_time, id),
+  ADD INDEX idx_voucher_refund_handler (current_handler_id, execution_status, id);
+```
+
+执行列删除和唯一索引前，必须先把旧 `voucher_ids` 拆分写入 `voucher_refund_item`，并排查重复 `idempotency_key`；本仓库 Demo 快照已直接完成数据切换，不为未知现有库自动生成或执行数据修复。
 
 ## 业务约束
 
@@ -87,7 +112,7 @@ demoDataClosureStatus: 已实现
 - 评论删除清空正文；有有效回复的根评论保留删除占位。
 - 用户对同一商户最多一条点评；`shop.comments` 和 `shop.score` 由正常点评重算。
 - 商品库存满足总库存、有效占用与可售库存之间的一致性；用户限购按未取消订单的 `quantity` 汇总，并由应用层用户加商品锁串行校验；`sold_count` 只在支付确认成功后累计。
-- 订单状态码映射为 1 待支付、2 已支付、4 已取消、5 退款中、6 已退款；对外名称使用 `CANCELED`（已取消）。
+- 订单交易状态为 `PENDING_PAYMENT/PAID/CANCELED/COMPLETED`；售后聚合状态独立保存于 `after_sale_status`。旧交易状态 `REFUNDING/REFUNDED` 仅为历史读取兼容，不再由新退款写入。
 - 核销收入满足 `商家毛应收 = customer_paid_amount + platform_discount_amount`、`estimated_income_amount = 商家毛应收 - service_fee_amount`；历史商品和服务费规则变化不得改写核销快照。
 - `user_voucher.order_id` 唯一保证支付确认幂等；状态为 `UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - `user_voucher_qr_code` 每张用户券仅一条，`token_key` 是不可猜测的随机定位值；服务端以 HMAC 校验 `rq1.{tokenKey}.{signature}`，二维码不写入 Redis、不因扫码删除。
@@ -119,7 +144,7 @@ demoDataClosureStatus: 已实现
 
 ## 开发种子闭环
 
-当前种子保证 43 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
+当前种子保证 46 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
 
 | 领域 | 数量与状态覆盖 |
 |---|---|
@@ -128,7 +153,7 @@ demoDataClosureStatus: 已实现
 | 商户员工 | 4 条邀请，完整覆盖 `PENDING/ACCEPTED/REVOKED/EXPIRED`；租户、店长、核销员和员工停用样例 |
 | 社区与点评 | 12 条动态、26 个动态点赞、3 条评论/回复、5 个评论点赞、3 个关注、3 个分区关注、4 条点评和已核销消费点评 |
 | 券商品 | 20 个商品，覆盖四种券型、`DRAFT/PENDING/APPROVED/REJECTED` 审核状态及全部五种销售状态；8 条套餐/次卡明细 |
-| 订单与支付 | 14 笔订单，覆盖 `PENDING_PAYMENT/PAID/CANCELED/REFUNDING/REFUNDED`；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
+| 订单与支付 | 14 笔订单，交易状态覆盖 `PENDING_PAYMENT/PAID/CANCELED`，售后状态独立覆盖审核、执行、失败、拒绝和完成；15 条支付尝试覆盖 `PENDING/SUCCEEDED/FAILED/CLOSED/PARTIALLY_REFUNDED/REFUNDED` |
 | 券包与退款 | 12 张用户券，覆盖 `UNUSED/PARTIALLY_USED/USED/EXPIRED/REFUNDING/REFUNDED`；5 条退款覆盖全部退款状态 |
 | 核销与资金 | 5 条核销/撤销、2 条佣金规则、14 条八类账本分录、4 个结算批次覆盖 `PROCESSING/SUCCEEDED/FAILED`、10 条结算明细、9 条审计记录 |
 
@@ -263,7 +288,7 @@ demoDataClosureStatus: 已实现
 - 用户券状态：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - 退款状态：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）。
 - 结算金额状态：`FROZEN`（冻结中）、`SETTLEABLE`（待结算）、`SETTLED`（已结算）、`ADJUSTMENT`（调整项）。
-- 退款决定状态：`AUTO_APPROVED/PENDING_TICKET/APPROVED/REJECTED`；渠道执行状态：`NOT_STARTED/PROCESSING/SUCCEEDED/FAILED`。
+- 退款审核状态：`PENDING_REVIEW/AUTO_APPROVED/MANUAL_APPROVED/REJECTED`；渠道执行状态：`WAITING_EXECUTION/PROCESSING/SUCCESS/PARTIAL_SUCCESS/FAILED/RETRY_WAITING/MANUAL_REQUIRED`。被拒绝申请兼容使用 `NOT_STARTED` 表示未进入渠道。
 - 账本事件：`PAYMENT_FROZEN`、`REDEMPTION_RECOGNIZED`、`SERVICE_FEE_RECOGNIZED`、`REFUND_REVERSED`、`REFUND_REVENUE_REVERSED`、`SERVICE_FEE_REVERSED`、`SERVICE_FEE_REFUNDED`、`REDEMPTION_REVERSED`、`SETTLEMENT_POSTED`、`SETTLEMENT_ADJUSTMENT`。
 
 ### 目标一致性

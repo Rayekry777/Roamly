@@ -17,6 +17,7 @@ import com.ray.mapper.SettlementItemMapper;
 import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.VoucherRedemptionMapper;
 import com.ray.mapper.VoucherRefundMapper;
+import com.ray.mapper.VoucherRefundItemMapper;
 import com.ray.result.PageResult;
 import com.ray.service.AdminAuthService;
 import com.ray.service.FinanceService;
@@ -52,6 +53,7 @@ public class FinanceServiceImpl implements FinanceService {
     private final VoucherOrderMapper orderMapper;
     private final VoucherRedemptionMapper redemptionMapper;
     private final VoucherRefundMapper refundMapper;
+    private final VoucherRefundItemMapper refundItemMapper;
     private final SettlementItemMapper settlementItemMapper;
     private final AdminAuthService admin;
     private final MerchantAuthService merchant;
@@ -63,6 +65,7 @@ public class FinanceServiceImpl implements FinanceService {
             VoucherOrderMapper orderMapper,
             VoucherRedemptionMapper redemptionMapper,
             VoucherRefundMapper refundMapper,
+            VoucherRefundItemMapper refundItemMapper,
             SettlementItemMapper settlementItemMapper,
             AdminAuthService admin,
             MerchantAuthService merchant,
@@ -72,6 +75,7 @@ public class FinanceServiceImpl implements FinanceService {
         this.orderMapper = orderMapper;
         this.redemptionMapper = redemptionMapper;
         this.refundMapper = refundMapper;
+        this.refundItemMapper = refundItemMapper;
         this.settlementItemMapper = settlementItemMapper;
         this.admin = admin;
         this.merchant = merchant;
@@ -174,7 +178,7 @@ public class FinanceServiceImpl implements FinanceService {
 
         List<VoucherRefund> refunds = refundMapper.selectList(new QueryWrapper<VoucherRefund>()
                 .eq("shop_id", account.getShopId())
-                .and(query -> query.eq("execution_status", "SUCCEEDED").or().eq("status", "SUCCEEDED"))
+                .and(query -> query.in("execution_status", "SUCCESS", "SUCCEEDED").or().eq("status", "SUCCEEDED"))
                 .ge("processed_time", from)
                 .lt("processed_time", to));
         long refundAmount = refunds.stream().mapToLong(item -> zero(item.getApprovedAmount() == null
@@ -375,9 +379,11 @@ public class FinanceServiceImpl implements FinanceService {
     }
 
     private List<Long> refundVoucherIds(VoucherRefund refund) {
-        if (refund.getVoucherIds() == null || refund.getVoucherIds().isBlank()) return List.of(refund.getVoucherId());
-        return java.util.Arrays.stream(refund.getVoucherIds().split(","))
-                .map(String::trim).filter(value -> !value.isEmpty()).map(Long::valueOf).toList();
+        List<com.ray.entity.VoucherRefundItem> items = refundItemMapper.findByRefundId(refund.getId());
+        if (items != null && !items.isEmpty()) {
+            return items.stream().map(com.ray.entity.VoucherRefundItem::getVoucherId).toList();
+        }
+        return refund.getVoucherId() == null ? List.of() : List.of(refund.getVoucherId());
     }
 
     private int positive(Integer value) {

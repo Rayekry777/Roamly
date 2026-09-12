@@ -5,7 +5,10 @@ public enum VoucherOrderStatus {
     PENDING_PAYMENT("待支付"),
     PAID("已支付"),
     CANCELED("已取消"),
+    COMPLETED("已完成"),
+    /** 旧数据兼容值；新流程使用订单 afterSaleStatus。 */
     REFUNDING("退款中"),
+    /** 旧数据兼容值；新流程使用订单 afterSaleStatus。 */
     REFUNDED("已退款");
 
     private final String label;

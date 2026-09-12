@@ -67,8 +67,10 @@ public class VoucherOrder implements Serializable {
      */
     private Integer payType;
 
-    /** 订单状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、REFUNDING退款中、REFUNDED已退款。 */
+    /** 交易状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、COMPLETED已完成。 */
     private String status;
+    /** 与交易状态分离的售后聚合状态。 */
+    private String afterSaleStatus;
 
     /** 待支付订单的服务端过期时间。 */
     private LocalDateTime paymentExpireTime;

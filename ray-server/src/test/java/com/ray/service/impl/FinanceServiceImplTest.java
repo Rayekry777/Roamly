@@ -15,6 +15,7 @@ import com.ray.mapper.SettlementItemMapper;
 import com.ray.mapper.VoucherOrderMapper;
 import com.ray.mapper.VoucherRedemptionMapper;
 import com.ray.mapper.VoucherRefundMapper;
+import com.ray.mapper.VoucherRefundItemMapper;
 import com.ray.service.AdminAuthService;
 import com.ray.service.MerchantAuthService;
 import com.ray.utils.generator.RedisIdWorker;
@@ -33,7 +34,8 @@ class FinanceServiceImplTest {
         VoucherRefundMapper refunds = mock(VoucherRefundMapper.class);
         SettlementItemMapper items = mock(SettlementItemMapper.class);
         RedisIdWorker ids = mock(RedisIdWorker.class);
-        FinanceServiceImpl service = new FinanceServiceImpl(rules, ledger, orders, redemptions, refunds, items,
+        FinanceServiceImpl service = new FinanceServiceImpl(rules, ledger, orders, redemptions, refunds,
+                mock(VoucherRefundItemMapper.class), items,
                 mock(AdminAuthService.class), mock(MerchantAuthService.class), ids);
         VoucherOrder order = new VoucherOrder().setId(10L).setShopId(20L).setQuantity(1)
                 .setTotalAmount(10_000L).setMerchantSubsidyAmount(1_000L)

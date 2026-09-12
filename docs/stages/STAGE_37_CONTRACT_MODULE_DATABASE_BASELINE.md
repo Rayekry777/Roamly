@@ -26,7 +26,7 @@ stageBusinessTableCount: 46
 - `voucher_refund_item`：一条退款明细对应一张券，保存退款金额、服务费、平台补贴和核销收入冲回快照。
 - `voucher_refund_attempt`：记录 Mock 退款每次执行、租约、重试、渠道流水和失败原因。
 - `settlement_attempt`：记录 Mock 结算每次执行、租约、重试和失败原因。
-- 旧 `voucher_refund.voucher_ids` 暂时保留用于开发快照兼容，新业务不得继续写入；阶段 39 完成数据切换后再清理。
+- 旧 `voucher_refund.voucher_ids` 在本阶段暂时保留；阶段 39 已完成逐券数据切换并从 DDL、实体和业务查询中清理。
 
 ## 事务和事件边界
 

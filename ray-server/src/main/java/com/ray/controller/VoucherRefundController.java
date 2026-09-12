@@ -7,6 +7,7 @@ import com.ray.result.Result;
 import com.ray.service.VoucherRefundService;
 import com.ray.utils.converter.IdUtils;
 import com.ray.vo.VoucherRefundVO;
+import com.ray.vo.RefundTimelineEventVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -32,6 +34,9 @@ public class VoucherRefundController {
     @GetMapping("/v1/users/me/refunds/{id}")
     @Operation(summary="查询退款详情", operationId="getMyVoucherRefund")
     public Result<VoucherRefundVO> get(@PathVariable String id){return Result.ok(service.get(IdUtils.parse(id,"refundId"),false));}
+    @GetMapping("/v1/users/me/refunds/{id}/timeline")
+    @Operation(summary="查询退款时间线", operationId="getMyVoucherRefundTimeline")
+    public Result<List<RefundTimelineEventVO>> timeline(@PathVariable String id){return Result.ok(service.timeline(IdUtils.parse(id,"refundId"),false));}
     @PostMapping("/v1/users/me/refunds")
     @Operation(summary="按订单申请退款", operationId="requestOrderRefund")
     public Result<VoucherRefundVO> requestOrder(@Valid @RequestBody ConsumerRefundDTO request,

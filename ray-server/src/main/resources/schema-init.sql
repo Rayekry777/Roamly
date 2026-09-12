@@ -636,7 +636,8 @@ CREATE TABLE `voucher_order`  (
   `promoter_name` varchar(64) NULL COMMENT '带货人快照',
   `content_address` varchar(500) NULL COMMENT '内容地址快照',
   `pay_type` tinyint(1) UNSIGNED NOT NULL DEFAULT 1 COMMENT '支付方式 1：余额支付；2：支付宝；3：微信',
-  `status` varchar(16) NOT NULL DEFAULT 'PENDING_PAYMENT' COMMENT '订单状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、REFUNDING退款中、REFUNDED已退款',
+  `status` varchar(16) NOT NULL DEFAULT 'PENDING_PAYMENT' COMMENT '交易状态：PENDING_PAYMENT待支付、PAID已支付、CANCELED已取消、COMPLETED已完成',
+  `after_sale_status` varchar(24) NOT NULL DEFAULT 'NONE' COMMENT '独立售后状态：NONE、APPLYING、UNDER_REVIEW、APPROVED、REJECTED、REFUNDING、PARTIALLY_REFUNDED、REFUNDED、REFUND_FAILED、CLOSED',
   `payment_expire_time` timestamp NULL COMMENT '待支付订单过期时间',
   `idempotency_key` varchar(128) NOT NULL COMMENT '当前用户下单幂等键',
   `request_fingerprint` char(64) NOT NULL COMMENT '下单请求SHA-256指纹',
@@ -648,6 +649,7 @@ CREATE TABLE `voucher_order`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_voucher_order_user_idempotency` (`user_id`,`idempotency_key`),
   INDEX `idx_order_user_status_time` (`user_id`,`status`,`create_time`,`id`),
+  INDEX `idx_order_user_after_sale` (`user_id`,`after_sale_status`,`update_time`,`id`),
   INDEX `idx_order_product_user` (`product_id`,`user_id`,`id`)
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
 
@@ -669,8 +671,7 @@ CREATE TABLE `payment_transaction` (
 
 CREATE TABLE `voucher_refund` (
   `id` bigint UNSIGNED NOT NULL COMMENT '退款ID',
-  `voucher_id` bigint UNSIGNED NOT NULL COMMENT '用户券ID',
-  `voucher_ids` varchar(2000) NULL COMMENT '本次退款包含的用户券ID列表',
+  `voucher_id` bigint UNSIGNED NOT NULL COMMENT '兼容字段：本次申请第一张用户券ID，业务集合以明细表为准',
   `order_id` bigint NOT NULL COMMENT '订单ID',
   `user_id` bigint UNSIGNED NOT NULL COMMENT '消费者ID',
   `shop_id` bigint UNSIGNED NULL COMMENT '门店快照',
@@ -684,14 +685,18 @@ CREATE TABLE `voucher_refund` (
   `failure_code` varchar(64) NULL COMMENT '渠道失败编码',
   `failure_message` varchar(500) NULL COMMENT '渠道失败说明',
   `provider_refund_no` varchar(128) NULL COMMENT '渠道退款单号',
-  `decision_status` varchar(24) NOT NULL DEFAULT 'PENDING_TICKET' COMMENT '处理决定：AUTO_APPROVED、PENDING_TICKET、APPROVED、REJECTED',
-  `execution_status` varchar(24) NOT NULL DEFAULT 'NOT_STARTED' COMMENT '渠道执行：NOT_STARTED、PROCESSING、SUCCEEDED、FAILED',
+  `decision_status` varchar(24) NOT NULL DEFAULT 'PENDING_REVIEW' COMMENT '审核状态：PENDING_REVIEW、AUTO_APPROVED、MANUAL_APPROVED、REJECTED',
+  `execution_status` varchar(24) NOT NULL DEFAULT 'WAITING_EXECUTION' COMMENT '渠道执行：WAITING_EXECUTION、PROCESSING、SUCCESS、PARTIAL_SUCCESS、FAILED、RETRY_WAITING、MANUAL_REQUIRED；拒绝兼容NOT_STARTED',
   `ticket_id` bigint UNSIGNED NULL COMMENT '关联客服工单ID',
   `execution_started_time` timestamp NULL COMMENT '渠道开始处理时间',
   `last_failure_time` timestamp NULL COMMENT '最近渠道失败时间',
   `retry_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '渠道重试次数',
   `approved_amount` bigint UNSIGNED NULL COMMENT '最终批准金额，单位分',
   `payment_provider` varchar(32) NULL COMMENT '原支付渠道',
+  `current_handler_id` bigint UNSIGNED NULL COMMENT '当前平台处理人ID',
+  `reviewer_admin_id` bigint UNSIGNED NULL COMMENT '人工审核管理员ID',
+  `review_note` varchar(500) NULL COMMENT '人工审核说明',
+  `version` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态版本',
   `idempotency_key` varchar(128) NOT NULL,
   `requested_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `approved_time` timestamp NULL,
@@ -699,10 +704,12 @@ CREATE TABLE `voucher_refund` (
   `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE INDEX `uk_voucher_refund_voucher_key` (`voucher_id`,`idempotency_key`),
+  UNIQUE INDEX `uk_voucher_refund_idempotency` (`idempotency_key`),
   INDEX `idx_voucher_refund_order_status` (`order_id`,`status`),
-  INDEX `idx_voucher_refund_user_time` (`user_id`,`created_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='单券退款记录';
+  INDEX `idx_voucher_refund_user_time` (`user_id`,`created_time`),
+  INDEX `idx_voucher_refund_workbench` (`decision_status`,`execution_status`,`requested_time`,`id`),
+  INDEX `idx_voucher_refund_handler` (`current_handler_id`,`execution_status`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='退款申请主表';
 
 CREATE TABLE `voucher_refund_item` (
   `id` bigint UNSIGNED NOT NULL COMMENT '退款明细ID',
