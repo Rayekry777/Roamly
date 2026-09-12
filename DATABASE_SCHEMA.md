@@ -3,9 +3,9 @@
 ```yaml
 updatedAt: 2026-09-12
 schemaMode: Demo 可重建快照
-businessTableCount: 43
+businessTableCount: 46
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 已验证（43 张当前业务表）
+runtimeVerification: 静态 DDL 已验证（46 张业务表）；真实数据库重建待授权
 targetBusinessTableCount: 46
 targetDesignVersion: 10
 targetDesignStatus: 已冻结
@@ -15,13 +15,14 @@ demoDataClosureStatus: 已实现
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 43 张业务表：包含核销收入快照、服务费规则、退款执行状态以及客服工单/消息/附件表。阶段 37 将新增退款明细、退款执行尝试和结算执行尝试三张表，目标 DDL 与种子保持可重建快照。
+当前源码快照为 46 张业务表：包含核销收入快照、服务费规则、退款执行状态、客服三表、退款明细、退款执行尝试和结算执行尝试。目标 DDL 与种子保持可重建快照。
 
 ## 规则
 
 - 不使用 Flyway、Liquibase、版本化迁移或历史表；结构变化直接更新完整快照。
 - 不声明物理外键，跨表关系由 Service 在事务内校验和维护。
 - 金额以分存储；Java 内部 ID 为 `Long`，HTTP 业务 ID 为字符串。
+- `platform_discount_amount` 是现有平台承担优惠的兼容字段，财务语义等同平台补贴；商家毛应收为顾客实付加平台补贴，预计收入再扣除服务费。
 - 已退役 `blog`、`blog_comments`、`voucher`、`seckill_voucher`，不保留兼容表或转换脚本。
 - `schema-init.sql` 在文件开头按依赖逆序集中执行全部业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
 
@@ -87,6 +88,7 @@ demoDataClosureStatus: 已实现
 - 用户对同一商户最多一条点评；`shop.comments` 和 `shop.score` 由正常点评重算。
 - 商品库存满足总库存、有效占用与可售库存之间的一致性；用户限购按未取消订单的 `quantity` 汇总，并由应用层用户加商品锁串行校验；`sold_count` 只在支付确认成功后累计。
 - 订单状态码映射为 1 待支付、2 已支付、4 已取消、5 退款中、6 已退款；对外名称使用 `CANCELED`（已取消）。
+- 核销收入满足 `商家毛应收 = customer_paid_amount + platform_discount_amount`、`estimated_income_amount = 商家毛应收 - service_fee_amount`；历史商品和服务费规则变化不得改写核销快照。
 - `user_voucher.order_id` 唯一保证支付确认幂等；状态为 `UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - `user_voucher_qr_code` 每张用户券仅一条，`token_key` 是不可猜测的随机定位值；服务端以 HMAC 校验 `rq1.{tokenKey}.{signature}`，二维码不写入 Redis、不因扫码删除。
 

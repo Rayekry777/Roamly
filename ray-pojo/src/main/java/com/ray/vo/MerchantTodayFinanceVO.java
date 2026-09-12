@@ -11,6 +11,12 @@ public record MerchantTodayFinanceVO(
         Long redeemedVoucherCount,
         Long redemptionCount,
         Long redemptionAmount,
+        Long saleAmount,
+        Long merchantSubsidyAmount,
+        Long platformSubsidyAmount,
+        Long customerPaidAmount,
+        Long serviceFeeAmount,
+        Long estimatedIncomeAmount,
         Long refundedVoucherCount,
         Long refundAmount,
         Long netReceiptAmount) {}

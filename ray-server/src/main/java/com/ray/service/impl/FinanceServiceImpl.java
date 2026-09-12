@@ -158,7 +158,17 @@ public class FinanceServiceImpl implements FinanceService {
                 .eq("status", "SUCCEEDED")
                 .ge("redeemed_time", from)
                 .lt("redeemed_time", to));
-        long redemptionAmount = redemptions.stream().mapToLong(item -> zero(item.getCustomerPaidAmount())).sum();
+        long saleAmount = redemptions.stream().mapToLong(item -> zero(item.getSaleAmount())).sum();
+        long merchantSubsidyAmount = redemptions.stream()
+                .mapToLong(item -> zero(item.getMerchantSubsidyAmount())).sum();
+        long platformSubsidyAmount = redemptions.stream()
+                .mapToLong(item -> zero(item.getPlatformDiscountAmount())).sum();
+        long customerPaidAmount = redemptions.stream()
+                .mapToLong(item -> zero(item.getCustomerPaidAmount())).sum();
+        long serviceFeeAmount = redemptions.stream().mapToLong(item -> zero(item.getServiceFeeAmount())).sum();
+        long estimatedIncomeAmount = redemptions.stream()
+                .mapToLong(item -> zero(item.getEstimatedIncomeAmount())).sum();
+        long redemptionAmount = customerPaidAmount + platformSubsidyAmount;
         long redemptionCount = redemptions.stream().mapToLong(item -> positive(item.getUseCount())).sum();
         long redeemedVoucherCount = redemptions.stream().map(VoucherRedemption::getVoucherId).distinct().count();
 
@@ -172,8 +182,9 @@ public class FinanceServiceImpl implements FinanceService {
         Set<Long> refundedVoucherIds = new HashSet<>();
         refunds.forEach(refund -> refundedVoucherIds.addAll(refundVoucherIds(refund)));
         return new MerchantTodayFinanceVO(target, BUSINESS_ZONE.getId(), redeemedVoucherCount,
-                redemptionCount, redemptionAmount, (long) refundedVoucherIds.size(), refundAmount,
-                redemptionAmount - refundAmount);
+                redemptionCount, redemptionAmount, saleAmount, merchantSubsidyAmount, platformSubsidyAmount,
+                customerPaidAmount, serviceFeeAmount, estimatedIncomeAmount, (long) refundedVoucherIds.size(),
+                refundAmount, estimatedIncomeAmount - refundAmount);
     }
 
     /** 查询当前门店此刻生效的软件服务费规则。 */
@@ -244,7 +255,8 @@ public class FinanceServiceImpl implements FinanceService {
         int rate = rule == null ? DEFAULT_SERVICE_FEE_RATE_BPS : rule.getRateBps();
         long voucherFeeBase = Math.max(0L, voucherSale - voucherMerchantSubsidy);
         long serviceFee = splitPart(voucherFeeBase * rate / 10_000, uses, usedIndex);
-        long estimatedIncome = customerPaid - serviceFee;
+        // 平台优惠由平台承担，商家毛应收应包含顾客实付与平台补贴（当前快照字段为 platformDiscountAmount）。
+        long estimatedIncome = customerPaid + platformDiscount - serviceFee;
 
         redemption.setSaleAmount(sale)
                 .setMerchantSubsidyAmount(merchantSubsidy)
@@ -256,7 +268,8 @@ public class FinanceServiceImpl implements FinanceService {
                 .setEstimatedIncomeAmount(estimatedIncome);
         redemptionMapper.updateById(redemption);
         append(new FundLedgerEntryVO(null, IdUtils.format(order.getShopId()), IdUtils.format(order.getId()),
-                IdUtils.format(voucher.getId()), event, "REDEMPTION_RECOGNIZED", "CREDIT", customerPaid,
+                IdUtils.format(voucher.getId()), event, "REDEMPTION_RECOGNIZED", "CREDIT",
+                customerPaid + platformDiscount,
                 rate, feeBase, occurredAt));
         append(new FundLedgerEntryVO(null, IdUtils.format(order.getShopId()), IdUtils.format(order.getId()),
                 IdUtils.format(voucher.getId()), event, "SERVICE_FEE_RECOGNIZED", "DEBIT", serviceFee,
@@ -302,7 +315,8 @@ public class FinanceServiceImpl implements FinanceService {
                 String event = "REFUND-REDEMPTION-" + refund.getId() + "-" + redemption.getId();
                 append(new FundLedgerEntryVO(null, IdUtils.format(refund.getShopId()), IdUtils.format(refund.getOrderId()),
                         IdUtils.format(voucherId), event, "REFUND_REVENUE_REVERSED", "DEBIT",
-                        -Math.abs(zero(redemption.getCustomerPaidAmount())), redemption.getServiceFeeRateBps(),
+                        -Math.abs(zero(redemption.getCustomerPaidAmount()) + zero(redemption.getPlatformDiscountAmount())),
+                        redemption.getServiceFeeRateBps(),
                         redemption.getServiceFeeBaseAmount(), occurredAt));
                 append(new FundLedgerEntryVO(null, IdUtils.format(refund.getShopId()), IdUtils.format(refund.getOrderId()),
                         IdUtils.format(voucherId), event, "SERVICE_FEE_REFUNDED", "CREDIT",

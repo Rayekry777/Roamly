@@ -435,11 +435,30 @@ INSERT INTO `voucher_refund`
   (`id`, `voucher_id`, `order_id`, `user_id`, `amount`, `status`, `reason`, `idempotency_key`,
    `requested_time`, `processed_time`, `created_time`, `updated_time`)
 VALUES
-  (9101, 7005, 6007, 3, 1000, 'SUCCEEDED', '消费者主动退款', 'seed-refund-9101', '2026-09-04 12:55:00', '2026-09-04 13:00:00', '2026-09-04 12:55:00', '2026-09-04 13:00:00'),
-  (9102, 7006, 6008, 3, 1000, 'REQUESTED', '等待财务审核', 'seed-refund-9102', '2026-09-04 14:00:00', NULL, '2026-09-04 14:00:00', '2026-09-04 14:00:00'),
-  (9103, 7007, 6009, 3, 1000, 'PROCESSING', '支付渠道处理中', 'seed-refund-9103', '2026-09-04 15:00:00', NULL, '2026-09-04 15:00:00', '2026-09-04 15:05:00'),
-  (9104, 7008, 6010, 3, 1000, 'FAILED', '模拟渠道暂时不可用', 'seed-refund-9104', '2026-09-04 16:00:00', '2026-09-04 16:05:00', '2026-09-04 16:00:00', '2026-09-04 16:05:00'),
-  (9105, 7009, 6011, 3, 1000, 'REJECTED', '该券不符合异常退款条件', 'seed-refund-9105', '2026-09-04 17:00:00', '2026-09-04 17:05:00', '2026-09-04 17:00:00', '2026-09-04 17:05:00');
+  (9101, 7005, 6007, 3, 900, 'SUCCEEDED', '消费者主动退款', 'seed-refund-9101', '2026-09-04 12:55:00', '2026-09-04 13:00:00', '2026-09-04 12:55:00', '2026-09-04 13:00:00'),
+  (9102, 7006, 6008, 3, 900, 'REQUESTED', '等待财务审核', 'seed-refund-9102', '2026-09-04 14:00:00', NULL, '2026-09-04 14:00:00', '2026-09-04 14:00:00'),
+  (9103, 7007, 6009, 3, 900, 'PROCESSING', '支付渠道处理中', 'seed-refund-9103', '2026-09-04 15:00:00', NULL, '2026-09-04 15:00:00', '2026-09-04 15:05:00'),
+  (9104, 7008, 6010, 3, 900, 'FAILED', '模拟渠道暂时不可用', 'seed-refund-9104', '2026-09-04 16:00:00', '2026-09-04 16:05:00', '2026-09-04 16:00:00', '2026-09-04 16:05:00'),
+  (9105, 7009, 6011, 3, 900, 'REJECTED', '该券不符合异常退款条件', 'seed-refund-9105', '2026-09-04 17:00:00', '2026-09-04 17:05:00', '2026-09-04 17:00:00', '2026-09-04 17:05:00');
+
+INSERT INTO `voucher_refund_item`
+  (`id`, `refund_id`, `voucher_id`, `redeemed`, `sale_amount`, `customer_paid_amount`,
+   `platform_subsidy_amount`, `merchant_subsidy_amount`, `service_fee_amount`, `refundable_amount`,
+   `refund_amount`, `status`, `reversed_income_amount`, `refunded_service_fee_amount`)
+VALUES
+  (9151, 9101, 7005, 0, 1000, 900, 50, 50, 0, 900, 900, 'SUCCESS', 0, 0),
+  (9152, 9102, 7006, 0, 1000, 900, 50, 50, 0, 900, 0, 'PENDING', 0, 0),
+  (9153, 9103, 7007, 0, 1000, 900, 50, 50, 0, 900, 0, 'PROCESSING', 0, 0),
+  (9154, 9104, 7008, 0, 1000, 900, 50, 50, 0, 900, 0, 'FAILED', 0, 0),
+  (9155, 9105, 7009, 0, 1000, 900, 50, 50, 0, 900, 0, 'FAILED', 0, 0);
+
+INSERT INTO `voucher_refund_attempt`
+  (`id`, `refund_id`, `refund_item_id`, `idempotency_key`, `status`, `mock_scenario`, `request_amount`,
+   `provider_refund_no`, `failure_code`, `failure_message`, `retry_count`, `started_time`, `finished_time`)
+VALUES
+  (9181, 9101, 9151, 'REFUND-9101-1', 'SUCCESS', 'SUCCESS', 900, 'MOCK-REFUND-9181', NULL, NULL, 0, '2026-09-04 12:59:00', '2026-09-04 13:00:00'),
+  (9182, 9103, 9153, 'REFUND-9103-1', 'PROCESSING', 'DELAYED', 900, NULL, NULL, NULL, 0, '2026-09-04 15:05:00', NULL),
+  (9183, 9104, 9154, 'REFUND-9104-1', 'FAILED', 'ALWAYS_FAIL', 900, NULL, 'MOCK_UNAVAILABLE', '模拟渠道暂时不可用', 1, '2026-09-04 16:04:00', '2026-09-04 16:05:00');
 
 INSERT INTO `voucher_redemption`
   (`id`, `voucher_id`, `order_id`, `product_id`, `shop_id`, `merchant_account_id`,
@@ -449,15 +468,15 @@ INSERT INTO `voucher_redemption`
    `idempotency_key`, `reversal_reason`, `reversed_by_account_id`, `redeemed_time`, `reversed_time`)
 VALUES
   (9201, 7003, 6005, 3004, 1, 32, '精品咖啡 5 次卡', NULL, '103 茶餐厅', '茶餐厅核销员', 'MANUAL_CODE', NULL, 1,
-   'SUCCEEDED', 2560, 160, 40, 2360, 2400, 650, 166, 2194, 'seed-redemption-9201', NULL, NULL, '2026-09-04 10:00:00', NULL),
+   'SUCCEEDED', 2560, 160, 40, 2360, 2400, 650, 166, 2234, 'seed-redemption-9201', NULL, NULL, '2026-09-04 10:00:00', NULL),
   (9202, 7003, 6005, 3004, 1, 32, '精品咖啡 5 次卡', NULL, '103 茶餐厅', '茶餐厅核销员', 'QR_CODE', '午间到店核销', 1,
-   'SUCCEEDED', 2560, 160, 40, 2360, 2400, 650, 166, 2194, 'seed-redemption-9202', NULL, NULL, '2026-09-04 11:00:00', NULL),
+   'SUCCEEDED', 2560, 160, 40, 2360, 2400, 650, 166, 2234, 'seed-redemption-9202', NULL, NULL, '2026-09-04 11:00:00', NULL),
   (9203, 7004, 6006, 3003, 1, 31, '八折折扣券', NULL, '103 茶餐厅', '茶餐厅店长', 'MANUAL_CODE', NULL, 1,
-   'SUCCEEDED', 1000, 50, 50, 900, 950, 650, 61, 839, 'seed-redemption-9203', NULL, NULL, '2026-09-04 12:00:00', NULL),
+   'SUCCEEDED', 1000, 50, 50, 900, 950, 650, 61, 889, 'seed-redemption-9203', NULL, NULL, '2026-09-04 12:00:00', NULL),
   (9204, 7010, 6012, 3002, 2, 6, '漫游咖啡双人套餐', NULL, '漫游咖啡实验室', '放映厅租户', 'QR_CODE', NULL, 1,
-   'SUCCEEDED', 6800, 300, 200, 6300, 6500, 500, 325, 5975, 'seed-redemption-9204', NULL, NULL, '2026-09-04 18:00:00', NULL),
+   'SUCCEEDED', 6800, 300, 200, 6300, 6500, 500, 325, 6175, 'seed-redemption-9204', NULL, NULL, '2026-09-04 18:00:00', NULL),
   (9205, 7012, 6014, 3003, 1, 31, '八折折扣券', NULL, '103 茶餐厅', '茶餐厅店长', 'MANUAL_CODE', NULL, 1,
-   'REVERSED', 1000, 50, 50, 900, 950, 650, 61, 839, 'seed-redemption-9205', '顾客与门店确认撤销', 1, '2026-09-04 18:30:00', '2026-09-04 19:00:00');
+   'REVERSED', 1000, 50, 50, 900, 950, 650, 61, 889, 'seed-redemption-9205', '顾客与门店确认撤销', 1, '2026-09-04 18:30:00', '2026-09-04 19:00:00');
 
 INSERT INTO `commission_rule`
   (`id`, `shop_id`, `rate_bps`, `effective_from`, `effective_to`, `version`)
@@ -470,39 +489,47 @@ INSERT INTO `fund_ledger_entry`
    `amount`, `commission_rate_bps`, `service_fee_base_amount`, `occurred_time`)
 VALUES
   (110001, 1, 6002, NULL, 'ORDER-6002', 'PAYMENT_FROZEN', 'CREDIT', 7200, NULL, NULL, '2026-09-03 10:02:00'),
-  (110002, 2, 6012, 7010, 'REDEMPTION-9204', 'REDEMPTION_RECOGNIZED', 'CREDIT', 6300, 500, 6500, '2026-09-04 18:00:00'),
+  (110002, 2, 6012, 7010, 'REDEMPTION-9204', 'REDEMPTION_RECOGNIZED', 'CREDIT', 6500, 500, 6500, '2026-09-04 18:00:00'),
   (110003, 2, 6012, 7010, 'REDEMPTION-9204', 'SERVICE_FEE_RECOGNIZED', 'DEBIT', 325, 500, 6500, '2026-09-04 18:00:00'),
   (110004, 1, 6007, 7005, 'REFUND-9101', 'REFUND_REVERSED', 'DEBIT', -900, NULL, NULL, '2026-09-04 13:00:00'),
-  (110005, 1, 6006, 7004, 'REDEMPTION-9203', 'REDEMPTION_RECOGNIZED', 'CREDIT', 900, 650, 950, '2026-09-04 12:00:00'),
+  (110005, 1, 6006, 7004, 'REDEMPTION-9203', 'REDEMPTION_RECOGNIZED', 'CREDIT', 950, 650, 950, '2026-09-04 12:00:00'),
   (110006, 1, 6006, 7004, 'REDEMPTION-9203', 'SERVICE_FEE_RECOGNIZED', 'DEBIT', 61, 650, 950, '2026-09-04 12:00:00'),
-  (110007, 1, 6014, 7012, 'REDEMPTION-REVERSAL-9205', 'REDEMPTION_REVERSED', 'DEBIT', -900, 650, 950, '2026-09-04 19:00:00'),
+  (110007, 1, 6014, 7012, 'REDEMPTION-REVERSAL-9205', 'REDEMPTION_REVERSED', 'DEBIT', -950, 650, 950, '2026-09-04 19:00:00'),
   (110010, 1, 6014, 7012, 'REDEMPTION-REVERSAL-9205', 'SERVICE_FEE_REVERSED', 'CREDIT', 61, 650, 950, '2026-09-04 19:00:00'),
-  (110011, 1, 6005, 7003, 'REDEMPTION-9201', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2360, 650, 2400, '2026-09-04 10:00:00'),
+  (110011, 1, 6005, 7003, 'REDEMPTION-9201', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2400, 650, 2400, '2026-09-04 10:00:00'),
   (110012, 1, 6005, 7003, 'REDEMPTION-9201', 'SERVICE_FEE_RECOGNIZED', 'DEBIT', 166, 650, 2400, '2026-09-04 10:00:00'),
-  (110013, 1, 6005, 7003, 'REDEMPTION-9202', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2360, 650, 2400, '2026-09-04 11:00:00'),
+  (110013, 1, 6005, 7003, 'REDEMPTION-9202', 'REDEMPTION_RECOGNIZED', 'CREDIT', 2400, 650, 2400, '2026-09-04 11:00:00'),
   (110014, 1, 6005, 7003, 'REDEMPTION-9202', 'SERVICE_FEE_RECOGNIZED', 'DEBIT', 166, 650, 2400, '2026-09-04 11:00:00'),
-  (110008, 1, NULL, NULL, 'SETTLEMENT-120001', 'SETTLEMENT_POSTED', 'DEBIT', 839, 650, 950, '2026-09-05 02:00:00'),
+  (110008, 1, NULL, NULL, 'SETTLEMENT-120001', 'SETTLEMENT_POSTED', 'DEBIT', 889, 650, 950, '2026-09-05 02:00:00'),
   (110009, 1, 6007, 7005, 'SETTLEMENT-ADJUSTMENT-9101', 'SETTLEMENT_ADJUSTMENT', 'DEBIT', -900, NULL, NULL, '2026-09-05 02:05:00');
 
 INSERT INTO `settlement_batch`
   (`id`, `shop_id`, `settlement_date`, `status`, `total_amount`, `failure_reason`, `version`, `processed_time`)
 VALUES
-  (120001, 1, '2026-09-03', 'SUCCEEDED', 935, NULL, 0, '2026-09-04 02:00:00'),
-  (120002, 1, '2026-09-04', 'FAILED', -935, '模拟结算渠道不可用，可在管理端重试', 0, '2026-09-05 02:00:00'),
-  (120003, 2, '2026-09-04', 'PROCESSING', 6460, NULL, 0, NULL),
-  (120004, 3, '2026-09-05', 'SUCCEEDED', 4864, NULL, 0, '2026-09-06 02:00:00');
+  (120001, 1, '2026-09-03', 'SUCCEEDED', 889, NULL, 0, '2026-09-04 02:00:00'),
+  (120002, 1, '2026-09-04', 'FAILED', -889, '模拟结算渠道不可用，可在管理端重试', 0, '2026-09-05 02:00:00'),
+  (120003, 2, '2026-09-04', 'PROCESSING', 6175, NULL, 0, NULL),
+  (120004, 3, '2026-09-05', 'SUCCEEDED', 4468, NULL, 0, '2026-09-06 02:00:00');
 
 INSERT INTO `settlement_item` (`id`, `batch_id`, `ledger_entry_id`, `amount`) VALUES
-  (130001, 120001, 110005, 1000),
-  (130002, 120001, 110006, -65),
-  (130003, 120003, 110002, 6800),
-  (130004, 120003, 110003, -340),
-  (130009, 120002, 110007, -1000),
-  (130010, 120002, 110010, 65),
-  (130005, 120004, 110011, 2560),
-  (130006, 120004, 110012, -128),
-  (130007, 120004, 110013, 2560),
-  (130008, 120004, 110014, -128);
+  (130001, 120001, 110005, 950),
+  (130002, 120001, 110006, -61),
+  (130003, 120003, 110002, 6500),
+  (130004, 120003, 110003, -325),
+  (130009, 120002, 110007, -950),
+  (130010, 120002, 110010, 61),
+  (130005, 120004, 110011, 2400),
+  (130006, 120004, 110012, -166),
+  (130007, 120004, 110013, 2400),
+  (130008, 120004, 110014, -166);
+
+INSERT INTO `settlement_attempt`
+  (`id`, `batch_id`, `idempotency_key`, `status`, `request_amount`, `mock_scenario`, `provider_reference`,
+   `failure_reason`, `retry_count`, `started_time`, `finished_time`)
+VALUES
+  (140001, 120001, 'SETTLEMENT-120001', 'SUCCESS', 889, 'SUCCESS', 'MOCK-SETTLEMENT-140001', NULL, 0, '2026-09-04 02:00:00', '2026-09-04 02:00:01'),
+  (140002, 120002, 'SETTLEMENT-120002', 'FAILED', -889, 'ALWAYS_FAIL', NULL, '模拟结算渠道不可用', 1, '2026-09-05 02:00:00', '2026-09-05 02:00:01'),
+  (140003, 120003, 'SETTLEMENT-120003', 'PROCESSING', 6175, 'DELAYED', NULL, NULL, 0, '2026-09-05 02:00:00', NULL);
 
 INSERT INTO `operation_audit_log`
   (`id`, `actor_type`, `actor_id`, `action`, `object_type`, `object_id`, `result`, `reason`, `trace_id`, `create_time`)
