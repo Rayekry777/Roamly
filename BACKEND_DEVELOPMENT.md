@@ -1,7 +1,7 @@
 # Roamly 后端开发契约
 
 ```yaml
-version: 24
+version: 25
 updatedAt: 2026-09-12
 scope: 服务端、OpenAPI、数据库、事务、安全与基础设施
 reviewStatus: accepted
@@ -54,6 +54,17 @@ deviceAcceptanceStatus: 不适用
 - 订单交易状态保持 `PAID`，退款进度写入独立 `after_sale_status`；多券部分退款通过用户券实际状态计数判断。
 - 三个登录域分别提供退款逐券明细和时间线；WebSocket/SSE 仍只通知刷新，不参与审核或执行状态转换。
 
+## 阶段 40 客服后端重构
+
+- 状态：已实现。详细实现与验证见 [阶段 40 文档](./docs/stages/STAGE_40_CUSTOMER_SERVICE_BACKEND.md)。
+- 平台客服工单以 `applicant_type + applicant_id` 作为三端权限真源；商户只能访问当前商户账号主动创建的工单，`shop_id` 和 `related_shop_id` 只提供业务上下文，不能扩大可见范围。
+- 工单状态统一为 `OPEN/CLAIMED/WAITING_CUSTOMER/WAITING_MERCHANT/WAITING_INTERNAL/RESOLVED/CLOSED`，全部状态转换在服务层白名单校验；内部备注只写消息和 `has_internal_note`，不改变主状态。
+- 开放工单通过带 `assignee_admin_id IS NULL AND status='OPEN'` 条件的单条更新原子认领；转交锁定工单，校验目标客服账号，并追加不可覆盖的转交记录。
+- 消息接口支持 `before_message_id/after_message_id/limit` 游标，消费者和商户只读取公开消息；三类阅读者各自维护只前进的已读游标和未读数量。
+- 客服附件使用现有 Local/S3 私有对象存储端口，经历 `TEMPORARY/BOUND/DELETED` 生命周期；上传、绑定、读取和删除均复核工单归属，外部申请人不能读取内部备注附件。
+- 已增加标签、工单标签、个人/团队快捷回复、首次及最近响应时间、等待时间起点、SLA 截止和超时排序；客服敏感操作同步写入事务后审计。
+- 2026-09-12 客服专项 8 项通过；默认后端测试 245 项中 223 项通过、22 项按既有环境开关跳过，0 失败。51 表 DDL 与客服种子列数完成静态校验，未知数据库未执行重建。
+
 ## 工程基线
 
 - 当前运行基线为 Java 21、Spring Boot 3.5.15、Springdoc 2.8.17、Swagger Core 2.2.47、MyBatis-Plus 3.5.16、Hutool 5.8.43、Redisson 3.52.0、Sa-Token 1.46.0、Knife4j 5.2.1、MySQL 与 Redis。
@@ -77,13 +88,13 @@ deviceAcceptanceStatus: 不适用
 | 商户经营基础 | 独立认证、五种账号状态、经营媒体、入驻申请、审核与门店治理 | 已实现 |
 | 商家收银 | 今日团购收银、核销收入拆解、平台补贴、服务费规则、T+1 Mock 结算尝试 | 已实现 |
 | 退款执行 | 逐券申请、独立审核、租约执行、Mock 重试、账本和时间线 | 已实现 |
-| 客服工单 | 工单/公开消息/内部备注数据模型与客服角色权限 | 开发中 |
+| 客服工单 | 申请人隔离、原子认领、状态机、游标消息、附件、未读、标签、转交、快捷回复与 SLA | 已实现 |
 | 管理与治理 | 管理员认证、账号生命周期、事务审计、商户审核和门店停用/恢复 | 已实现 |
 | 旧链路 | Blog、旧上传、旧优惠券、旧秒杀接口与表 | 已废弃 |
 
 ## Demo 数据闭环
 
-- `dev` 完整快照保证当前 46 张业务表全部具有可查询样例，不再出现支付、退款、执行尝试、员工、核销、账本、结算或审计页面只有空表的情况。
+- `dev` 完整快照保证当前 51 张业务表全部具有可查询样例，不再出现支付、退款、执行尝试、员工、核销、客服、结算或审计页面只有空表的情况。
 - 三个客户端都有稳定测试账号：消费者 `13456789011`、商户租户 `13900000001`、平台管理员 `admin`；开发环境短信验证码为 `123456`，消费者和商户密码以及管理员密码均为 `Roamly123`。
 - 管理端另有审核员、财务管理员和停用账号；商户端另有店长、核销员、停用员工与待接受邀请账号，用于验证服务端权限和状态隔离。
 - 样例链路覆盖社区互动、已核销点评、四类券、订单交易与独立售后状态、六种支付状态、六种用户券状态、五种退款主状态、核销与撤销、退款/结算执行尝试、佣金分录和三种结算状态。
@@ -120,7 +131,7 @@ deviceAcceptanceStatus: 不适用
 - 路径统一位于 `/v1`，私有接口使用 `Authorization: Bearer <token>`，业务 ID 在 HTTP 与 OpenAPI 中均为字符串。
 - 成功使用 `Result`、`PageResult` 或 `CursorPageResult`；失败使用 `ErrorResult`、真实 HTTP 状态和稳定字符串业务码。
 - 高风险命令要求 `Idempotency-Key` 请求头，覆盖审核、下单、支付、退款、核销、撤销和结算重试；幂等窗口不能替代数据库正确性。
-- 当前源码预期共 188 个唯一 `operationId`，阶段 39 新增消费者、商户和管理端退款时间线接口；精确集合已同步到 OpenAPI 运行时契约测试，真实 `/v3/api-docs` 复验随阶段 42 的隔离运行环境执行。
+- 当前源码预期共 210 个唯一 `operationId`；阶段 40 增加三端消息游标和附件、商户详情/回复、管理端转交/标签/快捷回复接口，并补齐此前遗漏的定位上下文静态路径断言。精确集合已同步到静态映射和 OpenAPI 运行时契约测试，真实 `/v3/api-docs` 复验随阶段 42 的隔离运行环境执行。
 
 ### 位置与同城推荐
 
@@ -157,6 +168,7 @@ deviceAcceptanceStatus: 不适用
 - 支付：`PENDING`（待支付）、`SUCCEEDED`（支付成功）、`FAILED`（支付失败）、`CLOSED`（已关闭）、`PARTIALLY_REFUNDED`（部分退款）、`REFUNDED`（已退款）。
 - 用户券：`UNUSED`（未使用）、`PARTIALLY_USED`（部分使用）、`USED`（已使用）、`EXPIRED`（已过期）、`REFUNDING`（退款中）、`REFUNDED`（已退款）。
 - 退款申请：`REQUESTED`（已申请）、`PROCESSING`（处理中）、`SUCCEEDED`（退款成功）、`FAILED`（退款失败）、`REJECTED`（退款被拒）；审核和执行另以独立字段表达。
+- 客服工单：`OPEN`（待认领）、`CLAIMED`（处理中）、`WAITING_CUSTOMER`（等待消费者）、`WAITING_MERCHANT`（等待商户）、`WAITING_INTERNAL`（等待平台内部）、`RESOLVED`（已解决）、`CLOSED`（已关闭）。WebSocket、SSE 和管理端在线状态不参与状态转换。
 
 ## 事务与一致性
 
@@ -222,7 +234,7 @@ deviceAcceptanceStatus: 不适用
 - `GET /v1/merchant/orders` 在查询前强制校验 `merchant:order:read`（商户订单查看）；仅 `TENANT`（租户）和 `MANAGER`（店长）的激活账号拥有该权限，`VERIFIER`（核销员）统一返回 403 `MERCHANT_FORBIDDEN`（商户权限不足），且不触发订单查询。
 - 管理导出固定覆盖商户申请、团购券、订单、退款、核销、账本、结算和审计八类资源；每类资源先校验对应 `admin:*`（管理端权限）权限，未知资源返回 400 `EXPORT_RESOURCE_INVALID`（导出资源无效）。
 - 导出使用 10,001 行边界探测，超过 10,000 行返回 400 `EXPORT_TOO_LARGE`（导出数据超限），不截断、不生成部分文件；字符串业务 ID 按文本写入并转义公式前缀。
-- 上述权限和导出校验属于服务端强制规则，客户端菜单隐藏、筛选参数和门店字段都不能替代或绕过；数据库当前为 43 张业务表，不新增导出任务表。
+- 上述权限和导出校验属于服务端强制规则，客户端菜单隐藏、筛选参数和门店字段都不能替代或绕过；数据库当前为 51 张业务表，导出仍不新增任务表。
 
 ## 商户售后体验增强（v16）
 

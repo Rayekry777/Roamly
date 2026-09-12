@@ -111,7 +111,7 @@ class OpenApiAndAuthRuntimeTest {
                             operation.getValue().path("responses").path("500").isObject());
                 }));
         assertEquals(expectedOperations(), operations);
-        assertEquals(188, operationIds.size());
+        assertEquals(210, operationIds.size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1voucher-products~1{productId}~1media~1{mediaId}~1content/get/security").size());
         assertEquals(0, document.at("/paths/~1v1~1admin~1auth~1login/post/security").size());
@@ -234,6 +234,8 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("VoucherOrderDetailVO"));
         assertTrue(schemaNames.contains("UserVoucherVO"));
         assertTrue(schemaNames.contains("AdminAuditLogVO"));
+        assertTrue(schemaNames.contains("CustomerServiceTicketVO"));
+        assertTrue(schemaNames.contains("CustomerServiceMessagePageVO"));
         assertTrue(schemaNames.contains("CurrentMerchantVO"));
         assertTrue(schemaNames.contains("MerchantStaffInvitationCreateDTO"));
         assertTrue(schemaNames.contains("MerchantStaffAcceptanceDTO"));
@@ -265,6 +267,9 @@ class OpenApiAndAuthRuntimeTest {
         assertTrue(schemaNames.contains("AdminVoucherReviewResultVO"), "schemas=" + schemaNames);
         assertFalse(schemaNames.contains("ApiResponse"));
         assertFalse(schemaNames.contains("ApiErrorResponse"));
+        assertEquals("string", document.at("/components/schemas/CustomerServiceTicketVO/properties/id/type").asText());
+        assertEquals("string", document.at("/components/schemas/CustomerServiceMessageVO/properties/id/type").asText());
+        assertEquals("string", document.at("/components/schemas/CustomerServiceCreateDTO/properties/orderId/type").asText());
         assertSchemaProperties(document, "Result", Set.of("code", "message", "data"));
         assertSchemaProperties(
                 document,
@@ -385,8 +390,9 @@ class OpenApiAndAuthRuntimeTest {
         assertRefsResolve(document, document, schemaNames);
     }
 
-    private Set<String> expectedOperations() {
+    static Set<String> expectedOperations() {
         return Set.of(
+                "POST /v1/location/context",
                 "POST /v1/auth/sms-codes",
                 "POST /v1/auth/sessions",
                 "POST /v1/auth/registrations",
@@ -518,7 +524,11 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/users/me/customer-service/tickets",
                 "GET /v1/users/me/customer-service/tickets",
                 "GET /v1/users/me/customer-service/tickets/{id}",
+                "GET /v1/users/me/customer-service/tickets/{id}/messages",
                 "POST /v1/users/me/customer-service/tickets/{id}/messages",
+                "POST /v1/users/me/customer-service/tickets/{ticketId}/attachments",
+                "GET /v1/users/me/customer-service/tickets/{ticketId}/attachments/{attachmentId}/content",
+                "DELETE /v1/users/me/customer-service/tickets/{ticketId}/attachments/{attachmentId}",
                 "GET /v1/merchant/staff",
                 "POST /v1/merchant/staff-invitations",
                 "POST /v1/merchant/staff-invitations/acceptance",
@@ -540,6 +550,12 @@ class OpenApiAndAuthRuntimeTest {
                 "POST /v1/merchant/after-sales",
                 "POST /v1/merchant/customer-service/tickets",
                 "GET /v1/merchant/customer-service/tickets",
+                "GET /v1/merchant/customer-service/tickets/{id}",
+                "GET /v1/merchant/customer-service/tickets/{id}/messages",
+                "POST /v1/merchant/customer-service/tickets/{id}/messages",
+                "POST /v1/merchant/customer-service/tickets/{ticketId}/attachments",
+                "GET /v1/merchant/customer-service/tickets/{ticketId}/attachments/{attachmentId}/content",
+                "DELETE /v1/merchant/customer-service/tickets/{ticketId}/attachments/{attachmentId}",
                 "POST /v1/users/me/vouchers/{voucherId}/qr-tokens",
                 "GET /v1/admin/refunds",
                 "GET /v1/admin/refunds/{id}",
@@ -552,10 +568,21 @@ class OpenApiAndAuthRuntimeTest {
                 "GET /v1/admin/redemptions/{id}",
                 "GET /v1/admin/customer-service/tickets",
                 "GET /v1/admin/customer-service/tickets/{id}",
+                "GET /v1/admin/customer-service/tickets/{id}/messages",
                 "POST /v1/admin/customer-service/tickets/{id}/claim",
                 "POST /v1/admin/customer-service/tickets/{id}/messages",
                 "POST /v1/admin/customer-service/tickets/{id}/internal-notes",
                 "PUT /v1/admin/customer-service/tickets/{id}/status",
+                "POST /v1/admin/customer-service/tickets/{id}/transfer",
+                "GET /v1/admin/customer-service/tickets/{id}/transfers",
+                "PUT /v1/admin/customer-service/tickets/{id}/tags",
+                "POST /v1/admin/customer-service/tickets/{ticketId}/attachments",
+                "GET /v1/admin/customer-service/tickets/{ticketId}/attachments/{attachmentId}/content",
+                "DELETE /v1/admin/customer-service/tickets/{ticketId}/attachments/{attachmentId}",
+                "GET /v1/admin/customer-service/tags",
+                "GET /v1/admin/customer-service/quick-replies",
+                "POST /v1/admin/customer-service/quick-replies",
+                "DELETE /v1/admin/customer-service/quick-replies/{id}",
                 "GET /v1/admin/commission-rules",
                 "PUT /v1/admin/commission-rules",
                 "GET /v1/admin/ledger-entries",

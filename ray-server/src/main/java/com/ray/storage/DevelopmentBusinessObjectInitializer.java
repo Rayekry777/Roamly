@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
-/** 在开发环境补齐数据库种子引用的私有经营媒体对象。 */
+/** 在开发环境补齐数据库种子引用的私有经营媒体与客服附件对象。 */
 @Slf4j
 @Component
 @Profile("dev")
@@ -23,7 +23,8 @@ public class DevelopmentBusinessObjectInitializer implements ApplicationRunner {
             "seed/onboarding/license/application-9101-license.png",
             "seed/onboarding/license/application-9102-license.png",
             "seed/onboarding/license/application-9103-license.png",
-            "seed/voucher/cover/voucher-3105-cover.png");
+            "seed/voucher/cover/voucher-3105-cover.png",
+            "seed/customer-service/150001-refund.png");
 
     private final ObjectStoragePort objectStorage;
     private final Resource seedLicense;
@@ -35,7 +36,7 @@ public class DevelopmentBusinessObjectInitializer implements ApplicationRunner {
         this.seedLicense = seedLicense;
     }
 
-    /** 幂等创建缺失的种子营业执照对象，已有对象保持不变。 */
+    /** 幂等创建缺失的种子私有图片对象，已有对象保持不变。 */
     @Override
     public void run(ApplicationArguments args) throws IOException {
         byte[] content = seedLicense.getContentAsByteArray();

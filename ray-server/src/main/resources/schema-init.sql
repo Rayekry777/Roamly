@@ -3,6 +3,11 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
 DROP TABLE IF EXISTS `settlement_attempt`;
+DROP TABLE IF EXISTS `customer_service_quick_reply`;
+DROP TABLE IF EXISTS `customer_service_transfer`;
+DROP TABLE IF EXISTS `customer_service_ticket_tag`;
+DROP TABLE IF EXISTS `customer_service_tag`;
+DROP TABLE IF EXISTS `customer_service_read_cursor`;
 DROP TABLE IF EXISTS `customer_service_attachment`;
 DROP TABLE IF EXISTS `customer_service_message`;
 DROP TABLE IF EXISTS `customer_service_ticket`;
@@ -874,10 +879,14 @@ CREATE TABLE `customer_service_ticket` (
   `id` bigint UNSIGNED NOT NULL COMMENT '客服工单ID',
   `ticket_no` varchar(32) NOT NULL COMMENT '对外工单号',
   `type` varchar(32) NOT NULL COMMENT '工单类型：REFUND、REDEMPTION、ORDER、GENERAL',
-  `status` varchar(24) NOT NULL DEFAULT 'NEW' COMMENT 'NEW、OPEN、WAITING_CUSTOMER、WAITING_INTERNAL、RESOLVED、CLOSED',
+  `status` varchar(24) NOT NULL DEFAULT 'OPEN' COMMENT 'OPEN、CLAIMED、WAITING_CUSTOMER、WAITING_MERCHANT、WAITING_INTERNAL、RESOLVED、CLOSED',
   `priority` varchar(16) NOT NULL DEFAULT 'NORMAL' COMMENT 'LOW、NORMAL、HIGH、URGENT',
-  `user_id` bigint UNSIGNED NULL,
-  `shop_id` bigint UNSIGNED NULL,
+  `applicant_type` varchar(16) NOT NULL COMMENT 'CONSUMER消费者、MERCHANT商户',
+  `applicant_id` bigint UNSIGNED NOT NULL COMMENT '申请人账号ID',
+  `related_user_id` bigint UNSIGNED NULL COMMENT '关联消费者ID，仅作客服上下文',
+  `related_shop_id` bigint UNSIGNED NULL COMMENT '关联门店ID，仅作客服上下文',
+  `user_id` bigint UNSIGNED NULL COMMENT '兼容字段，阶段40后权限查询禁止使用',
+  `shop_id` bigint UNSIGNED NULL COMMENT '兼容字段，阶段40后商户权限查询禁止使用',
   `order_id` bigint NULL,
   `voucher_id` bigint UNSIGNED NULL,
   `refund_id` bigint UNSIGNED NULL,
@@ -888,19 +897,26 @@ CREATE TABLE `customer_service_ticket` (
   `created_by_type` varchar(16) NOT NULL COMMENT 'CONSUMER、MERCHANT、ADMIN、SYSTEM',
   `created_by_id` bigint UNSIGNED NULL,
   `first_response_time` timestamp NULL,
+  `last_response_time` timestamp NULL,
+  `waiting_customer_since` timestamp NULL,
+  `waiting_merchant_since` timestamp NULL,
   `resolved_time` timestamp NULL,
   `closed_time` timestamp NULL,
   `reopen_deadline` timestamp NULL,
   `last_message_time` timestamp NULL,
+  `sla_deadline` timestamp NOT NULL COMMENT '当前优先级的SLA截止时间',
+  `sla_breached` tinyint(1) NOT NULL DEFAULT 0,
+  `has_internal_note` tinyint(1) NOT NULL DEFAULT 0,
   `version` int UNSIGNED NOT NULL DEFAULT 0,
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_customer_service_ticket_no` (`ticket_no`),
-  INDEX `idx_customer_service_ticket_queue` (`status`,`priority`,`create_time`,`id`),
+  INDEX `idx_customer_service_ticket_queue` (`sla_breached`,`status`,`priority`,`sla_deadline`,`id`),
   INDEX `idx_customer_service_ticket_assignee` (`assignee_admin_id`,`status`,`update_time`,`id`),
-  INDEX `idx_customer_service_ticket_user` (`user_id`,`update_time`,`id`),
-  INDEX `idx_customer_service_ticket_shop` (`shop_id`,`update_time`,`id`)
+  INDEX `idx_customer_service_ticket_applicant` (`applicant_type`,`applicant_id`,`last_message_time`,`id`),
+  INDEX `idx_customer_service_ticket_related_user` (`related_user_id`,`update_time`,`id`),
+  INDEX `idx_customer_service_ticket_related_shop` (`related_shop_id`,`update_time`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单';
 
 CREATE TABLE `customer_service_message` (
@@ -919,18 +935,90 @@ CREATE TABLE `customer_service_message` (
 CREATE TABLE `customer_service_attachment` (
   `id` bigint UNSIGNED NOT NULL COMMENT '客服附件ID',
   `ticket_id` bigint UNSIGNED NOT NULL,
-  `message_id` bigint UNSIGNED NOT NULL,
+  `message_id` bigint UNSIGNED NULL,
+  `status` varchar(16) NOT NULL DEFAULT 'TEMPORARY' COMMENT 'TEMPORARY、BOUND、DELETED',
   `uploader_type` varchar(16) NOT NULL,
   `uploader_id` bigint UNSIGNED NULL,
   `object_key` varchar(500) NOT NULL,
+  `bucket_name` varchar(128) NOT NULL,
   `original_filename` varchar(255) NOT NULL,
   `mime_type` varchar(100) NOT NULL,
   `byte_size` bigint UNSIGNED NOT NULL,
+  `expires_at` timestamp NULL,
+  `bound_at` timestamp NULL,
+  `deleted_at` timestamp NULL,
   `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `uk_customer_service_attachment_object` (`object_key`),
-  INDEX `idx_customer_service_attachment_message` (`message_id`,`id`)
+  INDEX `idx_customer_service_attachment_message` (`message_id`,`status`,`id`),
+  INDEX `idx_customer_service_attachment_temporary` (`uploader_type`,`uploader_id`,`status`,`expires_at`,`id`),
+  INDEX `idx_customer_service_attachment_ticket` (`ticket_id`,`status`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单图片附件';
+
+CREATE TABLE `customer_service_read_cursor` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '已读游标ID',
+  `ticket_id` bigint UNSIGNED NOT NULL,
+  `reader_type` varchar(16) NOT NULL COMMENT 'CONSUMER、MERCHANT、ADMIN',
+  `reader_id` bigint UNSIGNED NOT NULL,
+  `last_read_message_id` bigint UNSIGNED NOT NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_customer_service_read_cursor_reader` (`ticket_id`,`reader_type`,`reader_id`),
+  INDEX `idx_customer_service_read_cursor_message` (`last_read_message_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单独立已读游标';
+
+CREATE TABLE `customer_service_tag` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '客服标签ID',
+  `code` varchar(32) NOT NULL,
+  `name` varchar(64) NOT NULL,
+  `color` varchar(16) NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_customer_service_tag_code` (`code`),
+  INDEX `idx_customer_service_tag_enabled` (`enabled`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台客服标签字典';
+
+CREATE TABLE `customer_service_ticket_tag` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '工单标签关系ID',
+  `ticket_id` bigint UNSIGNED NOT NULL,
+  `tag_id` bigint UNSIGNED NOT NULL,
+  `created_by_admin_id` bigint UNSIGNED NOT NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_customer_service_ticket_tag` (`ticket_id`,`tag_id`),
+  INDEX `idx_customer_service_ticket_tag_filter` (`tag_id`,`ticket_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单标签关系';
+
+CREATE TABLE `customer_service_transfer` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '客服转交记录ID',
+  `ticket_id` bigint UNSIGNED NOT NULL,
+  `from_admin_id` bigint UNSIGNED NOT NULL,
+  `to_admin_id` bigint UNSIGNED NOT NULL,
+  `operator_admin_id` bigint UNSIGNED NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_customer_service_transfer_ticket` (`ticket_id`,`create_time`,`id`),
+  INDEX `idx_customer_service_transfer_target` (`to_admin_id`,`create_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单转交记录';
+
+CREATE TABLE `customer_service_quick_reply` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '快捷回复ID',
+  `title` varchar(80) NOT NULL,
+  `content` varchar(2000) NOT NULL,
+  `scope` varchar(16) NOT NULL COMMENT 'PERSONAL个人、TEAM团队',
+  `owner_admin_id` bigint UNSIGNED NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` int UNSIGNED NOT NULL DEFAULT 100,
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_customer_service_quick_reply_visible` (`scope`,`owner_admin_id`,`enabled`,`sort_order`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服快捷回复模板';
 
 CREATE TABLE `settlement_batch` (
   `id` bigint UNSIGNED NOT NULL COMMENT '结算批次ID',

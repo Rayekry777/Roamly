@@ -561,10 +561,10 @@ VALUES
   (140009, 'SYSTEM', NULL, 'SETTLEMENT_GENERATED', 'SETTLEMENT_BATCH', '120002', 'FAILED', '模拟结算渠道不可用', 'seed-trace-settlement-failed', '2026-09-05 02:00:00');
 
 INSERT INTO `customer_service_ticket`
-  (`id`, `ticket_no`, `type`, `status`, `priority`, `user_id`, `shop_id`, `order_id`, `voucher_id`, `refund_id`, `subject`, `description`, `created_by_type`, `created_by_id`, `first_response_time`, `last_message_time`)
+  (`id`, `ticket_no`, `type`, `status`, `priority`, `applicant_type`, `applicant_id`, `related_user_id`, `related_shop_id`, `user_id`, `shop_id`, `order_id`, `voucher_id`, `refund_id`, `subject`, `description`, `assignee_admin_id`, `created_by_type`, `created_by_id`, `first_response_time`, `last_response_time`, `waiting_customer_since`, `sla_deadline`, `has_internal_note`, `last_message_time`)
 VALUES
-  (150001, 'CS202609040001', 'REFUND', 'OPEN', 'HIGH', 3, 1, 6008, 7006, 9102, '退款进度咨询', '支付渠道处理中，用户咨询预计到账时间', 'CONSUMER', 3, '2026-09-04 14:10:00', '2026-09-04 14:10:00'),
-  (150002, 'CS202609040002', 'REDEMPTION', 'WAITING_INTERNAL', 'NORMAL', 2, 2, 6012, 7010, NULL, '核销后金额确认', '请客服协助确认服务费扣除规则', 'MERCHANT', 6, '2026-09-04 18:20:00', '2026-09-04 18:20:00');
+  (150001, 'CS202609040001', 'REFUND', 'WAITING_CUSTOMER', 'HIGH', 'CONSUMER', 3, 3, 1, 3, 1, 6008, 7006, 9102, '退款进度咨询', '支付渠道处理中，用户咨询预计到账时间', 5, 'CONSUMER', 3, '2026-09-04 14:10:00', '2026-09-04 14:10:00', '2026-09-04 14:10:00', '2026-09-04 16:00:00', 1, '2026-09-04 14:10:00'),
+  (150002, 'CS202609040002', 'REDEMPTION', 'CLAIMED', 'NORMAL', 'MERCHANT', 6, NULL, 2, 2, 2, 6012, 7010, NULL, '核销后金额确认', '请客服协助确认服务费扣除规则', 5, 'MERCHANT', 6, '2026-09-04 18:20:00', '2026-09-04 18:20:00', NULL, '2026-09-04 22:00:00', 0, '2026-09-04 18:20:00');
 
 INSERT INTO `customer_service_message`
   (`id`, `ticket_id`, `sender_type`, `sender_id`, `visibility`, `message_type`, `content`)
@@ -575,8 +575,41 @@ VALUES
   (151004, 150002, 'MERCHANT', 6, 'PUBLIC', 'TEXT', '请说明核销后预计收入的计算方式。');
 
 INSERT INTO `customer_service_attachment`
-  (`id`, `ticket_id`, `message_id`, `uploader_type`, `uploader_id`, `object_key`, `original_filename`, `mime_type`, `byte_size`)
+  (`id`, `ticket_id`, `message_id`, `status`, `uploader_type`, `uploader_id`, `object_key`, `bucket_name`, `original_filename`, `mime_type`, `byte_size`, `bound_at`)
 VALUES
-  (152001, 150001, 151001, 'CONSUMER', 3, 'seed/customer-service/150001-refund.png', '退款截图.png', 'image/png', 10240);
+  (152001, 150001, 151001, 'BOUND', 'CONSUMER', 3, 'seed/customer-service/150001-refund.png', 'roamly-business-local', '退款截图.png', 'image/png', 543, '2026-09-04 14:00:00');
+
+INSERT INTO `customer_service_read_cursor`
+  (`id`, `ticket_id`, `reader_type`, `reader_id`, `last_read_message_id`)
+VALUES
+  (153001, 150001, 'CONSUMER', 3, 151001),
+  (153002, 150001, 'ADMIN', 5, 151003),
+  (153003, 150002, 'MERCHANT', 6, 151004);
+
+INSERT INTO `customer_service_tag`
+  (`id`, `code`, `name`, `color`, `enabled`)
+VALUES
+  (154001, 'REFUND', '退款问题', '#F97316', 1),
+  (154002, 'REDEMPTION', '核销问题', '#2563EB', 1),
+  (154003, 'SETTLEMENT', '结算问题', '#7C3AED', 1),
+  (154004, 'HIGH_PRIORITY', '高优先级', '#DC2626', 1);
+
+INSERT INTO `customer_service_ticket_tag`
+  (`id`, `ticket_id`, `tag_id`, `created_by_admin_id`)
+VALUES
+  (155001, 150001, 154001, 5),
+  (155002, 150001, 154004, 5),
+  (155003, 150002, 154002, 5);
+
+INSERT INTO `customer_service_transfer`
+  (`id`, `ticket_id`, `from_admin_id`, `to_admin_id`, `operator_admin_id`, `reason`, `create_time`)
+VALUES
+  (156001, 150001, 1, 5, 1, '转交退款专项客服继续跟进', '2026-09-04 14:05:00');
+
+INSERT INTO `customer_service_quick_reply`
+  (`id`, `title`, `content`, `scope`, `owner_admin_id`, `enabled`, `sort_order`)
+VALUES
+  (157001, '退款处理中', '您好，退款已通过审核并进入渠道处理，结果更新后会第一时间通知您。', 'TEAM', NULL, 1, 10),
+  (157002, '补充核销信息', '请补充核销时间、核销码后四位和相关截图，我们会继续核实。', 'PERSONAL', 5, 1, 20);
 
 SET FOREIGN_KEY_CHECKS = 1;

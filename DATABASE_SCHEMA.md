@@ -3,19 +3,19 @@
 ```yaml
 updatedAt: 2026-09-12
 schemaMode: Demo 可重建快照
-businessTableCount: 46
+businessTableCount: 51
 database: MySQL / InnoDB / utf8mb4
-runtimeVerification: 静态 DDL 已验证（46 张业务表）；真实数据库重建待授权
-targetBusinessTableCount: 46
-targetDesignVersion: 10
+runtimeVerification: 静态 DDL 已验证（51 张业务表）；真实数据库重建待授权
+targetBusinessTableCount: 51
+targetDesignVersion: 11
 targetDesignStatus: 已冻结
-targetImplementationStatus: 阶段 39 已实现
+targetImplementationStatus: 阶段 40 已实现
 demoDataClosureStatus: 已实现
 ```
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 46 张业务表：包含核销收入快照、服务费规则、退款执行状态、客服三表、退款明细、退款执行尝试和结算执行尝试。目标 DDL 与种子保持可重建快照。
+当前源码快照为 51 张业务表：阶段 40 在原 46 表基础上新增客服已读游标、标签关系、转交和快捷回复五张表，并扩展客服工单 SLA 与附件生命周期。目标 DDL 与种子保持可重建快照。
 
 ## 规则
 
@@ -70,14 +70,21 @@ demoDataClosureStatus: 已实现
 | `voucher_redemption` | 核销与撤销记录 | 商户/门店级 | `shop_id,idempotency_key` 唯一 |
 | `commission_rule` | 平台默认与门店佣金规则 | 平台/门店级 | 费率及生效区间索引 |
 | `fund_ledger_entry` | 支付、核销、退款和结算账本 | 平台/门店级 | 业务事件、分录类型和账户方向唯一；只追加 |
-| `customer_service_ticket` | 客服工单队列与处理时长 | 用户/订单/门店级 | 工单号唯一，7日未更新自动关闭 |
+| `customer_service_ticket` | 平台统一客服工单、申请人归属与 SLA | 申请人/订单/门店级 | 工单号唯一；`applicant_type,applicant_id` 为访问真源；原子认领与 SLA 队列索引 |
 | `customer_service_message` | 公开回复与内部备注 | 工单级 | `visibility` 隔离消费者可见内容 |
-| `customer_service_attachment` | 工单图片附件 | 消息级 | 对象键唯一 |
+| `customer_service_attachment` | 临时及已绑定的私有工单图片 | 工单/消息级 | 对象键唯一；上传者、工单、状态和过期时间索引 |
+| `customer_service_read_cursor` | 每名阅读者的工单已读位置 | 工单/阅读者级 | `ticket_id,reader_type,reader_id` 唯一；游标只前进 |
+| `customer_service_tag` | 平台客服标签字典 | 平台级 | 标签编码唯一；启停索引 |
+| `customer_service_ticket_tag` | 工单标签关系 | 工单级 | `ticket_id,tag_id` 唯一；标签反向筛选索引 |
+| `customer_service_transfer` | 工单转交审计记录 | 工单/客服级 | 按工单时间和目标客服索引；只追加 |
+| `customer_service_quick_reply` | 个人及团队快捷回复 | 平台/客服级 | 范围、所有者、启停和排序索引 |
 | `settlement_batch` | T+1 结算批次 | 商户/门店级 | `shop_id,settlement_date` 唯一 |
 | `settlement_item` | 结算批次账本明细 | 商户/门店级 | `batch_id,ledger_entry_id` 唯一 |
 | `settlement_attempt` | 结算批次 Mock 执行尝试 | 商户/门店级 | 幂等键唯一；租约、重试和失败原因索引 |
 
 退款闭环补充：`voucher_refund` 通过 `source` 区分消费者、商户和管理员发起，申请涉及的券集合只由 `voucher_refund_item` 逐券保存；`voucher_ids` 已从 DDL 和实体删除，`voucher_id` 只保留第一张券兼容投影。审核状态为 `PENDING_REVIEW/AUTO_APPROVED/MANUAL_APPROVED/REJECTED`，执行状态为 `WAITING_EXECUTION/PROCESSING/SUCCESS/PARTIAL_SUCCESS/FAILED/RETRY_WAITING/MANUAL_REQUIRED`。执行尝试由 `voucher_refund_attempt` 记录，以条件更新竞争租约；领取事务先提交，Mock 调用不占用数据库事务，结果事务再锁定尝试并校验租约所有者。退款成功必须在 `fund_ledger_entry` 追加幂等冲回分录。商户售后权限为 `merchant:after-sales:read/create`，平台审批仍使用 `admin:refund:manage`。
+
+客服闭环补充：消费者和商户只按 `applicant_type + applicant_id` 查询自己的工单，`related_user_id/related_shop_id/order_id/refund_id/voucher_id/redemption_id` 只保存经权限校验的上下文。旧 `user_id/shop_id` 保留兼容但不再参与权限查询。`customer_service_message.visibility=INTERNAL` 的消息及附件仅管理端可读。附件先以 `TEMPORARY` 写入私有 Local/S3 对象存储，绑定消息后变为 `BOUND`，过期或主动删除变为 `DELETED`。所有表均不声明物理外键，工单、消息、附件、标签和转交关系由服务事务校验。
 
 ## 阶段 39 已有开发数据库 SQL 顺序
 
@@ -103,6 +110,95 @@ ALTER TABLE voucher_refund
 ```
 
 执行列删除和唯一索引前，必须先把旧 `voucher_ids` 拆分写入 `voucher_refund_item`，并排查重复 `idempotency_key`；本仓库 Demo 快照已直接完成数据切换，不为未知现有库自动生成或执行数据修复。
+
+## 阶段 40 已有开发数据库 SQL 顺序
+
+以下顺序只适用于已经完成阶段 39、确认允许修改并已备份的开发数据库。MySQL DDL 会隐式提交，不能依赖一个外层事务整体回滚；应用不会自动执行这些语句，本次也没有连接或修改任何现有数据库。
+
+1. 先确认旧工单只由消费者或商户创建；若查询有结果，停止并人工确定申请人：
+
+```sql
+SELECT id, created_by_type, created_by_id
+FROM customer_service_ticket
+WHERE created_by_type NOT IN ('CONSUMER', 'MERCHANT') OR created_by_id IS NULL;
+```
+
+2. 先增加允许为空的归属和 SLA 字段，再回填旧数据：
+
+```sql
+ALTER TABLE customer_service_ticket
+  ADD COLUMN applicant_type varchar(16) NULL AFTER priority,
+  ADD COLUMN applicant_id bigint UNSIGNED NULL AFTER applicant_type,
+  ADD COLUMN related_user_id bigint UNSIGNED NULL AFTER applicant_id,
+  ADD COLUMN related_shop_id bigint UNSIGNED NULL AFTER related_user_id,
+  ADD COLUMN last_response_time timestamp NULL AFTER first_response_time,
+  ADD COLUMN waiting_customer_since timestamp NULL AFTER last_response_time,
+  ADD COLUMN waiting_merchant_since timestamp NULL AFTER waiting_customer_since,
+  ADD COLUMN sla_deadline timestamp NULL AFTER last_message_time,
+  ADD COLUMN sla_breached tinyint(1) NOT NULL DEFAULT 0 AFTER sla_deadline,
+  ADD COLUMN has_internal_note tinyint(1) NOT NULL DEFAULT 0 AFTER sla_breached;
+
+UPDATE customer_service_ticket
+SET applicant_type = created_by_type,
+    applicant_id = created_by_id,
+    related_user_id = CASE WHEN created_by_type = 'CONSUMER' THEN user_id ELSE NULL END,
+    related_shop_id = shop_id,
+    status = CASE WHEN status = 'NEW' THEN 'OPEN' ELSE status END,
+    sla_deadline = DATE_ADD(COALESCE(create_time, CURRENT_TIMESTAMP), INTERVAL 4 HOUR),
+    has_internal_note = EXISTS (
+      SELECT 1 FROM customer_service_message m
+      WHERE m.ticket_id = customer_service_ticket.id AND m.visibility = 'INTERNAL'
+    );
+
+ALTER TABLE customer_service_ticket
+  MODIFY applicant_type varchar(16) NOT NULL,
+  MODIFY applicant_id bigint UNSIGNED NOT NULL,
+  MODIFY sla_deadline timestamp NOT NULL,
+  MODIFY status varchar(24) NOT NULL DEFAULT 'OPEN';
+```
+
+3. 在确认旧索引名称与阶段 39 快照一致后替换队列和归属索引：
+
+```sql
+ALTER TABLE customer_service_ticket
+  DROP INDEX idx_customer_service_ticket_queue,
+  DROP INDEX idx_customer_service_ticket_user,
+  DROP INDEX idx_customer_service_ticket_shop,
+  ADD INDEX idx_customer_service_ticket_queue (sla_breached,status,priority,sla_deadline,id),
+  ADD INDEX idx_customer_service_ticket_applicant (applicant_type,applicant_id,last_message_time,id),
+  ADD INDEX idx_customer_service_ticket_related_user (related_user_id,update_time,id),
+  ADD INDEX idx_customer_service_ticket_related_shop (related_shop_id,update_time,id);
+```
+
+4. 附件先增加兼容字段并回填现有对象。`<当前私有桶名>` 必须替换为环境实际配置，不得原样执行：
+
+```sql
+ALTER TABLE customer_service_attachment
+  MODIFY message_id bigint UNSIGNED NULL,
+  ADD COLUMN status varchar(16) NOT NULL DEFAULT 'TEMPORARY' AFTER message_id,
+  ADD COLUMN bucket_name varchar(128) NULL AFTER object_key,
+  ADD COLUMN expires_at timestamp NULL AFTER byte_size,
+  ADD COLUMN bound_at timestamp NULL AFTER expires_at,
+  ADD COLUMN deleted_at timestamp NULL AFTER bound_at,
+  ADD COLUMN update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER create_time;
+
+UPDATE customer_service_attachment
+SET status = CASE WHEN message_id IS NULL THEN 'TEMPORARY' ELSE 'BOUND' END,
+    bucket_name = '<当前私有桶名>',
+    bound_at = CASE WHEN message_id IS NULL THEN NULL ELSE create_time END,
+    expires_at = CASE WHEN message_id IS NULL THEN DATE_ADD(create_time, INTERVAL 24 HOUR) ELSE NULL END;
+
+ALTER TABLE customer_service_attachment
+  MODIFY bucket_name varchar(128) NOT NULL,
+  DROP INDEX idx_customer_service_attachment_message,
+  ADD INDEX idx_customer_service_attachment_message (message_id,status,id),
+  ADD INDEX idx_customer_service_attachment_temporary (uploader_type,uploader_id,status,expires_at,id),
+  ADD INDEX idx_customer_service_attachment_ticket (ticket_id,status,id);
+```
+
+5. 最后按 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql) 中的完整定义依次创建：`customer_service_read_cursor`、`customer_service_tag`、`customer_service_ticket_tag`、`customer_service_transfer`、`customer_service_quick_reply`。创建后再按 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql) 的标签与快捷回复样例选择性初始化字典；不得复制工单、消息、转交或已读游标业务样例到有保留数据的库。
+
+6. 上线新代码前复核：不存在 `NEW` 状态、不存在空 `applicant_type/applicant_id/sla_deadline`、所有已绑定附件都有 `message_id` 和 `bound_at`，并确认五张新表及其唯一索引均已创建。
 
 ## 业务约束
 
@@ -144,7 +240,7 @@ ALTER TABLE voucher_refund
 
 ## 开发种子闭环
 
-当前种子保证 46 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
+当前种子保证 51 张业务表全部非空，并为列表、筛选、详情、状态标签、权限差异和操作按钮提供适量数据：
 
 | 领域 | 数量与状态覆盖 |
 |---|---|

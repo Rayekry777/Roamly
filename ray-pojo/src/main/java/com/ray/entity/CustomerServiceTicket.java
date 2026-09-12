@@ -18,7 +18,13 @@ public class CustomerServiceTicket {
     private String type;
     private String status;
     private String priority;
+    private String applicantType;
+    private Long applicantId;
+    private Long relatedUserId;
+    private Long relatedShopId;
+    /** 旧字段，仅用于兼容阶段 40 前的开发数据。 */
     private Long userId;
+    /** 旧字段，仅用于兼容阶段 40 前的开发数据。 */
     private Long shopId;
     private Long orderId;
     private Long voucherId;
@@ -30,10 +36,16 @@ public class CustomerServiceTicket {
     private String createdByType;
     private Long createdById;
     private LocalDateTime firstResponseTime;
+    private LocalDateTime lastResponseTime;
+    private LocalDateTime waitingCustomerSince;
+    private LocalDateTime waitingMerchantSince;
     private LocalDateTime resolvedTime;
     private LocalDateTime closedTime;
     private LocalDateTime reopenDeadline;
     private LocalDateTime lastMessageTime;
+    private LocalDateTime slaDeadline;
+    private Boolean slaBreached;
+    private Boolean hasInternalNote;
     private Integer version;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

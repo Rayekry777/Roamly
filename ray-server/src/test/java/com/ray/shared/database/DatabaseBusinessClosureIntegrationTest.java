@@ -75,11 +75,11 @@ class DatabaseBusinessClosureIntegrationTest {
 
     @Test
     @Order(1)
-    void snapshotHasFortyThreeCurrentTablesAndConsistentSeedFacts() {
+    void snapshotHasFiftyOneCurrentTablesAndConsistentSeedFacts() {
         var tableNames = jdbc.queryForList(
                 "select table_name from information_schema.tables where table_schema = database() order by table_name",
                 String.class);
-        assertEquals(43, tableNames.size(), "当前表=" + tableNames);
+        assertEquals(51, tableNames.size(), "当前表=" + tableNames);
         List<String> seededTables = List.of(
                 "admin_user", "operation_audit_log", "city", "district", "content_section", "section_follow",
                 "media_asset", "post", "post_media", "post_like", "post_comment", "post_comment_like",
@@ -87,10 +87,13 @@ class DatabaseBusinessClosureIntegrationTest {
                 "business_media_asset", "shop_type", "shop_review", "shop_review_media", "user", "user_profile",
                 "voucher_product", "voucher_package_item", "voucher_product_detail", "voucher_product_tag",
                 "voucher_product_cash_rule", "voucher_product_discount_rule", "voucher_product_multi_use_rule",
-                "voucher_order", "payment_transaction", "voucher_refund", "user_voucher", "user_voucher_qr_code",
+                "voucher_order", "payment_transaction", "voucher_refund", "voucher_refund_item", "voucher_refund_attempt",
+                "user_voucher", "user_voucher_qr_code",
                 "voucher_redemption", "commission_rule", "fund_ledger_entry",
                 "customer_service_ticket", "customer_service_message", "customer_service_attachment",
-                "settlement_batch", "settlement_item");
+                "customer_service_read_cursor", "customer_service_tag", "customer_service_ticket_tag",
+                "customer_service_transfer", "customer_service_quick_reply",
+                "settlement_batch", "settlement_item", "settlement_attempt");
         assertEquals(tableNames, seededTables.stream().sorted().toList());
         seededTables.forEach(table -> assertTrue(
                 count("select count(*) from `" + table + "`") > 0, "开发种子不得留下空表：" + table));
