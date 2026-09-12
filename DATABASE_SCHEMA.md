@@ -1,21 +1,21 @@
 # Roamly 数据库结构契约
 
 ```yaml
-updatedAt: 2026-09-08
+updatedAt: 2026-09-12
 schemaMode: Demo 可重建快照
-businessTableCount: 42
+businessTableCount: 43
 database: MySQL / InnoDB / utf8mb4
 runtimeVerification: 已验证（43 张当前业务表）
-targetBusinessTableCount: 42
-targetDesignVersion: 9
+targetBusinessTableCount: 46
+targetDesignVersion: 10
 targetDesignStatus: 已冻结
-targetImplementationStatus: 已实现
+targetImplementationStatus: 阶段 37 已实现
 demoDataClosureStatus: 已实现
 ```
 
 结构真源为 [schema-init.sql](./ray-server/src/main/resources/schema-init.sql)，开发样例真源为 [seed-dev.sql](./ray-server/src/main/resources/seed-dev.sql)。两者只服务于已授权可清空的 Demo 开发库。
 
-当前源码快照为 42 表：新增核销收入快照、服务费规则、退款执行状态以及客服工单/消息/附件表，目标 DDL 与种子保持可重建快照。
+当前源码快照为 43 张业务表：包含核销收入快照、服务费规则、退款执行状态以及客服工单/消息/附件表。阶段 37 将新增退款明细、退款执行尝试和结算执行尝试三张表，目标 DDL 与种子保持可重建快照。
 
 ## 规则
 
@@ -23,7 +23,7 @@ demoDataClosureStatus: 已实现
 - 不声明物理外键，跨表关系由 Service 在事务内校验和维护。
 - 金额以分存储；Java 内部 ID 为 `Long`，HTTP 业务 ID 为字符串。
 - 已退役 `blog`、`blog_comments`、`voucher`、`seckill_voucher`，不保留兼容表或转换脚本。
-- `schema-init.sql` 在文件开头按依赖逆序集中执行全部 43 张业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
+- `schema-init.sql` 在文件开头按依赖逆序集中执行全部业务表的 `DROP TABLE IF EXISTS`，随后统一建表；不得用于非 Demo 数据库或生产环境。
 
 ## 表目录
 
@@ -63,6 +63,8 @@ demoDataClosureStatus: 已实现
 | `voucher_product_multi_use_rule` | 次卡权益规则 | 商品级 | `product_id` 主键 |
 | `payment_transaction` | 支付尝试与支付结果 | 用户/订单级 | `order_id,idempotency_key` 唯一 |
 | `voucher_refund` | 统一消费者/商户/管理员退款申请与处理结果 | 用户/订单/门店级 | `voucher_id,idempotency_key` 唯一；保存来源、渠道失败和退款冲回关联 |
+| `voucher_refund_item` | 退款申请逐券明细与财务快照 | 用户/订单/门店级 | `refund_id,voucher_id` 唯一；保存可退金额、核销快照和冲回金额 |
+| `voucher_refund_attempt` | 每次 Mock 渠道退款执行尝试 | 订单/退款级 | 幂等键唯一；租约和下次重试时间索引 |
 | `merchant_staff_invitation` | 租户员工短时邀请 | 商户/门店级 | 六位凭证 HMAC 摘要；签发幂等键唯一；手机号、状态和过期时间索引 |
 | `voucher_redemption` | 核销与撤销记录 | 商户/门店级 | `shop_id,idempotency_key` 唯一 |
 | `commission_rule` | 平台默认与门店佣金规则 | 平台/门店级 | 费率及生效区间索引 |
@@ -72,8 +74,9 @@ demoDataClosureStatus: 已实现
 | `customer_service_attachment` | 工单图片附件 | 消息级 | 对象键唯一 |
 | `settlement_batch` | T+1 结算批次 | 商户/门店级 | `shop_id,settlement_date` 唯一 |
 | `settlement_item` | 结算批次账本明细 | 商户/门店级 | `batch_id,ledger_entry_id` 唯一 |
+| `settlement_attempt` | 结算批次 Mock 执行尝试 | 商户/门店级 | 幂等键唯一；租约、重试和失败原因索引 |
 
-退款闭环补充：`voucher_refund` 通过 `source` 区分消费者、商户和管理员发起，`voucher_ids` 保存一次申请涉及的券集合，`approved_amount`、渠道退款号和失败字段记录处理事实；退款成功必须在 `fund_ledger_entry` 追加 `REFUND_REVERSED`，并以 `REFUND-{refundId}` 作为业务事件键。商户售后权限为 `merchant:after-sales:read/create`，平台审批仍使用 `admin:refund:manage`。
+退款闭环补充：`voucher_refund` 通过 `source` 区分消费者、商户和管理员发起，申请涉及的券集合由 `voucher_refund_item` 逐券保存；`approved_amount`、渠道退款号和失败字段记录处理事实，执行尝试由 `voucher_refund_attempt` 记录。退款成功必须在 `fund_ledger_entry` 追加 `REFUND_REVERSED`，并以 `REFUND-{refundId}` 作为业务事件键。商户售后权限为 `merchant:after-sales:read/create`，平台审批仍使用 `admin:refund:manage`。
 
 ## 业务约束
 

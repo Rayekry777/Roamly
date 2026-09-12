@@ -2,6 +2,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `operation_audit_log`;
+DROP TABLE IF EXISTS `settlement_attempt`;
 DROP TABLE IF EXISTS `customer_service_attachment`;
 DROP TABLE IF EXISTS `customer_service_message`;
 DROP TABLE IF EXISTS `customer_service_ticket`;
@@ -12,6 +13,8 @@ DROP TABLE IF EXISTS `commission_rule`;
 DROP TABLE IF EXISTS `voucher_redemption`;
 DROP TABLE IF EXISTS `user_voucher_qr_code`;
 DROP TABLE IF EXISTS `user_voucher`;
+DROP TABLE IF EXISTS `voucher_refund_attempt`;
+DROP TABLE IF EXISTS `voucher_refund_item`;
 DROP TABLE IF EXISTS `voucher_refund`;
 DROP TABLE IF EXISTS `payment_transaction`;
 DROP TABLE IF EXISTS `voucher_order`;
@@ -701,6 +704,55 @@ CREATE TABLE `voucher_refund` (
   INDEX `idx_voucher_refund_user_time` (`user_id`,`created_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='单券退款记录';
 
+CREATE TABLE `voucher_refund_item` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '退款明细ID',
+  `refund_id` bigint UNSIGNED NOT NULL COMMENT '退款申请ID',
+  `voucher_id` bigint UNSIGNED NOT NULL COMMENT '用户券ID',
+  `order_item_id` bigint UNSIGNED NULL COMMENT '订单明细ID，逻辑关联',
+  `redeemed` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否已核销：0否、1是',
+  `sale_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '商品售价分摊，单位分',
+  `customer_paid_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '顾客实付分摊，单位分',
+  `platform_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '平台补贴分摊，单位分',
+  `merchant_subsidy_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '商家补贴分摊，单位分',
+  `service_fee_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '服务费快照，单位分',
+  `refundable_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '可退金额，单位分',
+  `refund_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '实际退款金额，单位分',
+  `status` varchar(24) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING待执行、PROCESSING处理中、SUCCESS成功、FAILED失败',
+  `reversed_income_amount` bigint NOT NULL DEFAULT 0 COMMENT '已核销收入冲回，单位分',
+  `refunded_service_fee_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '返还服务费，单位分',
+  `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_voucher_refund_item_voucher` (`refund_id`,`voucher_id`),
+  INDEX `idx_voucher_refund_item_voucher_status` (`voucher_id`,`status`,`id`),
+  INDEX `idx_voucher_refund_item_refund_status` (`refund_id`,`status`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='退款逐券明细';
+
+CREATE TABLE `voucher_refund_attempt` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '退款执行尝试ID',
+  `refund_id` bigint UNSIGNED NOT NULL COMMENT '退款申请ID',
+  `refund_item_id` bigint UNSIGNED NULL COMMENT '退款明细ID',
+  `idempotency_key` varchar(128) NOT NULL COMMENT '渠道幂等键',
+  `status` varchar(24) NOT NULL COMMENT 'WAITING、PROCESSING、SUCCESS、FAILED、RETRY_WAITING、MANUAL_REQUIRED',
+  `mock_scenario` varchar(32) NULL COMMENT 'SUCCESS、FAIL_ONCE、ALWAYS_FAIL、DELAYED',
+  `request_amount` bigint UNSIGNED NOT NULL DEFAULT 0 COMMENT '请求金额，单位分',
+  `provider_refund_no` varchar(128) NULL COMMENT 'Mock 渠道退款单号',
+  `failure_code` varchar(64) NULL,
+  `failure_message` varchar(500) NULL,
+  `retry_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `lease_owner` varchar(128) NULL,
+  `lease_until` timestamp NULL,
+  `next_retry_at` timestamp NULL,
+  `started_time` timestamp NULL,
+  `finished_time` timestamp NULL,
+  `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_voucher_refund_attempt_key` (`idempotency_key`),
+  INDEX `idx_voucher_refund_attempt_queue` (`status`,`next_retry_at`,`lease_until`,`id`),
+  INDEX `idx_voucher_refund_attempt_refund` (`refund_id`,`created_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='退款渠道执行尝试';
+
 CREATE TABLE `user_voucher` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` bigint UNSIGNED NOT NULL,
@@ -894,6 +946,29 @@ CREATE TABLE `settlement_item` (
   `amount` bigint NOT NULL,
   PRIMARY KEY (`id`), UNIQUE INDEX `uk_settlement_item_batch_ledger` (`batch_id`,`ledger_entry_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='结算批次明细';
+
+CREATE TABLE `settlement_attempt` (
+  `id` bigint UNSIGNED NOT NULL COMMENT '结算执行尝试ID',
+  `batch_id` bigint UNSIGNED NOT NULL COMMENT '结算批次ID',
+  `idempotency_key` varchar(128) NOT NULL COMMENT '结算幂等键',
+  `status` varchar(24) NOT NULL COMMENT 'WAITING、PROCESSING、SUCCESS、FAILED、RETRY_WAITING、MANUAL_REQUIRED',
+  `request_amount` bigint NOT NULL DEFAULT 0 COMMENT '请求金额，单位分',
+  `mock_scenario` varchar(32) NULL COMMENT 'Mock 场景',
+  `provider_reference` varchar(128) NULL COMMENT 'Mock 渠道流水号',
+  `failure_reason` varchar(500) NULL,
+  `retry_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `lease_owner` varchar(128) NULL,
+  `lease_until` timestamp NULL,
+  `next_retry_at` timestamp NULL,
+  `started_time` timestamp NULL,
+  `finished_time` timestamp NULL,
+  `created_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_settlement_attempt_key` (`idempotency_key`),
+  INDEX `idx_settlement_attempt_queue` (`status`,`next_retry_at`,`lease_until`,`id`),
+  INDEX `idx_settlement_attempt_batch` (`batch_id`,`created_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='结算渠道执行尝试';
 
 
 SET FOREIGN_KEY_CHECKS = 1;

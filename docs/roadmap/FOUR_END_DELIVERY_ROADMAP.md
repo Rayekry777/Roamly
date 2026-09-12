@@ -1,8 +1,8 @@
 # Roamly 四端交付路线图
 
 ```yaml
-roadmapVersion: 2
-updatedAt: 2026-09-05
+roadmapVersion: 3
+updatedAt: 2026-09-12
 status: 已冻结
 scope: 阶段顺序、依赖与跨端验收
 reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依赖
@@ -43,6 +43,7 @@ reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依�
 | [30](../stages/STAGE_30_FULL_ACCEPTANCE.md) | 四端全量回归、33 表和视觉验收 | 是 | 是 | 是 | 是 | 开发中 |
 | [31](../stages/STAGE_31_OFFLINE_REDEMPTION_BOUNDARY.md) | 核销与线下收款解耦、订单实付金额分摊和结算边界 | 是 | 是 | 是 | 是 | 已实现 |
 | [36](../stages/STAGE_36_MERCHANT_TENANT_AND_SHORT_INVITATION.md) | 游客/租户身份与 60 秒员工邀请 | 是 | 否 | 是 | 是 | 开发中 |
+| [37](../stages/STAGE_37_CONTRACT_MODULE_DATABASE_BASELINE.md) | 退款、客服、资金契约和数据库基础 | 是 | 否 | 否 | 否 | 已实现 |
 
 ## 阶段门禁
 
@@ -66,6 +67,7 @@ reviewNote: v2 已复核阶段 23 商户订单只读查询及其权限验收依�
 | 30 | 阶段 29 已实现 | 四端自动化、真实 OpenAPI、33 张业务表、运行时、截图和工作区检查通过 |
 | 31 | 阶段 26-30 设计解冻并同步切换 | 核销接口无线下金额；订单实付金额、佣金和次卡分摊守恒；撤销冲回、T+1 生成、四端和 OpenAPI 验收通过 |
 | 36 | 阶段 34 商户账号资料可用 | 游客/租户迁移、短时邀请、单公司并发保护、商户小程序与管理 Web 验收通过 |
+| 37 | 阶段 36 契约和数据库现状已核对 | 状态契约、退款逐券明细、退款/结算执行尝试表、文档和后端编译通过 |
 
 ## 交付顺序
 
