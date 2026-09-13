@@ -1,6 +1,6 @@
 # Roamly 后端｜技术栈与解决方案
 
-Roamly 后端是面向消费者小程序、商户小程序和管理 Web 的本地生活点评与团购交易服务。文档重点说明技术选型和关键问题的解决方式；业务页面和接口清单以各端契约文档为准。
+Roamly 后端是面向消费者小程序、商户小程序和管理 Web 的本地生活点评与团购交易服务。本文说明技术选型、运行方式和关键解决方案；长期业务规则统一收录在 `docs/project-details` 下的中文细节文档中。
 
 系统采用模块化单体架构：三端通过统一的 `/v1` REST 契约访问服务端，交易事实集中在 MySQL，Redis 负责会话、缓存和跨实例事件。商户入驻、商品审核、下单支付、发券退款、核销、佣金账本、结算和审计均在同一套状态约束下闭环。
 
@@ -31,7 +31,7 @@ Roamly 后端是面向消费者小程序、商户小程序和管理 Web 的本�
                                       └─► Redis（会话、缓存、锁、幂等、事件）
 ```
 
-- **统一契约**：Controller 只暴露 `DTO` 入参和 `VO` 出参，响应统一为 `Result`/`ErrorResult`；分页同时支持页码和游标，第三方 SDK 类型不进入公共模型。
+- **统一接口模型**：Controller 只暴露 `DTO` 入参和 `VO` 出参，响应统一为 `Result`/`ErrorResult`；分页同时支持页码和游标，第三方 SDK 类型不进入公共模型。
 - **事实与通知分离**：订单、支付、退款、核销、账本和结算以数据库状态为准，WebSocket/SSE/Redis Pub/Sub 只发送资源变更通知，客户端收到后回查 REST。
 - **可替换基础设施**：对象存储、定时任务、XLSX 导出和分布式锁均通过适配边界接入，开发环境可使用本地实现，生产配置不完整时显式失败。
 
@@ -90,7 +90,7 @@ Roamly 后端是面向消费者小程序、商户小程序和管理 Web 的本�
 | SnailJob | Spring Scheduling + 幂等任务服务 | 满足当前 Demo 调度规模，任务允许重复投递且结果幂等 |
 | Fesod | 自研 OOXML Writer | 满足同步 XLSX 导出，保持权限和字段白名单可控 |
 
-动态 RBAC、多租户、部门岗位、通用字典、代码生成、动态数据源、社交登录、WarmFlow、Spring Boot Admin 和 SkyWalking 尚未引入。完整版本依据、采用矩阵和接入门禁见[若依扩展技术决策](docs/architecture/RUOYI_EXTENSION_COMPATIBILITY.md)。
+动态 RBAC、多租户、部门岗位、通用字典、代码生成、动态数据源、社交登录、WarmFlow、Spring Boot Admin 和 SkyWalking 尚未引入。是否继续扩展以实际生产规模和运维需求为准，不因框架存在对应模块而默认接入。
 
 ## 工程结构
 
@@ -101,11 +101,11 @@ Roamly
 └─ ray-server   Controller、Service、Mapper、配置、任务和基础设施适配器
 ```
 
-依赖方向固定为 `ray-server -> ray-common + ray-pojo`。`ray-pojo` 按用途分为 `dto`（接口入参及内部/可复用传输结构）、`vo`（接口出参）和 `entity`（数据库对象）；服务端保持 `controller / service / service.impl / mapper / config / handler` 分层，第三方 SDK 类型不会进入公共模型或 OpenAPI 契约。
+依赖方向固定为 `ray-server -> ray-common + ray-pojo`。`ray-pojo` 按用途分为 `dto`（接口入参及内部/可复用传输结构）、`vo`（接口出参）和 `entity`（数据库对象）；服务端保持 `controller / service / service.impl / mapper / config / handler` 分层，第三方 SDK 类型不会进入公共模型或 OpenAPI。
 
 ## Demo 数据与测试账号
 
-dev 快照包含 42 张非空业务表，覆盖社区互动、四类券、订单、支付、退款、员工、核销、账本、结算和审计状态。
+dev 快照包含 51 张非空业务表，覆盖社区互动、四类券、订单、支付、退款、员工、核销、账本、结算、客服和审计状态。
 
 | 端 | 推荐账号 | 开发凭据 |
 |---|---|---|
@@ -113,7 +113,7 @@ dev 快照包含 42 张非空业务表，覆盖社区互动、四类券、订单
 | 商户小程序 | `13900000001` | Mock 验证码 `123456`；密码 `Roamly123` |
 | 管理 Web | `admin` | 密码 `Roamly123` |
 
-账号只用于可重建的 dev 数据库，禁止复制到生产。附加角色账号、数据数量和代表性业务链路见[数据库结构文档](DATABASE_SCHEMA.md#开发测试账号)。
+账号只用于可重建的 dev 数据库，禁止复制到生产。附加角色账号、数据数量和代表性业务链路见[数据库表结构与开发数据说明](docs/project-details/数据库表结构与开发数据说明.md#开发测试账号)。
 
 ## 本地启动
 
@@ -156,15 +156,14 @@ mvn -DskipTests compile
 mvn -pl ray-server -am dependency:tree
 ```
 
-最近一次默认测试共 172 项，其中 150 项通过、22 项按环境开关跳过，0 失败、0 错误；真实数据库闭环测试 9 项全部通过，并在结束后恢复纯种子状态。
+最近一次完整收口记录为默认后端测试 249 项，其中 227 项通过、22 项按既有环境开关跳过，0 失败、0 错误。真实数据库测试只允许针对明确授权、可重建的隔离开发库执行。
 
-- [后端开发契约](BACKEND_DEVELOPMENT.md)
-- [数据库结构与测试账号](DATABASE_SCHEMA.md)
-- [若依扩展技术决策](docs/architecture/RUOYI_EXTENSION_COMPATIBILITY.md)
-- [四端交付路线图](docs/roadmap/FOUR_END_DELIVERY_ROADMAP.md)
-- [阶段 15 至 30 设计](docs/stages/STAGE_15_FOUR_END_CONTRACT_AND_FOUNDATION.md)
+- [后端功能与接口细节说明](docs/project-details/后端功能与接口细节说明.md)
+- [数据库表结构与开发数据说明](docs/project-details/数据库表结构与开发数据说明.md)
+- [退款客服与资金结算业务细节](docs/project-details/退款客服与资金结算业务细节.md)
+- [地域隔离、推荐算法与测试数据说明](docs/project-details/地域隔离、推荐算法与测试数据说明.md)
 - [管理 Web](../Roamly-admin-web/README.md)
 - [商户小程序](../Roamly-merchant-miniapp/README.md)
 - [消费者小程序](../Roamly-miniapp/README.md)
 
-当前开发阶段不执行 `package`、`install`、部署或 Docker 产物生成。
+上述验证命令只做本地检查，不会自动部署或修改生产数据。
