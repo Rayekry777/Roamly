@@ -44,12 +44,6 @@ public interface PostService extends IService<ContentPost> {
     CursorPageResult<PostCardVO> listRecommendedFeed(
             String cityCode, String districtCode, Long cursor, int offset, int size);
 
-    /** 兼容不带区县筛选的内部调用，默认只按城市查询。 */
-    default CursorPageResult<PostCardVO> listRecommendedFeed(
-            String cityCode, Long cursor, int offset, int size) {
-        return listRecommendedFeed(cityCode, null, cursor, offset, size);
-    }
-
     /** 按发布时间查询当前用户关注作者的动态。 */
     CursorPageResult<PostCardVO> listFollowingFeed(Long cursor, int offset, int size);
 

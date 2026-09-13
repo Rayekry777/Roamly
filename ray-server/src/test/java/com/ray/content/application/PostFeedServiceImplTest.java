@@ -84,7 +84,7 @@ class PostFeedServiceImplTest {
         when(postMapper.selectRecommended("330100", null, null, 0, 3)).thenReturn(posts);
 
         CursorPageResult<PostCardVO> result =
-                service.listRecommendedFeed(" 330100 ", null, 0, 2);
+                service.listRecommendedFeed(" 330100 ", null, null, 0, 2);
 
         assertEquals(List.of("3", "2"), result.items().stream().map(PostCardVO::id).toList());
         assertTrue(result.hasMore());
@@ -176,7 +176,7 @@ class PostFeedServiceImplTest {
     void offsetCannotBeUsedWithoutCursor() {
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.listRecommendedFeed("330100", null, 1, 10));
+                () -> service.listRecommendedFeed("330100", null, null, 1, 10));
 
         assertEquals("INVALID_ARGUMENT", exception.code());
     }

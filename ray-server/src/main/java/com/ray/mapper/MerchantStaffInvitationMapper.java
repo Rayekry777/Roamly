@@ -7,9 +7,6 @@ import org.apache.ibatis.annotations.Select;
 
 /** 商户员工短时邀请数据访问接口。 */
 public interface MerchantStaffInvitationMapper extends BaseMapper<MerchantStaffInvitation> {
-    /** 兼容旧员工服务按凭证摘要查询。 */
-    @Select("SELECT * FROM merchant_staff_invitation WHERE credential_digest=#{digest} ORDER BY create_time DESC LIMIT 1")
-    MerchantStaffInvitation findByDigest(@Param("digest") String digest);
     /** 按目标手机号和凭证摘要加锁读取邀请。 */
     @Select("""
             SELECT * FROM merchant_staff_invitation
