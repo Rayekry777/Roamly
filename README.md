@@ -105,7 +105,7 @@ Roamly
 
 ## Demo 数据与测试账号
 
-dev 快照包含 51 张非空业务表，覆盖社区互动、四类券、订单、支付、退款、员工、核销、账本、结算、客服和审计状态。
+dev 快照包含 51 张非空业务表，固定演示链路之外默认生成 2,000 个消费者、300 家门店、3,000 个团购商品、20,000 条动态、10,000 条点评和 10,000 条订单，覆盖推荐系统分页、城市/区县隔离、交易履约、退款、结算和客服状态。
 
 | 端 | 推荐账号 | 开发凭据 |
 |---|---|---|
@@ -113,7 +113,7 @@ dev 快照包含 51 张非空业务表，覆盖社区互动、四类券、订单
 | 商户小程序 | `13900000001` | Mock 验证码 `123456`；密码 `Roamly123` |
 | 管理 Web | `admin` | 密码 `Roamly123` |
 
-账号只用于可重建的 dev 数据库，禁止复制到生产。附加角色账号、数据数量和代表性业务链路见[数据库表结构与开发数据说明](docs/project-details/数据库表结构与开发数据说明.md#开发测试账号)。
+账号只用于可重建的 dev 数据库，禁止复制到生产。批量数据使用固定 ID 区间和确定性 SQL 生成；城市只保留杭州 `330100`、西宁 `630100`，区域可扩展。账号、数据数量、重建方式和校验 SQL 见[数据库表结构与开发数据说明](docs/project-details/数据库表结构与开发数据说明.md#海量开发数据规范)。
 
 ## 本地启动
 
@@ -156,10 +156,11 @@ mvn -DskipTests compile
 mvn -pl ray-server -am dependency:tree
 ```
 
-最近一次完整收口记录为默认后端测试 249 项，其中 227 项通过、22 项按既有环境开关跳过，0 失败、0 错误。真实数据库测试只允许针对明确授权、可重建的隔离开发库执行。
+店铺发现阶段后端常规回归为 257 项，其中 23 项环境测试默认跳过；后续补贴验证记录见对应细节文档。真实数据库测试仅在隔离库执行，不重建当前开发库。
 
 - [后端功能与接口细节说明](docs/project-details/后端功能与接口细节说明.md)
 - [数据库表结构与开发数据说明](docs/project-details/数据库表结构与开发数据说明.md)
+- [计费、补贴与结算计算细节](docs/project-details/计费、补贴与结算计算细节.md)
 - [退款客服与资金结算业务细节](docs/project-details/退款客服与资金结算业务细节.md)
 - [地域隔离、推荐算法与测试数据说明](docs/project-details/地域隔离、推荐算法与测试数据说明.md)
 - [管理 Web](../Roamly-admin-web/README.md)
@@ -167,3 +168,17 @@ mvn -pl ray-server -am dependency:tree
 - [消费者小程序](../Roamly-miniapp/README.md)
 
 上述验证命令只做本地检查，不会自动部署或修改生产数据。
+
+## 文档维护与数据库验证
+
+README 维护运行方式、技术概览和文档导航；功能、数据库与计费规则集中维护在对应细节文档。根目录不另建开发契约或数据库入口文件。OpenAPI 仍用于描述真实 HTTP 接口，SQL 仍是结构与种子真源。
+
+结构和种子直接修改 `ray-server/src/main/resources/schema-init.sql`、`seed-dev.sql`，不另建升级脚本。初始化脚本含重建操作，不对已有开发库运行；源码保存不会自动修正运行库中的旧数据。运行接口改动后重启 IDEA 后端并重新编译小程序。
+
+隔离库与真实 HTTP 验证（PowerShell）：
+
+```powershell
+mvn '-Ddiscovery.mysql=true' '-Ddiscovery.runtime=true' '-Dtest=ShopDiscoveryMysqlTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+上述专用测试创建随机 `roamly_discovery_test_` 前缀的临时数据库，在临时端口 18081 验证后自动清理；不要使用会重建开发库的其他数据库测试流程。
