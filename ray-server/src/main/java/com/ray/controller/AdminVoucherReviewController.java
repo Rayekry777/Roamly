@@ -1,6 +1,7 @@
 package com.ray.controller;
 
 import com.ray.dto.VoucherReviewApprovalDTO;
+import com.ray.dto.PlatformSubsidyUpdateDTO;
 import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.enums.VoucherProductType;
 import com.ray.enums.VoucherReviewStatus;
@@ -26,6 +27,7 @@ import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -69,6 +71,23 @@ public class AdminVoucherReviewController {
     })
     public Result<AdminVoucherReviewDetailVO> get(@PathVariable String productId) {
         return Result.ok(service.get(productId));
+    }
+
+    @PutMapping("/{productId}/platform-subsidy")
+    @Operation(summary = "设置单份券的平台补贴", operationId = "updateAdminVoucherPlatformSubsidy")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "设置成功，仅影响新订单", useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "400", description = "补贴金额或参数无效", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "401", description = "未登录", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "403", description = "无团购券审核权限", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "404", description = "团购券不存在", content = @Content(schema = @Schema(implementation = ErrorResult.class))),
+        @ApiResponse(responseCode = "409", description = "商品版本变化", content = @Content(schema = @Schema(implementation = ErrorResult.class)))
+    })
+    public Result<Void> updatePlatformSubsidy(
+            @Parameter(description = "商品 ID") @PathVariable String productId,
+            @Valid @RequestBody PlatformSubsidyUpdateDTO request) {
+        service.updatePlatformSubsidy(productId, request);
+        return Result.ok(null);
     }
 
     @PostMapping("/{productId}/approval")

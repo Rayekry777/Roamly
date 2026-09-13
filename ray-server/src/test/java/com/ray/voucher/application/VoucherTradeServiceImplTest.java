@@ -216,6 +216,27 @@ class VoucherTradeServiceImplTest {
         assertEquals("代金券", ((com.ray.vo.VoucherOrderVO) item).productTypeLabel());
     }
 
+    @Test
+    void confirmationAndOrderUseQuantityTotalSubsidiesAndFreezePayment() {
+        preparePurchasableProduct(3);
+        var product = productMapper.selectById(1001L).setMerchantSubsidyAmount(1000L).setPlatformDiscountAmount(500L);
+        var confirmation = service.confirmOrder(1001L, 2);
+        assertEquals(19800L, confirmation.totalAmount());
+        assertEquals(2000L, confirmation.merchantSubsidyAmount());
+        assertEquals(1000L, confirmation.platformDiscountAmount());
+        assertEquals(16800L, confirmation.payAmount());
+        when(productMapper.deductStock(1001L, 2)).thenReturn(1);
+        when(idWorker.nextId("voucher-order")).thenReturn(9002L);
+        when(orderMapper.insert(any(VoucherOrder.class))).thenReturn(1);
+        service.createOrder(1001L, new VoucherOrderCreateDTO(2), "subsidy-order-1");
+        var inserted = org.mockito.ArgumentCaptor.forClass(VoucherOrder.class);
+        verify(orderMapper).insert(inserted.capture());
+        product.setPlatformDiscountAmount(0L).setMerchantSubsidyAmount(0L);
+        assertEquals(16800L, inserted.getValue().getPayAmount());
+        assertEquals(2000L, inserted.getValue().getMerchantSubsidyAmount());
+        assertEquals(1000L, inserted.getValue().getPlatformDiscountAmount());
+    }
+
     private void preparePurchasableProduct(int purchaseLimit) {
         when(productMapper.selectById(1001L)).thenReturn(new VoucherProduct()
                 .setId(1001L)

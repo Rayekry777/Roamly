@@ -374,7 +374,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 request.priceAmount(),
                 request.marketAmount(),
                 request.merchantSubsidyAmount() == null ? 0L : request.merchantSubsidyAmount(),
-                request.platformDiscountAmount() == null ? 0L : request.platformDiscountAmount(),
+                product.getPlatformDiscountAmount() == null ? 0L : product.getPlatformDiscountAmount(),
                 request.faceValueAmount(),
                 request.minimumSpendAmount(),
                 request.totalUseCount(),
@@ -421,7 +421,6 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .set("price_amount", snapshot.priceAmount())
                 .set("market_amount", snapshot.marketAmount())
                 .set("merchant_subsidy_amount", snapshot.merchantSubsidyAmount())
-                .set("platform_discount_amount", snapshot.platformDiscountAmount())
                 .set("face_value_amount", snapshot.faceValueAmount())
                 .set("minimum_spend_amount", snapshot.minimumSpendAmount())
                 .set("total_use_count", snapshot.totalUseCount())
@@ -759,7 +758,7 @@ public class MerchantVoucherProductServiceImpl implements MerchantVoucherProduct
                 .setPriceAmount(source.getPriceAmount())
                 .setMarketAmount(source.getMarketAmount())
                 .setMerchantSubsidyAmount(source.getMerchantSubsidyAmount())
-                .setPlatformDiscountAmount(source.getPlatformDiscountAmount())
+                .setPlatformDiscountAmount(0L)
                 .setFaceValueAmount(source.getFaceValueAmount())
                 .setMinimumSpendAmount(source.getMinimumSpendAmount())
                 .setTotalUseCount(source.getTotalUseCount())

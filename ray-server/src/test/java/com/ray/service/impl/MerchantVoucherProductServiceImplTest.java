@@ -201,6 +201,27 @@ class MerchantVoucherProductServiceImplTest {
                 1L, "MERCHANT_VOUCHER_OFF_SALE", "VOUCHER_PRODUCT", "3103", "SUCCEEDED", "库存调整");
     }
 
+    @Test
+    void merchantDraftPreservesPlatformSubsidyAndRejectsCombinedOverdiscount() throws Exception {
+        when(authService.requireCurrentAccount()).thenReturn(account(MerchantRole.MANAGER));
+        var product = completeCash(VoucherReviewStatus.DRAFT, 0).setPlatformDiscountAmount(500L);
+        when(productMapper.selectByIdForUpdate(3102L)).thenReturn(product);
+        var mapper = new ObjectMapper().findAndRegisterModules();
+        var payload = mapper.valueToTree(emptyUpdate(0));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("priceAmount", 1000L).put("merchantSubsidyAmount", 501L);
+        var request = mapper.treeToValue(payload, MerchantVoucherProductUpdateDTO.class);
+        assertThrows(BusinessException.class, () -> service.update(3102L, request));
+        verify(productMapper, never()).update(any(), any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("merchantSubsidyAmount", 100L);
+        var valid = mapper.treeToValue(payload, MerchantVoucherProductUpdateDTO.class);
+        Object snapshot = org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "snapshot", product, valid);
+        var method = snapshot.getClass().getDeclaredMethod("platformDiscountAmount");
+        method.setAccessible(true);
+        assertEquals(500L, method.invoke(snapshot));
+        org.junit.jupiter.api.Assertions.assertFalse(java.util.Arrays.stream(MerchantVoucherProductUpdateDTO.class.getRecordComponents())
+                .anyMatch(c -> c.getName().equals("platformDiscountAmount")));
+    }
+
     private MerchantAccount account(MerchantRole role) {
         return new MerchantAccount()
                 .setId(1L)

@@ -21,8 +21,7 @@ public record MerchantVoucherProductUpdateDTO(
         @NotNull @Size(max = 9) List<@Pattern(regexp = "[1-9]\\d{0,18}") String> detailMediaIds,
         @Min(0) @Max(100000000) Long priceAmount,
         @Min(0) @Max(100000000) Long marketAmount,
-        @Min(0) @Max(100000000) Long merchantSubsidyAmount,
-        @Min(0) @Max(100000000) Long platformDiscountAmount,
+        @Min(0) @Max(100000000) @Schema(description = "每份商家自担补贴，整数分；0 取消，不含平台补贴", example = "1000") Long merchantSubsidyAmount,
         @Min(0) @Max(100000000) Long faceValueAmount,
         @Min(0) @Max(100000000) Long minimumSpendAmount,
         @Min(0) @Max(100) Integer totalUseCount,
@@ -67,7 +66,7 @@ public record MerchantVoucherProductUpdateDTO(
             List<LocalDate> excludedDates, Boolean reservationRequired, String reservationNotice,
             Boolean stackable, Boolean refundAnytime, Boolean refundExpired,
             List<MerchantVoucherPackageItemDTO> packageItems) {
-        this(version, title, subTitle, coverMediaId, detailMediaIds, priceAmount, marketAmount, 0L, 0L,
+        this(version, title, subTitle, coverMediaId, detailMediaIds, priceAmount, marketAmount, 0L,
                 faceValueAmount, minimumSpendAmount, totalUseCount, totalStock, purchaseLimit,
                 saleBeginTime, saleEndTime, validityType, validBeginTime, validEndTime, validDays,
                 usageRules, excludedDates, reservationRequired, reservationNotice, stackable,

@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ray.dto.BusinessDayHoursDTO;
 import com.ray.dto.VoucherReviewApprovalDTO;
+import com.ray.dto.PlatformSubsidyUpdateDTO;
 import com.ray.dto.VoucherReviewRejectionDTO;
 import com.ray.entity.MerchantAccount;
 import com.ray.entity.Shop;
@@ -58,6 +59,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /** 以行锁、版本条件和幂等指纹完成平台券审核。 */
+@lombok.extern.slf4j.Slf4j
 @Service
 public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMapper, VoucherProduct>
         implements AdminVoucherReviewService {
@@ -102,6 +104,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         this.tagMapper = tagMapper;
     }
 
+    /** 校验平台权限并分页查询审核商品。 */
     @Override
     public PageResult<AdminVoucherReviewListItemVO> list(
             VoucherReviewStatus status, VoucherProductType productType, String shopId, String keyword,
@@ -122,6 +125,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         return new PageResult<>(items, page, size, result.getTotal());
     }
 
+    /** 读取商品及门店的审核详情。 */
     @Override
     public AdminVoucherReviewDetailVO get(String productId) {
         requirePermission();
@@ -129,6 +133,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         return toDetail(product);
     }
 
+    /** 锁定待审商品并执行幂等通过决策。 */
     @Override
     @Transactional
     public AdminVoucherReviewResultVO approve(
@@ -137,6 +142,7 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         return decide(IdUtils.parse(productId, "productId"), idempotencyKey, request.version(), null);
     }
 
+    /** 校验驳回原因并执行幂等审核决策。 */
     @Override
     @Transactional
     public AdminVoucherReviewResultVO reject(
@@ -145,6 +151,33 @@ public class AdminVoucherReviewServiceImpl extends ServiceImpl<VoucherProductMap
         String reason = normalizeReason(request.reason());
         if (reason == null) throw BusinessException.badRequest("VOUCHER_REVIEW_REASON_REQUIRED", "驳回原因不能为空");
         return decide(IdUtils.parse(productId, "productId"), idempotencyKey, request.version(), reason);
+    }
+
+    /** 锁定商品配置平台补贴，仅更改商品价格配置并记录资金承担审计。 */
+    @Override
+    @Transactional
+    public void updatePlatformSubsidy(String productId, PlatformSubsidyUpdateDTO request) {
+        requirePermission();
+        Long id = IdUtils.parse(productId, "productId");
+        VoucherProduct product = productMapper.selectByIdForUpdate(id);
+        if (product == null) throw BusinessException.notFound("VOUCHER_PRODUCT_NOT_FOUND", "团购券不存在");
+        if (!Objects.equals(product.getVersion(), request.version())) {
+            throw BusinessException.conflict("VOUCHER_REVIEW_VERSION_CONFLICT", "商品已变化，请刷新后重新设置");
+        }
+        long amount = request.platformDiscountAmount();
+        long merchant = product.getMerchantSubsidyAmount() == null ? 0 : product.getMerchantSubsidyAmount();
+        if (amount < 0 || amount > 100000000 || product.getPriceAmount() == null
+                || merchant + amount > product.getPriceAmount()) {
+            throw BusinessException.badRequest("INVALID_SUBSIDY_AMOUNT", "商家补贴与平台补贴合计不能超过售价，请先填写售价");
+        }
+        int changed = productMapper.update(null, new UpdateWrapper<VoucherProduct>()
+                .eq("id", id).eq("version", request.version())
+                .set("platform_discount_amount", amount).setSql("version=version+1"));
+        if (changed != 1) throw BusinessException.conflict("VOUCHER_REVIEW_VERSION_CONFLICT", "商品已变化，请刷新后重新设置");
+        log.info("[平台补贴] 设置成功，adminId={}，productId={}，amount={}，version={}", adminAuthService.currentAdminId(), id, amount, request.version());
+        auditService.record(adminAuthService.currentAdminId(), "VOUCHER_PLATFORM_SUBSIDY_UPDATED",
+                "VOUCHER_PRODUCT", productId, "SUCCEEDED",
+                "每份平台补贴(分): " + Objects.toString(product.getPlatformDiscountAmount(), "0") + " -> " + amount);
     }
 
     private AdminVoucherReviewResultVO decide(Long id, String key, Integer version, String rejectionReason) {
