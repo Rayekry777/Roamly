@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> implements ShopTypeService {
     /** 按 sort 字段升序查询商户分类。 */
     @Override
-    @Cacheable(cacheNames = CacheNames.SHOP_TYPES, key = "'all'", sync = true)
+    @Cacheable(cacheNames = CacheNames.SHOP_TYPES, key = "'all-v2'", sync = true)
     public List<ShopTypeVO> listTypes() {
         return query().orderByAsc("sort").list().stream()
                 .map(ViewMapper::toShopType)

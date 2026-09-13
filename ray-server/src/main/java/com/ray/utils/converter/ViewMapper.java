@@ -19,7 +19,7 @@ public final class ViewMapper {
     }
 
     public static ShopTypeVO toShopType(ShopType type) {
-        return new ShopTypeVO(IdUtils.format(type.getId()), type.getName(), type.getIcon(), type.getSort());
+        return new ShopTypeVO(IdUtils.format(type.getId()), type.getName(), type.getIcon(), type.getSort(), type.getParentId() == null ? null : IdUtils.format(type.getParentId()));
     }
 
     public static ShopVO toShop(Shop shop) {

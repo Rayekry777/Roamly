@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
-import com.ray.enums.VoucherProductSort;
 import com.ray.result.PageResult;
 import com.ray.service.BusinessMediaService;
 import com.ray.service.LocationService;
@@ -39,62 +38,12 @@ class VoucherProductControllerTest {
                         "310100", "上海", null, null, null,
                         "上海", 121.47, 31.23, 30D, "READY"));
         mvc = MockMvcTestConfiguration.standalone(
-                new VoucherProductController(service, mediaService, locationService));
+                new VoucherProductController(service, mediaService));
     }
 
     @Test
-    void forwardsDiscoveryFiltersAndCoordinates() throws Exception {
-        when(service.listPublic(
-                eq("310100"), eq(null), eq(12L), eq("咖啡"), eq(VoucherProductSort.DISTANCE),
-                eq(2), eq(20), eq(121.47), eq(31.23)))
-                .thenReturn(new PageResult<>(List.of(), 2, 20, 0));
-
-        mvc.perform(get("/v1/voucher-products")
-                        .param("cityCode", "310100")
-                        .param("typeId", "12")
-                        .param("keyword", "咖啡")
-                        .param("sort", "DISTANCE")
-                        .param("page", "2")
-                        .param("size", "20")
-                        .param("longitude", "121.47")
-                        .param("latitude", "31.23"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.page").value(2))
-                .andExpect(jsonPath("$.data.items").isArray());
-
-        verify(service).listPublic(
-                "310100", null, 12L, "咖啡", VoucherProductSort.DISTANCE,
-                2, 20, 121.47, 31.23);
-    }
-
-    @Test
-    void rejectsInvalidPagingAndSort() throws Exception {
-        mvc.perform(get("/v1/voucher-products")
-                        .param("cityCode", "310100")
-                        .param("page", "0"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void resolvesCityFromCoordinatesInsteadOfTrustingClientCity() throws Exception {
-        when(locationService.resolve(any()))
-                .thenReturn(new LocationContextVO(
-                        "630100", "西宁", "630105", "城北区", null,
-                        "西宁 · 城北区", 101.749746, 36.742782, 30D, "READY"));
-        when(service.listPublic(
-                eq("630100"), eq("630105"), eq(null), eq(null), eq(VoucherProductSort.RECOMMENDED),
-                eq(1), eq(10), eq(101.749746), eq(36.742782)))
-                .thenReturn(new PageResult<>(List.of(), 1, 10, 0));
-
-        mvc.perform(get("/v1/voucher-products")
-                        .param("cityCode", "330100")
-                        .param("longitude", "101.749746")
-                        .param("latitude", "36.742782"))
-                .andExpect(status().isOk());
-
-        verify(service).listPublic(
-                "630100", "630105", null, null, VoucherProductSort.RECOMMENDED,
-                1, 10, 101.749746, 36.742782);
+    void retiredGlobalProductFeedIsNotMapped() throws Exception {
+        mvc.perform(get("/v1/voucher-products")).andExpect(status().isNotFound());
     }
 
     @Test

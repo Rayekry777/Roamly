@@ -27,6 +27,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    /** 下线或不存在的接口返回 404，不转为服务异常。 */
+    @ExceptionHandler(org.springframework.web.servlet.NoHandlerFoundException.class)
+    public ResponseEntity<ErrorResult> missingHandler(org.springframework.web.servlet.NoHandlerFoundException exception) {
+        return ResponseEntity.status(404).body(ErrorResult.of("NOT_FOUND", "接口不存在"));
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResult> business(BusinessException exception) {
         return ResponseEntity.status(exception.status()).body(ErrorResult.of(exception.code(), exception.getMessage()));

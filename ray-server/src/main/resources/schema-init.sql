@@ -431,6 +431,8 @@ CREATE TABLE `business_media_asset` (
 
 CREATE TABLE `shop_type`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `parent_id` bigint UNSIGNED NULL COMMENT '父分类，一级为空',
+  KEY `idx_shop_type_parent` (`parent_id`,`sort`,`id`),
   `name` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '类型名称',
   `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '图标',
   `sort` int(3) UNSIGNED NULL DEFAULT NULL COMMENT '顺序',

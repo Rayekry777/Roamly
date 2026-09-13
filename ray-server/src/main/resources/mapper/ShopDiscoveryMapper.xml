@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ray.mapper.ShopDiscoveryMapper">
+  <sql id="sale">vp.review_status='APPROVED' AND vp.sale_status='ON_SALE' AND vp.available_stock &gt; 0
+    AND (vp.sale_begin_time IS NULL OR vp.sale_begin_time &lt;= #{q.now})
+    AND (vp.sale_end_time IS NULL OR vp.sale_end_time &gt;= #{q.now})</sql>
+  <sql id="match">(vp.title LIKE CONCAT('%',#{q.keyword},'%') OR vp.sub_title LIKE CONCAT('%',#{q.keyword},'%'))</sql>
+  <sql id="boundary">FROM shop s JOIN shop_type t ON t.id=s.type_id JOIN shop_type root ON root.id=t.parent_id
+    WHERE s.status='ACTIVE' AND s.city_code=#{q.cityCode} AND root.id=#{q.categoryId}
+    <if test="q.typeId != null">AND t.id=#{q.typeId}</if>
+    <if test="q.keyword != null">AND (s.name LIKE CONCAT('%',#{q.keyword},'%') OR EXISTS
+      (SELECT 1 FROM voucher_product vp WHERE vp.shop_id=s.id AND <include refid="sale"/> AND <include refid="match"/>))</if>
+  </sql>
+  <sql id="distance"><choose><when test="q.longitude != null">ST_Distance_Sphere(POINT(s.x,s.y),POINT(#{q.longitude},#{q.latitude}))</when><otherwise>NULL</otherwise></choose></sql>
+  <select id="count" resultType="long">SELECT COUNT(*) <include refid="boundary"/></select>
+  <select id="page" resultType="com.ray.service.discovery.DiscoveryShopRow">
+    SELECT candidates.*,
+      (100 + 100*LN(1+total_sold) + 20*((COALESCE(score,0)/10.0*COALESCE(comments,0)+35)/(COALESCE(comments,0)+10)))
+      * CASE WHEN #{q.districtCode} IS NOT NULL AND district_code=#{q.districtCode} THEN 1.15 ELSE 1 END
+      * CASE WHEN distance IS NOT NULL THEN 1/(1+distance/3000) ELSE 1 END AS recommended_score
+    FROM (SELECT s.*, root.id AS category_id, root.name AS category_name, t.name AS type_name,
+      COALESCE((SELECT SUM(v.sold_count) FROM voucher_product v WHERE v.shop_id=s.id),0) AS total_sold,
+      <include refid="distance"/> AS distance <include refid="boundary"/>) candidates
+    <choose>
+      <when test="q.sort == 'DISTANCE'">ORDER BY distance IS NULL, distance ASC, id ASC</when>
+      <when test="q.sort == 'SALES'">ORDER BY total_sold DESC, id ASC</when>
+      <when test="q.sort == 'SCORE'">ORDER BY score DESC, id ASC</when>
+      <otherwise>ORDER BY recommended_score DESC, id ASC</otherwise>
+    </choose>LIMIT #{q.size} OFFSET #{q.offset}
+  </select>
+  <select id="vouchers" resultType="com.ray.service.discovery.DiscoveryVoucherRow">
+    SELECT ranked.* FROM (SELECT vp.id, vp.shop_id, vp.title, vp.product_type, vp.price_amount, vp.market_amount,
+      vp.total_use_count, vp.sold_count,
+      COUNT(*) OVER(PARTITION BY vp.shop_id) AS available_count,
+      CASE WHEN #{q.keyword} IS NOT NULL AND <include refid="match"/> THEN 1 ELSE 0 END AS keyword_matched,
+      ROW_NUMBER() OVER(PARTITION BY vp.shop_id ORDER BY
+        CASE WHEN #{q.keyword} IS NOT NULL AND <include refid="match"/> THEN 1 ELSE 0 END DESC,
+        vp.sold_count DESC, vp.price_amount ASC, vp.id ASC) AS hot_rank,
+      ROW_NUMBER() OVER(PARTITION BY vp.shop_id ORDER BY
+        CASE WHEN #{q.keyword} IS NOT NULL AND <include refid="match"/> THEN 1 ELSE 0 END DESC,
+        vp.price_amount ASC, vp.sold_count DESC, vp.id ASC) AS cheap_rank
+      FROM voucher_product vp JOIN shop s ON s.id=vp.shop_id
+      WHERE s.status='ACTIVE' AND <include refid="sale"/> AND vp.shop_id IN
+      <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+    ) ranked WHERE hot_rank &lt;= 2 OR cheap_rank &lt;= 2
+  </select>
+</mapper>

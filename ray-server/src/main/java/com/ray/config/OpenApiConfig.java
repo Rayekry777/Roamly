@@ -169,7 +169,13 @@ public class OpenApiConfig {
             registerStage23To29Schemas(openApi.getComponents());
             registerSchema(openApi.getComponents(), "AdminAuditLogVO", AdminAuditLogVO.class);
             registerConsumerAccountSchemas(openApi.getComponents());
+            registerDiscoverySchemas(openApi.getComponents());
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
+                if (method == HttpMethod.GET && (path.equals("/v1/shops/discovery") || path.equals("/v1/shop-types/tree"))) {
+                    String responseName = path.equals("/v1/shops/discovery") ? "ShopDiscoveryResult" : "ShopTypeTreeResult";
+                    operation.getResponses().get("200").setContent(new Content().addMediaType(
+                            APPLICATION_JSON_VALUE, new MediaType().schema(new Schema<>().$ref("#/components/schemas/" + responseName))));
+                }
                 if (path.equals("/v1/admin/events") && method == HttpMethod.GET) {
                     operation.setSecurity(List.of());
                 }
@@ -258,6 +264,29 @@ public class OpenApiConfig {
                 .resolveAsResolvedSchema(new AnnotatedType(type).resolveAsRef(false));
         resolvedSchema.referencedSchemas.forEach(components::addSchemas);
         components.addSchemas(name, resolvedSchema.schema);
+    }
+
+    /** 为新接口固定泛型数据结构，避免通用 Result 的类型擦除。 */
+    private void registerDiscoverySchemas(Components components) {
+        registerSchema(components, "ShopDiscoveryVO", com.ray.vo.ShopDiscoveryVO.class);
+        registerSchema(components, "ShopTypeTreeVO", com.ray.vo.ShopTypeTreeVO.class);
+        Schema<?> page = new io.swagger.v3.oas.models.media.ObjectSchema()
+                .addProperty("items", new io.swagger.v3.oas.models.media.ArraySchema()
+                        .items(new Schema<>().$ref("#/components/schemas/ShopDiscoveryVO")))
+                .addProperty("page", new io.swagger.v3.oas.models.media.IntegerSchema())
+                .addProperty("size", new io.swagger.v3.oas.models.media.IntegerSchema())
+                .addProperty("total", new io.swagger.v3.oas.models.media.IntegerSchema().format("int64"));
+        components.addSchemas("ShopDiscoveryPage", page);
+        components.addSchemas("ShopDiscoveryResult", discoveryEnvelope(new Schema<>().$ref("#/components/schemas/ShopDiscoveryPage")));
+        components.addSchemas("ShopTypeTreeResult", discoveryEnvelope(new io.swagger.v3.oas.models.media.ArraySchema()
+                .items(new Schema<>().$ref("#/components/schemas/ShopTypeTreeVO"))));
+    }
+
+    private Schema<?> discoveryEnvelope(Schema<?> data) {
+        return new io.swagger.v3.oas.models.media.ObjectSchema()
+                .addProperty("code", new io.swagger.v3.oas.models.media.StringSchema().example("OK"))
+                .addProperty("message", new io.swagger.v3.oas.models.media.StringSchema().example("操作成功"))
+                .addProperty("data", data);
     }
 
     private void registerPostSchemas(Components components) {

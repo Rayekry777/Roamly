@@ -384,7 +384,7 @@ public class MerchantApplicationServiceImpl extends ServiceImpl<MerchantApplicat
         }
         if (value.shopTypeId() != null) {
             ShopType type = shopTypeMapper.selectById(value.shopTypeId());
-            if (type == null) throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "所选门店类目不存在");
+            if (type == null || type.getParentId() == null) throw BusinessException.badRequest("MERCHANT_APPLICATION_INCOMPLETE", "请选择有效的二级门店类目");
         }
     }
 

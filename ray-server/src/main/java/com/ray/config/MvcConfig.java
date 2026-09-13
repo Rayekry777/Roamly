@@ -84,7 +84,7 @@ public class MvcConfig implements WebMvcConfigurer {
         if (path.equals("/v1/cities")
                 || path.equals("/v1/shops")
                 || path.matches("/v1/shops/[^/]+")) return true;
-        if (path.equals("/v1/shop-types")) return true;
+        if ((path.equals("/v1/shop-types") || path.equals("/v1/shop-types/tree"))) return true;
         if (path.matches("/v1/posts/[^/]+/comments")
                 || path.matches("/v1/comments/[^/]+/replies")) return true;
         if ("GET".equals(method) && path.matches("/v1/shops/[^/]+/reviews")) return true;

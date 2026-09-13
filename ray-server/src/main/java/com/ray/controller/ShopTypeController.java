@@ -23,6 +23,17 @@ public class ShopTypeController {
         this.service = service;
     }
 
+    @GetMapping("/tree")
+    @SecurityRequirements
+    @Operation(summary = "查询两级店铺分类树", operationId = "listShopTypeTree")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "查询成功", useReturnTypeSchema = true))
+    public Result<List<com.ray.vo.ShopTypeTreeVO>> tree() {
+        var types = service.listTypes();
+        return Result.ok(types.stream().filter(t -> t.parentId() == null).map(root ->
+                new com.ray.vo.ShopTypeTreeVO(root.id(), root.name(), root.icon(),
+                        types.stream().filter(t -> root.id().equals(t.parentId())).toList())).toList());
+    }
+
     @GetMapping
     @SecurityRequirements
     @Operation(summary = "查询商户分类", operationId = "listShopTypes")

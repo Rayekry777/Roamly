@@ -363,13 +363,7 @@ public class VoucherTradeServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     private boolean isPurchasable(VoucherProduct product, Shop shop) {
-        if (shop == null || !ShopStatus.ACTIVE.name().equals(shop.getStatus())
-                || !VoucherReviewStatus.APPROVED.name().equals(product.getReviewStatus())) return false;
-        if (VoucherSaleStatus.OFF_SALE.name().equals(product.getSaleStatus())) return false;
-        if (product.getAvailableStock() == null || product.getAvailableStock() <= 0) return false;
-        LocalDateTime now = LocalDateTime.now();
-        return (product.getSaleBeginTime() == null || !product.getSaleBeginTime().isAfter(now))
-                && (product.getSaleEndTime() == null || !product.getSaleEndTime().isBefore(now));
+        return com.ray.utils.VoucherAvailability.isOnSale(product, shop, LocalDateTime.now());
     }
 
     private int maxQuantity(VoucherProduct product) {

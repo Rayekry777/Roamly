@@ -150,7 +150,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         QueryWrapper<MerchantApplication> query = new QueryWrapper<MerchantApplication>()
                 .eq(status != null, "status", status == null ? null : status.name())
                 .eq(StringUtils.hasText(cityCode), "city_code", clean(cityCode))
-                .eq(shopTypeId != null, "shop_type_id", shopTypeId)
+                .inSql(shopTypeId != null, "shop_type_id", "SELECT id FROM shop_type WHERE id=" + shopTypeId + " OR parent_id=" + shopTypeId)
                 .eq(StringUtils.hasText(phone), "contact_phone", clean(phone))
                 .ge(submittedFrom != null, "submitted_at", submittedFrom)
                 .le(submittedTo != null, "submitted_at", submittedTo)
@@ -333,7 +333,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         QueryWrapper<Shop> query = new QueryWrapper<Shop>()
                 .eq(status != null, "status", status == null ? null : status.name())
                 .eq(StringUtils.hasText(cityCode), "city_code", clean(cityCode))
-                .eq(shopTypeId != null, "type_id", shopTypeId);
+                .inSql(shopTypeId != null, "type_id", "SELECT id FROM shop_type WHERE id=" + shopTypeId + " OR parent_id=" + shopTypeId);
         if (normalizedKeyword != null) {
             query.and(wrapper -> wrapper.like("name", normalizedKeyword)
                     .or()
@@ -573,7 +573,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         }
         Shop shop = new Shop()
                 .setName(application.getShopName())
-                .setTypeId(application.getShopTypeId())
+                .setTypeId(application.getShopTypeId() == 1L ? 106L : application.getShopTypeId() == 2L ? 208L : application.getShopTypeId())
                 .setCityCode(application.getCityCode())
                 .setDistrictCode(district.getCode())
                 .setImages("")
@@ -623,7 +623,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 application.getContactName(),
                 application.getContactPhone(),
                 IdUtils.format(application.getShopTypeId()),
-                type == null ? null : type.getName(),
+                type == null ? null : categoryPath(type),
                 application.getCityCode(),
                 city == null ? null : city.getName(),
                 application.getDistrict(),
@@ -655,7 +655,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 status.label(),
                 application.getShopName(),
                 IdUtils.format(application.getShopTypeId()),
-                type == null ? null : type.getName(),
+                type == null ? null : categoryPath(type, references.shopTypes()),
                 application.getCityCode(),
                 city == null ? null : city.getName(),
                 application.getContactName(),
@@ -718,7 +718,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 status,
                 status.label(),
                 IdUtils.format(shop.getTypeId()),
-                type == null ? null : type.getName(),
+                type == null ? null : categoryPath(type, context.shopTypes()),
                 shop.getCityCode(),
                 city == null ? null : city.getName(),
                 tenant == null ? null : tenant.getNickname(),
@@ -756,7 +756,7 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 status.label(),
                 IdUtils.format(shop.getSourceApplicationId()),
                 IdUtils.format(shop.getTypeId()),
-                type == null ? null : type.getName(),
+                type == null ? null : categoryPath(type),
                 shop.getCityCode(),
                 city == null ? null : city.getName(),
                 source == null ? shop.getArea() : source.getDistrict(),
@@ -812,6 +812,17 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
         return new ShopViewContext(accountsByShop, references.shopTypes(), references.cities());
     }
 
+    private String categoryPath(ShopType type) {
+        if (type.getParentId() == null) return type.getName();
+        ShopType root = shopTypeMapper.selectById(type.getParentId());
+        return root == null ? type.getName() : root.getName() + " / " + type.getName();
+    }
+
+    private String categoryPath(ShopType type, Map<Long, ShopType> types) {
+        ShopType root = types.get(type.getParentId());
+        return root == null ? type.getName() : root.getName() + " / " + type.getName();
+    }
+
     private ReferenceData loadReferences(Collection<Long> typeIds, Collection<String> cityCodes) {
         Set<Long> distinctTypeIds = typeIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
         Set<String> distinctCityCodes = cityCodes.stream()
@@ -821,6 +832,8 @@ public class AdminMerchantGovernanceServiceImpl implements AdminMerchantGovernan
                 ? Map.of()
                 : shopTypeMapper.selectBatchIds(distinctTypeIds).stream()
                         .collect(Collectors.toMap(ShopType::getId, Function.identity()));
+        Set<Long> parentIds = shopTypes.values().stream().map(ShopType::getParentId).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (!parentIds.isEmpty()) shopTypeMapper.selectBatchIds(parentIds).forEach(parent -> shopTypes.put(parent.getId(), parent));
         Map<String, City> cities = distinctCityCodes.isEmpty()
                 ? Map.of()
                 : cityMapper.selectList(new QueryWrapper<City>().in("code", distinctCityCodes)).stream()

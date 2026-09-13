@@ -29,6 +29,9 @@ public class ShopType implements Serializable {
      */
     private String name;
 
+    /** 一级分类为空，二级分类指向一级分类。 */
+    private Long parentId;
+
     /**
      * 图标
      */

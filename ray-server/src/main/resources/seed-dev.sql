@@ -37,10 +37,23 @@ VALUES
   (4, 'WEEKEND_ESCAPE', '周末去哪', '发现周末游玩和城市休闲去处', 1, 1, 30),
   (5, 'VALUE_DEALS', '省钱团购', '发现值得购买的本地团购', 1, 1, 40);
 
-INSERT INTO `shop_type` (`id`, `name`, `icon`, `sort`) VALUES
-  (1, '美食', '/types/ms.png', 1),
-  (2, '休闲娱乐', '/types/leisure.png', 2),
-  (3, '运动健身', '/types/sport.png', 3);
+INSERT INTO `shop_type` (`id`,`name`,`icon`,`sort`,`parent_id`) VALUES
+(1, '美食', '/assets/images/category-food.svg', 1, NULL),
+(2, '休闲娱乐', '/assets/images/category-party.svg', 2, NULL),
+(101, '餐厅正餐', '/assets/images/category-food.svg', 3, 1),
+(102, '小吃快餐', '/assets/images/category-food.svg', 4, 1),
+(103, '火锅烧烤', '/assets/images/category-food.svg', 5, 1),
+(104, '奶茶咖啡', '/assets/images/category-food.svg', 6, 1),
+(105, '甜品烘焙', '/assets/images/category-food.svg', 7, 1),
+(106, '其他美食', '/assets/images/category-food.svg', 8, 1),
+(201, '足疗洗浴', '/assets/images/category-spa.svg', 9, 2),
+(202, 'KTV酒吧', '/assets/images/category-ktv.svg', 10, 2),
+(203, '桌游棋牌', '/assets/images/category-party.svg', 11, 2),
+(204, '影院电竞', '/assets/images/category-party.svg', 12, 2),
+(205, '密室剧本', '/assets/images/category-party.svg', 13, 2),
+(206, '亲子手作', '/assets/images/category-kids.svg', 14, 2),
+(3, '运动户外', '/assets/images/category-fitness.svg', 15, 2),
+(208, '其他休闲', '/assets/images/category-party.svg', 16, 2);
 
 -- Demo 消费者账号统一密码为 Roamly123。
 INSERT INTO `user` (`id`, `phone`, `password_hash`, `nick_name`, `icon`) VALUES
@@ -612,4 +625,400 @@ VALUES
   (157001, '退款处理中', '您好，退款已通过审核并进入渠道处理，结果更新后会第一时间通知您。', 'TEAM', NULL, 1, 10),
   (157002, '补充核销信息', '请补充核销时间、核销码后四位和相关截图，我们会继续核实。', 'PERSONAL', 5, 1, 20);
 
+-- ============================================================
+-- 海量开发数据生成区
+-- 说明：以下数据只用于可重建的开发库，不含真实用户或真实支付信息。
+-- 通过固定 ID 区间和确定性公式生成，重复执行前请先重建 schema-init.sql。
+-- 城市保持 330100（杭州）和 630100（西宁）两条，仅扩展区县。
+-- ============================================================
+CREATE TEMPORARY TABLE `seed_numbers` (`n` INT NOT NULL PRIMARY KEY);
+INSERT INTO `seed_numbers` (`n`)
+WITH digits AS (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+  UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)
+SELECT a.d+10*b.d+100*c.d+1000*d.d+10000*e.d
+FROM digits a CROSS JOIN digits b CROSS JOIN digits c CROSS JOIN digits d CROSS JOIN digits e
+UNION ALL SELECT 100000;
+
+-- 每个城市增加 9 个区县，编码稳定且不新增城市。
+INSERT INTO `district`
+  (`id`, `code`, `city_code`, `name`, `center_longitude`, `center_latitude`, `service_radius_km`, `status`, `sort`)
+SELECT
+  10000 + n,
+  CONCAT(IF(MOD(n, 2) = 0, '3301', '6301'), LPAD(10 + MOD(n - 1, 9), 2, '0')),
+  IF(MOD(n, 2) = 0, '330100', '630100'),
+  CONCAT(IF(MOD(n, 2) = 0, '杭州扩展区', '西宁扩展区'), LPAD(n, 2, '0')),
+  IF(MOD(n, 2) = 0, 120.10 + MOD(n, 9) / 100, 101.70 + MOD(n, 9) / 100),
+  IF(MOD(n, 2) = 0, 30.20 + MOD(n, 9) / 100, 36.55 + MOD(n, 9) / 100),
+  35.00, 1, 10 + n
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 18;
+
+-- 消费者账号 2,000 个，密码统一为 Roamly123（BCrypt 摘要与固定 Demo 账号一致）。
+INSERT INTO `user` (`id`, `phone`, `password_hash`, `nick_name`, `icon`, `create_time`, `update_time`)
+SELECT 100000 + n, CONCAT('137', LPAD(n, 8, '0')),
+  '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO',
+  CONCAT('开发用户', LPAD(n, 4, '0')), '/imgs/icons/default-avatar.png',
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 240) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 2000;
+
+INSERT INTO `user_profile` (`user_id`, `gender`, `birthday`, `current_city_code`)
+SELECT 100000 + n,
+  CASE MOD(n, 3) WHEN 0 THEN 'MALE' WHEN 1 THEN 'FEMALE' ELSE 'UNDISCLOSED' END,
+  DATE_SUB('2000-01-01', INTERVAL MOD(n, 9000) DAY),
+  IF(MOD(n, 2) = 0, '330100', '630100')
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 2000;
+
+-- 每个批量门店一个租户账号，部分门店另有店长和核销员账号。
+INSERT INTO `merchant_account`
+  (`id`, `phone`, `password_hash`, `nickname`, `role`, `status`, `shop_id`, `version`)
+SELECT 200000 + n, CONCAT('1392', LPAD(n, 7, '0')),
+  '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO',
+  CONCAT('批量商户', LPAD(n, 4, '0')), 'TENANT', 'ACTIVE', 300000 + n, 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 300;
+
+INSERT INTO `merchant_account`
+  (`id`, `phone`, `password_hash`, `nickname`, `role`, `status`, `shop_id`, `version`)
+SELECT 210000 + n, CONCAT('1393', LPAD(n, 7, '0')),
+  '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO',
+  CONCAT('批量店长', LPAD(n, 4, '0')), 'MANAGER', 'ACTIVE', 300000 + n, 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 100;
+
+INSERT INTO `merchant_account`
+  (`id`, `phone`, `password_hash`, `nickname`, `role`, `status`, `shop_id`, `version`)
+SELECT 220000 + n, CONCAT('1394', LPAD(n, 7, '0')),
+  '$2a$10$G6hLqHvzx2zpA.jIIqth4eDd.A3zafy5cFx8SflOvSl4vRKcaktxO',
+  CONCAT('批量核销员', LPAD(n, 4, '0')), 'VERIFIER', 'ACTIVE', 300000 + n, 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 100;
+
+INSERT INTO `merchant_application`
+  (`id`, `merchant_account_id`, `status`, `shop_name`, `license_number`, `legal_representative`,
+   `contact_name`, `contact_phone`, `shop_type_id`, `city_code`, `district`, `address`, `longitude`, `latitude`,
+   `business_hours_json`, `gallery_media_ids_json`, `settlement_account_name`, `settlement_bank_name`,
+   `settlement_account_suffix`, `submission_idempotency_key`, `review_decision`, `review_idempotency_key`,
+   `review_request_fingerprint`, `submitted_at`, `reviewed_at`, `reviewer_admin_id`, `approved_shop_id`, `version`)
+SELECT 290000 + n, 200000 + n, 'APPROVED', CONCAT('批量生活门店', LPAD(n, 4, '0')),
+  CONCAT('9133DEV', LPAD(n, 8, '0')), CONCAT('负责人', n), CONCAT('联系人', n), CONCAT('1392', LPAD(n, 7, '0')),
+  1 + MOD(n - 1, 3), IF(MOD(n, 2) = 0, '330100', '630100'),
+  CONCAT(IF(MOD(n, 2) = 0, '杭州扩展区', '西宁扩展区'), LPAD(n, 2, '0')),
+  CONCAT('开发路', n, '号'),
+  IF(MOD(n, 2) = 0, 120.10 + MOD(n, 9) / 100, 101.70 + MOD(n, 9) / 100),
+  IF(MOD(n, 2) = 0, 30.20 + MOD(n, 9) / 100, 36.55 + MOD(n, 9) / 100),
+  JSON_ARRAY(), JSON_ARRAY(), CONCAT('批量商户', n), 'Roamly Mock 银行', LPAD(MOD(n, 10000), 4, '0'),
+  CONCAT('seed-batch-application-', n), 'APPROVAL', CONCAT('seed-batch-review-', n),
+  SHA2(CONCAT('seed-batch-review-', n), 256), DATE_SUB('2026-09-13 10:00:00', INTERVAL MOD(n, 120) DAY),
+  DATE_SUB('2026-09-13 11:00:00', INTERVAL MOD(n, 120) DAY), 1, 300000 + n, 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 300;
+
+INSERT INTO `shop`
+  (`id`, `name`, `type_id`, `city_code`, `district_code`, `images`, `area`, `address`, `x`, `y`, `avg_price`,
+   `sold`, `comments`, `score`, `open_hours`, `status`, `source_application_id`, `business_hours_json`, `activated_at`, `version`)
+SELECT 300000 + n, CONCAT('批量生活门店', LPAD(n, 4, '0')), 1 + MOD(n - 1, 3),
+  IF(MOD(n, 2) = 0, '330100', '630100'),
+  CONCAT(IF(MOD(n, 2) = 0, '3301', '6301'), LPAD(10 + MOD(n - 1, 9), 2, '0')),
+  CONCAT('https://example.com/seed/shop-', n, '.jpg'),
+  CONCAT(IF(MOD(n, 2) = 0, '杭州扩展区', '西宁扩展区'), LPAD(n, 2, '0')),
+  CONCAT('开发路', n, '号'),
+  IF(MOD(n, 2) = 0, 120.10 + MOD(n, 9) / 100, 101.70 + MOD(n, 9) / 100),
+  IF(MOD(n, 2) = 0, 30.20 + MOD(n, 9) / 100, 36.55 + MOD(n, 9) / 100),
+  30 + MOD(n, 18) * 10, 0, 0, 40 + MOD(n, 11), '09:00-22:00', 'ACTIVE', 290000 + n,
+  JSON_ARRAY(), '2026-09-01 10:00:00', 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 300;
+
+-- 3,000 个商品：四种券型、审核与上下架状态均匀分布，绝大多数可参与推荐。
+INSERT INTO `voucher_product`
+  (`id`, `shop_id`, `product_type`, `title`, `sub_title`, `detail_media_ids_json`, `price_amount`, `market_amount`,
+   `merchant_subsidy_amount`, `platform_discount_amount`, `face_value_amount`, `minimum_spend_amount`, `total_use_count`,
+   `total_stock`, `available_stock`, `sold_count`, `purchase_limit`, `sale_begin_time`, `sale_end_time`, `validity_type`,
+   `valid_begin_time`, `valid_end_time`, `valid_days`, `usage_rules_json`, `excluded_dates_json`, `reservation_required`,
+   `reservation_notice`, `stackable`, `refund_anytime`, `refund_expired`, `review_status`, `sale_status`,
+   `submission_idempotency_key`, `submission_request_fingerprint`, `submitted_at`, `review_decision`, `review_idempotency_key`,
+   `review_request_fingerprint`, `reviewed_at`, `reviewer_admin_id`, `version`)
+SELECT 400000 + n, 300001 + MOD(n - 1, 300),
+  CASE MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) WHEN 0 THEN 'PACKAGE' WHEN 1 THEN 'CASH' WHEN 2 THEN 'DISCOUNT' ELSE 'MULTI_USE' END,
+  CONCAT('批量团购商品', LPAD(n, 5, '0')), CONCAT('适用于门店的开发测试商品 ', n), JSON_ARRAY(),
+  1990 + MOD(n, 20) * 500, 2990 + MOD(n, 20) * 600, 100 + MOD(n, 7) * 20, 100 + MOD(n, 5) * 20,
+  3000 + MOD(n, 20) * 500, 5000 + MOD(n, 20) * 500,
+  IF(MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) = 3, 10, 1), 1000 + MOD(n, 500), 1000 + MOD(n, 500) - MOD(n, 200), MOD(n, 500), 3,
+  '2026-09-01 00:00:00', '2026-12-31 23:59:59', 'FIXED_RANGE', '2026-09-01 00:00:00', '2026-12-31 23:59:59', NULL,
+  JSON_ARRAY(), JSON_ARRAY(), IF(MOD(n, 5) = 0, 1, 0),
+  IF(MOD(n, 5) = 0, '请至少提前一天预约', NULL), 0, 1, IF(MOD(n, 17) = 0, 0, 1),
+  IF(MOD(n, 29) = 0, 'PENDING', 'APPROVED'),
+  CASE MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 10) WHEN 0 THEN 'OFF_SALE' WHEN 1 THEN 'SCHEDULED' ELSE 'ON_SALE' END,
+  CONCAT('seed-product-submit-', n), SHA2(CONCAT('seed-product-', n), 256), '2026-09-01 10:00:00', 'APPROVAL',
+  CONCAT('seed-product-review-', n), SHA2(CONCAT('seed-product-review-', n), 256), '2026-09-02 10:00:00', 1, 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000;
+
+INSERT INTO `voucher_package_item` (`id`, `product_id`, `name`, `quantity`, `unit`, `unit_price_amount`, `sort_order`)
+SELECT 500000 + n, 400000 + n, IF(MOD(n, 4) = 0, '招牌套餐', '次卡服务'), 1 + MOD(n, 3), '份',
+  1000 + MOD(n, 20) * 100, 0 FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000 AND MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) IN (0, 3);
+
+INSERT INTO `voucher_product_detail` (`id`, `product_id`, `section_type`, `title`, `content`, `sort_order`)
+SELECT 510000 + n, 400000 + n, 'USAGE_RULE', '使用规则', '开发环境测试商品，支持门店现场核销。', 0
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000;
+
+INSERT INTO `voucher_product_tag` (`id`, `product_id`, `text`, `icon_key`, `color_token`, `sort_order`)
+SELECT 520000 + n, 400000 + n, CASE MOD(n, 4) WHEN 0 THEN '热门' WHEN 1 THEN '新客' WHEN 2 THEN '限时' ELSE '次卡' END,
+  'tag-default', '#2563EB', 0 FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000;
+
+INSERT INTO `voucher_product_cash_rule` (`product_id`, `face_value_amount`, `minimum_spend_amount`, `description`)
+SELECT 400000 + n, 3000 + MOD(n, 20) * 500, 5000 + MOD(n, 20) * 500, '开发数据代金券规则'
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000 AND MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) = 1;
+INSERT INTO `voucher_product_discount_rule` (`product_id`, `discount_text`, `applicable_scope`, `usage_period_text`, `description`)
+SELECT 400000 + n, CONCAT('周末', 7 + MOD(n, 3), '折'), '全店适用', '09:00-22:00', '开发数据折扣券规则'
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000 AND MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) = 2;
+INSERT INTO `voucher_product_multi_use_rule` (`product_id`, `total_use_count`, `use_unit`, `description`)
+SELECT 400000 + n, 10, '次', '开发数据次卡规则'
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 3000 AND MOD(FLOOR((n - 1) / 300) + MOD(n - 1, 300), 4) = 3;
+
+-- 20,000 条动态、每条 5 个点赞；30,000 条评论、每条 2 个评论点赞。
+INSERT INTO `post` (`id`, `user_id`, `section_id`, `shop_visit`, `shop_id`, `city_code`, `district_code`, `location_geohash`, `location_label`, `title`, `content`, `liked_count`, `comment_count`, `status`, `create_time`, `update_time`)
+SELECT 700000 + n, 100001 + MOD(n - 1, 2000), 1 + MOD(n - 1, 5), IF(MOD(n, 3) = 0, 1, 0),
+  IF(MOD(n, 3) = 0, 300001 + MOD(n - 1, 300), NULL), IF(MOD(n, 2) = 0, '330100', '630100'),
+  CONCAT(IF(MOD(n, 2) = 0, '3301', '6301'), LPAD(10 + MOD(n - 1, 9), 2, '0')), NULL, '同城发现',
+  CONCAT('批量动态', LPAD(n, 6, '0')), CONCAT('这是用于推荐排序和分页验证的开发动态，编号 ', n), 5, 1,
+  IF(MOD(n, 97) = 0, 1, 0), DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 20000;
+
+INSERT INTO `post_like` (`id`, `post_id`, `user_id`, `create_time`)
+SELECT 900000 + (p.n - 1) * 5 + s.n, 700000 + p.n,
+  100001 + MOD((p.n - 1) * 13 + s.n, 2000), DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(p.n + s.n, 720) HOUR)
+FROM `seed_numbers` p JOIN (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) s ON 1=1
+WHERE p.n BETWEEN 1 AND 20000;
+
+INSERT INTO `post_comment` (`id`, `post_id`, `user_id`, `root_id`, `parent_id`, `content`, `liked_count`, `reply_count`, `status`, `create_time`, `update_time`)
+SELECT 950000 + n, 700001 + MOD(n - 1, 20000), 100001 + MOD(n * 19, 2000), NULL, NULL,
+  CONCAT('开发评论内容 ', n), 2, 0, 0, DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 30000;
+INSERT INTO `post_comment_like` (`id`, `comment_id`, `user_id`, `create_time`)
+SELECT 1000000 + (c.n - 1) * 2 + s.n, 950000 + c.n, 100001 + MOD(c.n * 23 + s.n, 2000),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(c.n + s.n, 720) HOUR)
+FROM `seed_numbers` c JOIN (SELECT 0 AS n UNION ALL SELECT 1) s ON 1=1
+WHERE c.n BETWEEN 1 AND 30000;
+
+UPDATE `post` p
+LEFT JOIN (SELECT post_id, COUNT(*) AS c FROM `post_like` GROUP BY post_id) l ON l.post_id = p.id
+LEFT JOIN (SELECT post_id, COUNT(*) AS c FROM `post_comment` WHERE status = 0 GROUP BY post_id) c ON c.post_id = p.id
+SET p.liked_count = COALESCE(l.c, 0), p.comment_count = COALESCE(c.c, 0)
+WHERE p.id >= 700001;
+
+INSERT INTO `follow` (`id`, `user_id`, `follow_user_id`, `create_time`)
+SELECT 1050000 + n, 100001 + MOD(n - 1, 2000),
+  100001 + MOD(MOD(n - 1, 2000) + 1 + FLOOR((n - 1) / 2000), 2000),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 20000;
+INSERT INTO `section_follow` (`id`, `user_id`, `section_id`, `create_time`)
+SELECT 1080000 + n, 100001 + MOD(n - 1, 2000), 1 + MOD(FLOOR((n - 1) / 2000), 5),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 4000;
+
+-- 每个批量用户对 5 家不同门店点评一次，共 10,000 条。
+INSERT INTO `shop_review` (`id`, `shop_id`, `user_id`, `score`, `content`, `status`, `create_time`, `update_time`)
+SELECT 800000 + n, 300001 + FLOOR((n - 1) / 2000), 100001 + MOD(n - 1, 2000),
+  3 + MOD(n, 3), CONCAT('开发点评 ', n, '，用于评分和推荐聚合验证。'), IF(MOD(n, 97) = 0, 1, 0),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR), DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 10000;
+
+UPDATE `shop` s
+LEFT JOIN (SELECT shop_id, COUNT(*) AS c, ROUND(AVG(score) * 10) AS avg_score FROM `shop_review` WHERE status = 0 GROUP BY shop_id) r ON r.shop_id = s.id
+SET s.comments = COALESCE(r.c, 0), s.score = COALESCE(r.avg_score, 0)
+WHERE s.id >= 300001;
+
+-- 10,000 订单，支付、售后和券实例保持逻辑一致；订单数量为 1~3。
+INSERT INTO `voucher_order`
+  (`id`, `user_id`, `product_id`, `shop_id`, `product_title`, `unit_price`, `quantity`, `total_amount`,
+   `merchant_subsidy_amount`, `platform_discount_amount`, `pay_amount`, `order_source`, `deal_channel`, `pay_type`,
+   `status`, `after_sale_status`, `idempotency_key`, `request_fingerprint`, `payment_expire_time`, `create_time`, `pay_time`, `refund_time`)
+SELECT 500000 + n, 100001 + MOD(n - 1, 2000), 400001 + MOD(n - 1, 3000), 300001 + MOD(n - 1, 300),
+  CONCAT('批量团购商品', LPAD(1 + MOD(n - 1, 3000), 5, '0')), 1990 + MOD(n, 20) * 500, 1 + MOD(n, 3),
+  (1990 + MOD(n, 20) * 500) * (1 + MOD(n, 3)), (100 + MOD(n, 7) * 20) * (1 + MOD(n, 3)),
+  (100 + MOD(n, 5) * 20) * (1 + MOD(n, 3)),
+  CASE WHEN MOD(n, 10) IN (8, 9) THEN 0 ELSE ((1990 + MOD(n, 20) * 500) - 100 - MOD(n, 7) * 20 - 100 - MOD(n, 5) * 20) * (1 + MOD(n, 3)) END,
+  'SEED', 'RECOMMENDATION', 3,
+  CASE MOD(n, 10) WHEN 8 THEN 'PENDING_PAYMENT' WHEN 9 THEN 'CANCELED' WHEN 7 THEN 'COMPLETED' ELSE 'PAID' END,
+  CASE MOD(n, 10) WHEN 5 THEN 'APPLYING' WHEN 6 THEN 'REFUNDING' ELSE 'NONE' END,
+  CONCAT('seed-order-', n), SHA2(CONCAT('seed-order-', n), 256),
+  IF(MOD(n, 10) = 8, DATE_ADD('2026-09-13 12:00:00', INTERVAL 15 MINUTE), NULL),
+  DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(n, 720) HOUR),
+  IF(MOD(n, 10) IN (8, 9), NULL, DATE_SUB('2026-09-13 11:00:00', INTERVAL MOD(n, 720) HOUR)), NULL
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 10000;
+
+UPDATE `voucher_product` p
+LEFT JOIN (SELECT product_id, SUM(quantity) AS sold FROM `voucher_order` WHERE status IN ('PAID', 'COMPLETED') GROUP BY product_id) o ON o.product_id = p.id
+SET p.sold_count = COALESCE(o.sold, 0), p.available_stock = GREATEST(p.total_stock - COALESCE(o.sold, 0), 0)
+WHERE p.id >= 400001;
+
+INSERT INTO `payment_transaction` (`id`, `order_id`, `user_id`, `idempotency_key`, `provider`, `status`, `amount`, `failure_reason`)
+SELECT 800000 + n, 500000 + n, 100001 + MOD(n - 1, 2000), CONCAT('seed-payment-', n), 'MOCK',
+  CASE MOD(n, 10) WHEN 8 THEN 'PENDING' WHEN 9 THEN 'CLOSED' ELSE 'SUCCEEDED' END,
+  CASE WHEN MOD(n, 10) IN (8, 9) THEN 0 ELSE ((1990 + MOD(n, 20) * 500) - 100 - MOD(n, 7) * 20 - 100 - MOD(n, 5) * 20) * (1 + MOD(n, 3)) END,
+  IF(MOD(n, 10) = 9, '开发数据模拟用户取消支付', NULL)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 10000;
+
+INSERT INTO `user_voucher`
+  (`id`, `user_id`, `order_id`, `sequence_no`, `product_id`, `shop_id`, `voucher_code`, `voucher_code_hmac`, `voucher_code_last4`,
+   `total_use_count`, `remaining_use_count`, `sale_amount`, `merchant_subsidy_amount`, `platform_discount_amount`, `customer_paid_amount`,
+   `status`, `valid_begin_time`, `expire_time`, `create_time`)
+SELECT 600000 + (o.id - 500000 - 1) * 3 + s.n, o.user_id, o.id, s.n, o.product_id, o.shop_id,
+  CONCAT('SEEDVC-', o.id, '-', s.n), SHA2(CONCAT('SEEDVC-', o.id, '-', s.n), 256), RIGHT(SHA2(CONCAT('SEEDVC-', o.id, '-', s.n), 256), 4),
+  IF(p.product_type='MULTI_USE',p.total_use_count,1), IF(p.product_type='MULTI_USE',p.total_use_count,1),
+  o.unit_price, o.merchant_subsidy_amount / o.quantity, o.platform_discount_amount / o.quantity,
+  o.pay_amount / o.quantity, IF(MOD(o.id, 17) = 0, 'EXPIRED', 'UNUSED'), '2026-09-01 00:00:00',
+  IF(MOD(o.id, 17) = 0, '2026-09-10 23:59:59', '2026-12-31 23:59:59'), o.create_time
+FROM `voucher_order` o JOIN voucher_product p ON p.id=o.product_id JOIN `seed_numbers` s ON s.n BETWEEN 1 AND o.quantity
+WHERE o.id BETWEEN 500001 AND 510000 AND o.status IN ('PAID', 'COMPLETED');
+
+INSERT INTO `user_voucher_qr_code` (`id`, `voucher_id`, `user_id`, `token_key`, `token_version`, `expire_time`)
+SELECT 650000 + (v.id - 600000), v.id, v.user_id, MD5(v.voucher_code), 1, v.expire_time
+FROM `user_voucher` v WHERE v.id >= 600000;
+
+-- 约四分之一的有效券生成核销；随后将券状态同步为 USED。
+INSERT INTO `voucher_redemption`
+  (`id`, `voucher_id`, `order_id`, `product_id`, `shop_id`, `merchant_account_id`, `product_title`, `product_cover`, `shop_name`,
+   `operator_name`, `redemption_method`, `use_count`, `status`, `sale_amount`, `merchant_subsidy_amount`, `platform_discount_amount`,
+   `customer_paid_amount`, `service_fee_base_amount`, `service_fee_rate_bps`, `service_fee_amount`, `estimated_income_amount`, `idempotency_key`, `redeemed_time`)
+SELECT 1000000 + v.id, v.id, v.order_id, v.product_id, v.shop_id, 200000 + (v.shop_id - 300000),
+  CONCAT('批量团购商品', LPAD(v.product_id - 400000, 5, '0')), CONCAT('https://example.com/seed/product-', v.product_id, '.jpg'),
+  CONCAT('批量生活门店', LPAD(v.shop_id - 300000, 4, '0')), '批量核销员', 'MANUAL_CODE', 1, 'SUCCEEDED', v.sale_amount,
+  v.merchant_subsidy_amount, v.platform_discount_amount, v.customer_paid_amount,
+  GREATEST(v.sale_amount - v.merchant_subsidy_amount, 0), 500 + MOD(v.shop_id, 3) * 100,
+  FLOOR(GREATEST(v.sale_amount - v.merchant_subsidy_amount, 0) * (500 + MOD(v.shop_id, 3) * 100) / 10000),
+  v.customer_paid_amount + v.platform_discount_amount - FLOOR(GREATEST(v.sale_amount - v.merchant_subsidy_amount, 0) * (500 + MOD(v.shop_id, 3) * 100) / 10000),
+  CONCAT('seed-redemption-', v.id), DATE_ADD(v.create_time, INTERVAL 1 DAY)
+FROM `user_voucher` v WHERE v.id >= 600000 AND v.status = 'UNUSED' AND MOD(v.id, 13) = 0 LIMIT 3000;
+UPDATE `user_voucher` SET `status` = CASE WHEN `total_use_count` > 1 THEN 'PARTIALLY_USED' ELSE 'USED' END,
+  `remaining_use_count` = GREATEST(`total_use_count` - 1, 0), `use_time` = DATE_ADD(`create_time`, INTERVAL 1 DAY)
+WHERE id >= 600000 AND status = 'UNUSED' AND MOD(id, 13) = 0;
+
+-- 退款样本覆盖成功、失败、处理中和待审核；逐券明细与执行尝试使用同一确定性主键。
+INSERT INTO `voucher_refund`
+  (`id`, `voucher_id`, `order_id`, `user_id`, `shop_id`, `source`, `applicant_id`, `amount`, `status`, `reason`, `decision_status`,
+   `execution_status`, `payment_provider`, `idempotency_key`, `requested_time`, `approved_time`, `processed_time`, `retry_count`)
+SELECT 1100000 + v.id, v.id, v.order_id, v.user_id, v.shop_id, 'CONSUMER', v.user_id, v.customer_paid_amount,
+  CASE MOD(v.id, 4) WHEN 0 THEN 'SUCCEEDED' WHEN 1 THEN 'FAILED' WHEN 2 THEN 'PROCESSING' ELSE 'REQUESTED' END,
+  '开发数据退款场景', CASE MOD(v.id, 4) WHEN 3 THEN 'PENDING_REVIEW' ELSE 'AUTO_APPROVED' END,
+  CASE MOD(v.id, 4) WHEN 0 THEN 'SUCCESS' WHEN 1 THEN 'RETRY_WAITING' WHEN 2 THEN 'PROCESSING' ELSE 'WAITING_EXECUTION' END,
+  'MOCK', CONCAT('seed-refund-', v.id), DATE_SUB('2026-09-13 12:00:00', INTERVAL MOD(v.id, 30) DAY),
+  IF(MOD(v.id, 4) = 3, NULL, DATE_SUB('2026-09-12 12:00:00', INTERVAL MOD(v.id, 20) DAY)),
+  IF(MOD(v.id, 4) = 0, DATE_SUB('2026-09-11 12:00:00', INTERVAL MOD(v.id, 20) DAY), NULL), IF(MOD(v.id, 4) = 1, 1, 0)
+FROM `user_voucher` v WHERE v.id >= 600000 AND v.status IN ('UNUSED', 'EXPIRED') AND MOD(v.id, 19) = 0;
+INSERT INTO `voucher_refund_item`
+  (`id`, `refund_id`, `voucher_id`, `redeemed`, `sale_amount`, `customer_paid_amount`, `platform_subsidy_amount`, `merchant_subsidy_amount`,
+   `service_fee_amount`, `refundable_amount`, `refund_amount`, `status`, `reversed_income_amount`, `refunded_service_fee_amount`)
+SELECT 1200000 + v.id, 1100000 + v.id, v.id, 0, v.sale_amount, v.customer_paid_amount, v.platform_discount_amount, v.merchant_subsidy_amount,
+  0, v.customer_paid_amount, v.customer_paid_amount,
+  CASE MOD(v.id, 4) WHEN 0 THEN 'SUCCESS' WHEN 1 THEN 'FAILED' ELSE 'PENDING' END, 0, 0
+FROM `user_voucher` v WHERE v.id >= 600000 AND v.status IN ('UNUSED', 'EXPIRED') AND MOD(v.id, 19) = 0;
+INSERT INTO `voucher_refund_attempt`
+  (`id`, `refund_id`, `refund_item_id`, `idempotency_key`, `status`, `mock_scenario`, `request_amount`, `retry_count`, `failure_code`, `failure_message`)
+SELECT 1300000 + v.id, 1100000 + v.id, 1200000 + v.id, CONCAT('seed-refund-attempt-', v.id),
+  CASE MOD(v.id, 4) WHEN 0 THEN 'SUCCESS' WHEN 1 THEN 'RETRY_WAITING' WHEN 2 THEN 'PROCESSING' ELSE 'WAITING' END,
+  CASE MOD(v.id, 4) WHEN 0 THEN 'SUCCESS' WHEN 1 THEN 'FAIL_ONCE' WHEN 2 THEN 'DELAYED' ELSE 'SUCCESS' END,
+  v.customer_paid_amount, IF(MOD(v.id, 4) IN (1,2), 1, 0), IF(MOD(v.id, 4) = 1, 'MOCK_FAIL_ONCE', NULL),
+  IF(MOD(v.id, 4) = 1, '开发数据模拟一次失败', NULL)
+FROM `user_voucher` v WHERE v.id >= 600000 AND v.status IN ('UNUSED', 'EXPIRED') AND MOD(v.id, 19) = 0 AND MOD(v.id,4) <> 3;
+
+-- 核销账本与 T+1 结算样本，账本分录保持业务事件、类型和借贷方向唯一。
+-- 已申请退款的券必须冻结；已成功的券必须落为 REFUNDED，否则后台执行会反复状态冲突。
+UPDATE user_voucher v JOIN voucher_refund r ON r.voucher_id=v.id
+SET v.status=IF(r.execution_status='SUCCESS','REFUNDED','REFUNDING'),
+    v.refund_time=IF(r.execution_status='SUCCESS',r.processed_time,NULL)
+WHERE r.idempotency_key=CONCAT('seed-refund-',v.id) AND v.id BETWEEN 600001 AND 630000;
+-- PROCESSING 样例模拟租约过期恢复，不能留下永远无法领取的 NULL 租约。
+UPDATE voucher_refund_attempt SET lease_owner='seed-expired-worker',lease_until=DATE_SUB(NOW(),INTERVAL 1 MINUTE)
+WHERE idempotency_key=CONCAT('seed-refund-attempt-',CAST(id AS SIGNED)-1300000) AND status='PROCESSING';
+INSERT INTO `fund_ledger_entry`
+  (`id`, `shop_id`, `order_id`, `voucher_id`, `business_event_id`, `entry_type`, `account_side`, `amount`, `commission_rate_bps`, `service_fee_base_amount`, `occurred_time`)
+SELECT 1400000 + r.id, r.shop_id, r.order_id, r.voucher_id, CONCAT('seed-redemption-', r.voucher_id), 'REDEMPTION_RECOGNIZED', 'CREDIT', r.estimated_income_amount,
+  r.service_fee_rate_bps, r.service_fee_base_amount, r.redeemed_time FROM `voucher_redemption` r WHERE r.id >= 1000000;
+INSERT INTO `fund_ledger_entry`
+  (`id`, `shop_id`, `order_id`, `voucher_id`, `business_event_id`, `entry_type`, `account_side`, `amount`, `commission_rate_bps`, `service_fee_base_amount`, `occurred_time`)
+SELECT 2400000 + r.id, r.shop_id, r.order_id, r.voucher_id, CONCAT('seed-redemption-', r.voucher_id), 'COMMISSION_RECOGNIZED', 'DEBIT', -r.service_fee_amount,
+  r.service_fee_rate_bps, r.service_fee_base_amount, r.redeemed_time FROM `voucher_redemption` r WHERE r.id >= 1000000;
+
+INSERT INTO `settlement_batch` (`id`, `shop_id`, `settlement_date`, `status`, `total_amount`, `processed_time`)
+SELECT 1500000 + n, 300000 + n, DATE_SUB('2026-09-13', INTERVAL MOD(n, 7) DAY),
+  CASE MOD(n, 10) WHEN 0 THEN 'FAILED' WHEN 1 THEN 'PROCESSING' ELSE 'SUCCEEDED' END,
+  0, IF(MOD(n, 10) = 1, NULL, '2026-09-13 02:00:00') FROM `seed_numbers` WHERE n BETWEEN 1 AND 300;
+INSERT INTO `settlement_item` (`id`, `batch_id`, `ledger_entry_id`, `amount`)
+SELECT 1600000 + ROW_NUMBER() OVER (ORDER BY l.id), 1500001 + MOD(ROW_NUMBER() OVER (ORDER BY l.id) - 1, 300), l.id, l.amount
+FROM `fund_ledger_entry` l WHERE l.entry_type = 'REDEMPTION_RECOGNIZED' AND l.id >= 1400000 LIMIT 3000;
+UPDATE `settlement_batch` b SET `total_amount` = COALESCE((SELECT SUM(i.amount) FROM `settlement_item` i WHERE i.batch_id = b.id), 0)
+WHERE b.id BETWEEN 1500001 AND 1500300;
+INSERT INTO `settlement_attempt` (`id`, `batch_id`, `idempotency_key`, `status`, `request_amount`, `mock_scenario`, `provider_reference`, `failure_reason`, `retry_count`)
+SELECT 1700000 + n, 1500000 + n, CONCAT('seed-settlement-', n),
+  CASE MOD(n, 10) WHEN 0 THEN 'FAILED' WHEN 1 THEN 'PROCESSING' ELSE 'SUCCESS' END,
+  (SELECT total_amount FROM settlement_batch WHERE id = 1500000 + n), CASE MOD(n, 10) WHEN 0 THEN 'ALWAYS_FAIL' WHEN 1 THEN 'DELAYED' ELSE 'SUCCESS' END,
+  IF(MOD(n, 10) IN (0, 1), NULL, CONCAT('MOCK-SETTLEMENT-', n)), IF(MOD(n, 10) = 0, '开发数据模拟结算失败', NULL), IF(MOD(n, 10) = 0, 1, 0)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 300;
+
+-- 1,000 条客服工单，每条两条消息，覆盖消费者/商户隔离、队列和游标分页。
+INSERT INTO `customer_service_ticket`
+  (`id`, `ticket_no`, `type`, `status`, `priority`, `applicant_type`, `applicant_id`, `related_user_id`, `related_shop_id`, `user_id`, `shop_id`,
+   `order_id`, `voucher_id`, `subject`, `description`, `assignee_admin_id`, `created_by_type`, `created_by_id`, `first_response_time`, `last_response_time`,
+   `waiting_customer_since`, `waiting_merchant_since`, `resolved_time`, `closed_time`, `reopen_deadline`, `last_message_time`, `sla_deadline`, `sla_breached`, `has_internal_note`)
+SELECT 1600000 + n, CONCAT('CS20260913', LPAD(n, 5, '0')), CASE MOD(n, 4) WHEN 0 THEN 'REFUND' WHEN 1 THEN 'REDEMPTION' WHEN 2 THEN 'ORDER' ELSE 'GENERAL' END,
+  CASE MOD(n, 7) WHEN 0 THEN 'OPEN' WHEN 1 THEN 'CLAIMED' WHEN 2 THEN 'WAITING_CUSTOMER' WHEN 3 THEN 'WAITING_MERCHANT' WHEN 4 THEN 'WAITING_INTERNAL' WHEN 5 THEN 'RESOLVED' ELSE 'CLOSED' END,
+  CASE MOD(n, 10) WHEN 0 THEN 'URGENT' WHEN 1 THEN 'HIGH' ELSE 'NORMAL' END,
+  IF(MOD(n, 2) = 0, 'CONSUMER', 'MERCHANT'),
+  IF(MOD(n, 2) = 0, 100001 + MOD(n - 1, 2000), 200001 + MOD(n - 1, 300)),
+  IF(MOD(n, 2) = 0, 100001 + MOD(n - 1, 2000), NULL), IF(MOD(n, 2) = 0, 300001 + MOD(n - 1, 300), 300001 + MOD(n - 1, 300)),
+  IF(MOD(n, 2) = 0, 100001 + MOD(n - 1, 2000), NULL), 300001 + MOD(n - 1, 300), 500001 + (MOD(n - 1, 1000) * 10),
+  600001 + (MOD(n - 1, 1000) * 30), CONCAT('开发客服工单 ', n), '用于权限、状态机、游标和 SLA 验证的开发工单。', IF(MOD(n, 5) = 0, NULL, 5),
+  IF(MOD(n, 2) = 0, 'CONSUMER', 'MERCHANT'), IF(MOD(n, 2) = 0, 100001 + MOD(n - 1, 2000), 200001 + MOD(n - 1, 300)),
+  DATE_ADD('2026-09-13 09:00:00', INTERVAL MOD(n, 60) MINUTE), DATE_ADD('2026-09-13 10:00:00', INTERVAL MOD(n, 60) MINUTE),
+  IF(MOD(n, 7) = 2, '2026-09-13 10:00:00', NULL), IF(MOD(n, 7) = 3, '2026-09-13 10:00:00', NULL),
+  IF(MOD(n, 7) = 5, '2026-09-13 11:00:00', NULL), IF(MOD(n, 7) = 6, '2026-09-13 12:00:00', NULL),
+  IF(MOD(n, 7) IN (5, 6), '2026-09-20 12:00:00', NULL), '2026-09-13 10:00:00',
+  DATE_ADD('2026-09-13 12:00:00', INTERVAL IF(MOD(n, 5) = 0, -1, 24) HOUR), IF(MOD(n, 5) = 0, 1, 0), IF(MOD(n, 3) = 0, 1, 0)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 1000;
+INSERT INTO `customer_service_message` (`id`, `ticket_id`, `sender_type`, `sender_id`, `visibility`, `message_type`, `content`)
+SELECT 1800000 + (n - 1) * 2, 1600000 + n, IF(MOD(n, 2) = 0, 'CONSUMER', 'MERCHANT'),
+  IF(MOD(n, 2) = 0, 100001 + MOD(n - 1, 2000), 200001 + MOD(n - 1, 300)), 'PUBLIC', 'TEXT', CONCAT('用户/商户咨询内容 ', n)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 1000;
+INSERT INTO `customer_service_message` (`id`, `ticket_id`, `sender_type`, `sender_id`, `visibility`, `message_type`, `content`)
+SELECT 1800001 + (n - 1) * 2, 1600000 + n, 'ADMIN', 5, IF(MOD(n, 3) = 0, 'INTERNAL', 'PUBLIC'), 'TEXT', CONCAT('客服处理记录 ', n)
+FROM `seed_numbers` WHERE n BETWEEN 1 AND 1000;
+INSERT INTO `customer_service_read_cursor` (`id`, `ticket_id`, `reader_type`, `reader_id`, `last_read_message_id`)
+SELECT 1900000 + n, 1600000 + n, 'ADMIN', 5, 1800001 + (n - 1) * 2 FROM `seed_numbers` WHERE n BETWEEN 1 AND 1000;
+INSERT INTO `customer_service_ticket_tag` (`id`, `ticket_id`, `tag_id`, `created_by_admin_id`)
+SELECT 1950000 + n, 1600000 + n, 154001 + MOD(n - 1, 4), 5 FROM `seed_numbers` WHERE n BETWEEN 1 AND 1000;
+
+DROP TEMPORARY TABLE `seed_numbers`;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- 店铺发现样例：每个城市覆盖两大类；子类分布与城市奇偶、店内券序号解耦。
+UPDATE shop SET type_id=CASE type_id WHEN 1 THEN 106 WHEN 2 THEN 208 ELSE type_id END WHERE type_id IN (1,2);
+UPDATE shop SET type_id=104 WHERE id IN (2,4,5);
+UPDATE shop SET type_id=102 WHERE id=6;
+UPDATE shop SET type_id=ELT(1+MOD(FLOOR((id-300001)/2),14),101,102,103,104,105,106,201,202,203,204,205,206,3,208)
+WHERE id BETWEEN 300001 AND 300300;
+UPDATE merchant_application a JOIN shop s ON s.source_application_id=a.id
+SET a.shop_type_id=s.type_id WHERE s.id BETWEEN 300001 AND 300300;
+UPDATE shop s JOIN shop_type t ON t.id=s.type_id
+SET s.name=CONCAT(CASE s.city_code WHEN '330100' THEN '杭州' ELSE '西宁' END,' · ',t.name,'体验店 ',s.id-300000),
+    s.images='/assets/images/photo-placeholder.png'
+WHERE s.id BETWEEN 300001 AND 300300;
+UPDATE voucher_product p JOIN shop s ON s.id=p.shop_id JOIN shop_type t ON t.id=s.type_id
+SET p.title=CONCAT(t.name,' · ',CASE p.product_type WHEN 'CASH' THEN '到店代金券' WHEN 'MULTI_USE' THEN '十次体验卡' WHEN 'DISCOUNT' THEN '专享折扣券' ELSE '精选体验套餐' END,' ',FLOOR((p.id-400001)/300)+1),
+    p.sub_title=CONCAT('适用于',s.name),p.usage_rules_json=JSON_ARRAY(),
+    p.sale_begin_time=CASE WHEN p.sale_status='SCHEDULED' THEN DATE_ADD(NOW(),INTERVAL 7 DAY) ELSE DATE_SUB(NOW(),INTERVAL 30 DAY) END,
+    p.sale_end_time=DATE_ADD(NOW(),INTERVAL 365 DAY),
+    p.valid_begin_time=DATE_SUB(NOW(),INTERVAL 30 DAY),p.valid_end_time=DATE_ADD(NOW(),INTERVAL 400 DAY)
+WHERE p.id BETWEEN 400001 AND 403000;
+-- 同一分类内同时包含零券、一券、两券、多券及失效券，不改变历史订单与核销事实。
+UPDATE voucher_product SET sale_status='OFF_SALE' WHERE shop_id IN (300001,300002);
+UPDATE voucher_product SET sale_status=IF(id IN (400003,400004),'ON_SALE','OFF_SALE'),review_status='APPROVED' WHERE shop_id IN (300003,300004);
+UPDATE voucher_product SET sale_status=IF(id IN (400005,400006,400305,400306),'ON_SALE','OFF_SALE'),review_status='APPROVED' WHERE shop_id IN (300005,300006);
+UPDATE voucher_product SET sale_status='ON_SALE',review_status='APPROVED',sale_begin_time=DATE_SUB(NOW(),INTERVAL 1 DAY)
+WHERE id IN (400003,400004,400005,400006,400305,400306);
+UPDATE voucher_product SET sale_status='ENDED',sale_end_time=DATE_SUB(NOW(),INTERVAL 1 DAY) WHERE id=400007;
+UPDATE voucher_product SET sale_status='SOLD_OUT',available_stock=0,total_stock=sold_count WHERE id=400008;
+UPDATE shop SET score=0,comments=0 WHERE id IN (300001,300002) AND NOT EXISTS (SELECT 1 FROM shop_review r WHERE r.shop_id=shop.id AND r.status=0);
+-- 同步展示聚合；支付时间必须晚于下单时间，保留原订单与履约关联。
+UPDATE shop s LEFT JOIN (SELECT shop_id,SUM(sold_count) AS sold FROM voucher_product GROUP BY shop_id) p ON p.shop_id=s.id
+SET s.sold=COALESCE(p.sold,0);
+UPDATE voucher_order SET pay_time=DATE_ADD(create_time,INTERVAL 5 MINUTE)
+WHERE id BETWEEN 500001 AND 510000 AND pay_time IS NOT NULL;
